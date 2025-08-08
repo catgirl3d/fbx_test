@@ -3,15 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FBX Viewer with WSAD Controls</title>
+    <title>FBX Viewer with Modern UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; }
-        canvas { display: block; }
-        #error { color: red; position: absolute; top: 10px; left: 10px; }
+        /* Игровой стиль для кнопки */
+        #file-input-label {
+            transition: all 0.3s ease;
+        }
+        #file-input-label:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.8);
+        }
+        /* Скрываем стандартный input */
+        #file-input {
+            display: none;
+        }
+        /* Стили для выпадающего списка */
+        #bg-color {
+            transition: all 0.3s ease;
+        }
+        #bg-color:hover {
+            box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+        }
     </style>
 </head>
-<body>
-    <div id="error"></div>
+<body class="bg-gray-200">
+    <div id="file-name" class="absolute top-4 left-1/2 transform -translate-x-1/2 text-white text-xl font-bold bg-gray-800 bg-opacity-75 px-4 py-2 rounded-lg"></div>
+    <div id="error" class="absolute top-16 left-4 text-red-500 text-lg"></div>
+    <div id="info" class="absolute top-4 right-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg">
+        WSAD: Перемещение | Q/E: Вверх/Вниз | Мышь: Вращение/Масштаб
+    </div>
+    <label for="file-input" id="file-input-label" class="absolute top-16 left-4 bg-green-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-green-600">
+        Выбрать FBX
+    </label>
+    <input type="file" id="file-input" accept=".fbx">
+    <div class="absolute top-28 left-4">
+        <select id="bg-color" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+            <option value="#dddddd">Серый</option>
+            <option value="#1e3a8a">Тёмно-синий</option>
+            <option value="#000000">Чёрный</option>
+            <option value="#ffffff">Белый</option>
+        </select>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -37,35 +70,71 @@
 
         // Управление камерой (OrbitControls)
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0, 0);
         controls.update();
 
-        // Загрузка FBX
-        const loader = new THREE.FBXLoader();
-        loader.load(
-            'model.fbx',
-            (fbx) => {
-                const box = new THREE.Box3().setFromObject(fbx);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
-                const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = 2 / maxDim;
-                fbx.scale.set(scale, scale, scale);
-                fbx.position.sub(center.multiplyScalar(scale));
-                scene.add(fbx);
-                console.log('Модель успешно загружена');
-            },
-            (progress) => {
-                console.log(`Загрузка: ${(progress.loaded / progress.total * 100).toFixed(2)}%`);
-            },
-            (error) => {
-                console.error('Ошибка загрузки:', error);
-                document.getElementById('error').innerText = `Ошибка: ${error.message}\nПроверьте консоль для деталей.`;
-            }
-        );
+        // Храним текущую модель
+        let currentModel = null;
 
-        // Управление клавишами WSAD
+        // Функция загрузки FBX
+        function loadFBX(file) {
+            if (currentModel) {
+                scene.remove(currentModel);
+                currentModel = null;
+            }
+
+            const loader = new THREE.FBXLoader();
+            loader.load(
+                file,
+                (fbx) => {
+                    const box = new THREE.Box3().setFromObject(fbx);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const scale = 2 / maxDim;
+                    fbx.scale.set(scale, scale, scale);
+                    fbx.position.sub(center.multiplyScalar(scale));
+                    scene.add(fbx);
+                    currentModel = fbx;
+                    controls.target.copy(center);
+                    controls.update();
+                    console.log('Модель успешно загружена');
+                    document.getElementById('error').innerText = '';
+                },
+                (progress) => {
+                    console.log(`Загрузка: ${(progress.loaded / progress.total * 100).toFixed(2)}%`);
+                },
+                (error) => {
+                    console.error('Ошибка загрузки:', error);
+                    document.getElementById('error').innerText = `Ошибка: ${error.message}\nПроверьте консоль для деталей.`;
+                }
+            );
+        }
+
+        // Обработка выбора файла
+        const fileInput = document.getElementById('file-input');
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file && file.name.endsWith('.fbx')) {
+                document.getElementById('file-name').innerText = `Файл: ${file.name}`;
+                const url = URL.createObjectURL(file);
+                loadFBX(url);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } else {
+                document.getElementById('error').innerText = 'Пожалуйста, выберите файл .fbx';
+                document.getElementById('file-name').innerText = '';
+            }
+        });
+
+        // Выбор цвета фона
+        const bgColorSelect = document.getElementById('bg-color');
+        bgColorSelect.addEventListener('change', (event) => {
+            scene.background = new THREE.Color(event.target.value);
+        });
+
+        // Управление клавишами WSAD + Q/E
         const keys = { w: false, s: false, a: false, d: false, q: false, e: false };
-        const moveSpeed = 0.1; // Скорость перемещения камеры
+        const moveSpeed = 0.1;
 
         document.addEventListener('keydown', (event) => {
             switch (event.code) {
@@ -73,8 +142,8 @@
                 case 'KeyS': keys.s = true; break;
                 case 'KeyA': keys.a = true; break;
                 case 'KeyD': keys.d = true; break;
-                case 'KeyQ': keys.q = true; break; // Вверх
-                case 'KeyE': keys.e = true; break; // Вниз
+                case 'KeyQ': keys.q = true; break;
+                case 'KeyE': keys.e = true; break;
             }
         });
 
@@ -96,20 +165,38 @@
             // Получаем направление камеры
             const direction = new THREE.Vector3();
             camera.getWorldDirection(direction);
-            direction.y = 0; // Игнорируем вертикальную компоненту для WSAD
+            direction.y = 0;
             direction.normalize();
 
-            // Боковое направление (перпендикулярное направлению камеры)
+            // Боковое направление
             const right = new THREE.Vector3();
             right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
 
-            // Перемещение камеры
-            if (keys.w) camera.position.addScaledVector(direction, moveSpeed); // Вперёд
-            if (keys.s) camera.position.addScaledVector(direction, -moveSpeed); // Назад
-            if (keys.a) camera.position.addScaledVector(right, -moveSpeed); // Влево
-            if (keys.d) camera.position.addScaledVector(right, moveSpeed); // Вправо
-            if (keys.q) camera.position.y += moveSpeed; // Вверх
-            if (keys.e) camera.position.y -= moveSpeed; // Вниз
+            // Перемещение камеры и цели OrbitControls
+            if (keys.w) {
+                camera.position.addScaledVector(direction, moveSpeed);
+                controls.target.addScaledVector(direction, moveSpeed);
+            }
+            if (keys.s) {
+                camera.position.addScaledVector(direction, -moveSpeed);
+                controls.target.addScaledVector(direction, -moveSpeed);
+            }
+            if (keys.a) {
+                camera.position.addScaledVector(right, -moveSpeed);
+                controls.target.addScaledVector(right, -moveSpeed);
+            }
+            if (keys.d) {
+                camera.position.addScaledVector(right, moveSpeed);
+                controls.target.addScaledVector(right, moveSpeed);
+            }
+            if (keys.q) {
+                camera.position.y += moveSpeed;
+                controls.target.y += moveSpeed;
+            }
+            if (keys.e) {
+                camera.position.y -= moveSpeed;
+                controls.target.y -= moveSpeed;
+            }
 
             controls.update();
             renderer.render(scene, camera);
