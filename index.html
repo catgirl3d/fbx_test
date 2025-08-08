@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FBX Viewer with Modern UI</title>
+    <title>FBX/GLTF Viewer with Modern UI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Игровой стиль для кнопки */
-        #file-input-label {
+        #file-input-label, #reset-camera {
             transition: all 0.3s ease;
         }
-        #file-input-label:hover {
+        #file-input-label:hover, #reset-camera:hover {
             transform: scale(1.05);
             box-shadow: 0 0 15px rgba(34, 197, 94, 0.8);
         }
-        /* Скрываем стандартный input */
         #file-input {
             display: none;
         }
-        /* Стили для выпадающего списка */
         #bg-color {
             transition: all 0.3s ease;
         }
         #bg-color:hover {
             box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+        }
+        #progress {
+            transition: opacity 0.3s ease;
         }
     </style>
 </head>
@@ -34,9 +34,9 @@
         WSAD: Перемещение | Q/E: Вверх/Вниз | Мышь: Вращение/Масштаб
     </div>
     <label for="file-input" id="file-input-label" class="absolute top-16 left-4 bg-green-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-green-600">
-        Выбрать FBX
+        Выбрать файл
     </label>
-    <input type="file" id="file-input" accept=".fbx">
+    <input type="file" id="file-input" accept=".fbx,.gltf,.glb">
     <div class="absolute top-28 left-4">
         <select id="bg-color" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
             <option value="#dddddd">Серый</option>
@@ -45,10 +45,16 @@
             <option value="#ffffff">Белый</option>
         </select>
     </div>
+    <button id="reset-camera" class="absolute top-40 left-4 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-blue-600">
+        Сбросить камеру
+    </button>
+    <div id="progress" class="absolute top-52 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
+    <div id="debug" class="absolute top-64 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
         // Инициализация сцены
         const scene = new THREE.Scene();
@@ -68,7 +74,7 @@
         directionalLight.position.set(0, 1, 0);
         scene.add(directionalLight);
 
-        // Управление камерой (OrbitControls)
+        // Управление камерой
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 0, 0);
         controls.update();
@@ -77,36 +83,137 @@
         let currentModel = null;
 
         // Функция загрузки FBX
-        function loadFBX(file) {
+        function loadFBX(file, fileName) {
             if (currentModel) {
                 scene.remove(currentModel);
                 currentModel = null;
             }
-
+            const progressDiv = document.getElementById('progress');
+            const debugDiv = document.getElementById('debug');
+            progressDiv.classList.remove('hidden');
+            debugDiv.classList.add('hidden');
             const loader = new THREE.FBXLoader();
             loader.load(
                 file,
                 (fbx) => {
-                    const box = new THREE.Box3().setFromObject(fbx);
-                    const center = box.getCenter(new THREE.Vector3());
-                    const size = box.getSize(new THREE.Vector3());
-                    const maxDim = Math.max(size.x, size.y, size.z);
-                    const scale = 2 / maxDim;
-                    fbx.scale.set(scale, scale, scale);
-                    fbx.position.sub(center.multiplyScalar(scale));
-                    scene.add(fbx);
-                    currentModel = fbx;
-                    controls.target.copy(center);
-                    controls.update();
-                    console.log('Модель успешно загружена');
-                    document.getElementById('error').innerText = '';
+                    let meshCount = 0;
+                    let materialCount = 0;
+                    fbx.traverse((child) => {
+                        if (child.isMesh) {
+                            meshCount++;
+                            if (child.material) {
+                                materialCount++;
+                                if (!child.material.map) {
+                                    child.material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+                                } else {
+                                    child.material.map.encoding = THREE.sRGBEncoding;
+                                }
+                            }
+                        }
+                    });
+                    console.log(`Модель ${fileName}: ${meshCount} мешей, ${materialCount} материалов`);
+                    debugDiv.innerText = `Модель: ${meshCount} мешей, ${materialCount} материалов`;
+                    debugDiv.classList.remove('hidden');
+                    if (meshCount === 0) {
+                        document.getElementById('error').innerText = `Модель ${fileName} загружена, но не содержит видимой геометрии. Проверьте содержимое в Blender.`;
+                        const placeholder = new THREE.Mesh(
+                            new THREE.BoxGeometry(1, 1, 1),
+                            new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                        );
+                        scene.add(placeholder);
+                        currentModel = placeholder;
+                    } else {
+                        const box = new THREE.Box3().setFromObject(fbx);
+                        const center = box.getCenter(new THREE.Vector3());
+                        const size = box.getSize(new THREE.Vector3());
+                        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                        const scale = 2 / maxDim;
+                        fbx.scale.set(scale, scale, scale);
+                        fbx.position.sub(center.multiplyScalar(scale));
+                        scene.add(fbx);
+                        currentModel = fbx;
+                        controls.target.copy(center);
+                        controls.update();
+                        document.getElementById('error').innerText = '';
+                    }
+                    progressDiv.classList.add('hidden');
                 },
                 (progress) => {
-                    console.log(`Загрузка: ${(progress.loaded / progress.total * 100).toFixed(2)}%`);
+                    const percent = (progress.loaded / progress.total * 100).toFixed(2);
+                    progressDiv.innerText = `Загрузка: ${percent}%`;
                 },
                 (error) => {
-                    console.error('Ошибка загрузки:', error);
-                    document.getElementById('error').innerText = `Ошибка: ${error.message}\nПроверьте консоль для деталей.`;
+                    console.error(`Ошибка загрузки ${fileName}:`, error);
+                    document.getElementById('error').innerText = `Ошибка загрузки ${fileName}: ${error.message}\nПроверьте формат файла (бинарный FBX) или консоль.`;
+                    progressDiv.classList.add('hidden');
+                    debugDiv.classList.add('hidden');
+                }
+            );
+        }
+
+        // Функция загрузки GLTF/GLB
+        function loadGLTF(file, fileName) {
+            if (currentModel) {
+                scene.remove(currentModel);
+                currentModel = null;
+            }
+            const progressDiv = document.getElementById('progress');
+            const debugDiv = document.getElementById('debug');
+            progressDiv.classList.remove('hidden');
+            debugDiv.classList.add('hidden');
+            const loader = new THREE.GLTFLoader();
+            loader.load(
+                file,
+                (gltf) => {
+                    let meshCount = 0;
+                    let materialCount = 0;
+                    gltf.scene.traverse((child) => {
+                        if (child.isMesh) {
+                            meshCount++;
+                            if (child.material) {
+                                materialCount++;
+                                if (!child.material.map) {
+                                    child.material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+                                }
+                            }
+                        }
+                    });
+                    console.log(`Модель ${fileName}: ${meshCount} мешей, ${materialCount} материалов`);
+                    debugDiv.innerText = `Модель: ${meshCount} мешей, ${materialCount} материалов`;
+                    debugDiv.classList.remove('hidden');
+                    if (meshCount === 0) {
+                        document.getElementById('error').innerText = `Модель ${fileName} загружена, но не содержит видимой геометрии.`;
+                        const placeholder = new THREE.Mesh(
+                            new THREE.BoxGeometry(1, 1, 1),
+                            new THREE.MeshStandardMaterial({ color: 0xff0000 })
+                        );
+                        scene.add(placeholder);
+                        currentModel = placeholder;
+                    } else {
+                        const box = new THREE.Box3().setFromObject(gltf.scene);
+                        const center = box.getCenter(new THREE.Vector3());
+                        const size = box.getSize(new THREE.Vector3());
+                        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                        const scale = 2 / maxDim;
+                        gltf.scene.scale.set(scale, scale, scale);
+                        gltf.scene.position.sub(center.multiplyScalar(scale));
+                        scene.add(gltf.scene);
+                        currentModel = gltf.scene;
+                        controls.target.copy(center);
+                        controls.update();
+                        document.getElementById('error').innerText = '';
+                    }
+                    progressDiv.classList.add('hidden');
+                },
+                (progress) => {
+                    const percent = (progress.loaded / progress.total * 100).toFixed(2);
+                    progressDiv.innerText = `Загрузка: ${percent}%`;
+                },
+                (error) => {
+                    console.error(`Ошибка загрузки ${fileName}:`, error);
+                    document.getElementById('error').innerText = `Ошибка загрузки ${fileName}: ${error.message}`;
+                    progressDiv.classList.add('hidden');
+                    debugDiv.classList.add('hidden');
                 }
             );
         }
@@ -115,15 +222,30 @@
         const fileInput = document.getElementById('file-input');
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
-            if (file && file.name.endsWith('.fbx')) {
+            if (file) {
                 document.getElementById('file-name').innerText = `Файл: ${file.name}`;
+                const extension = file.name.split('.').pop().toLowerCase();
+                console.log(`Выбранный файл: ${file.name}, расширение: ${extension}`);
                 const url = URL.createObjectURL(file);
-                loadFBX(url);
+                if (extension === 'fbx') {
+                    loadFBX(url, file.name);
+                } else if (extension === 'gltf' || extension === 'glb') {
+                    loadGLTF(url, file.name);
+                } else {
+                    document.getElementById('error').innerText = 'Поддерживаются только .fbx, .gltf, .glb (регистр не важен)';
+                    document.getElementById('file-name').innerText = '';
+                    document.getElementById('progress').classList.add('hidden');
+                    document.getElementById('debug').classList.add('hidden');
+                }
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
-            } else {
-                document.getElementById('error').innerText = 'Пожалуйста, выберите файл .fbx';
-                document.getElementById('file-name').innerText = '';
             }
+        });
+
+        // Сброс камеры
+        document.getElementById('reset-camera').addEventListener('click', () => {
+            camera.position.set(0, 0, 5);
+            controls.target.set(0, 0, 0);
+            controls.update();
         });
 
         // Выбор цвета фона
@@ -161,18 +283,12 @@
         // Анимация
         function animate() {
             requestAnimationFrame(animate);
-
-            // Получаем направление камеры
             const direction = new THREE.Vector3();
             camera.getWorldDirection(direction);
             direction.y = 0;
             direction.normalize();
-
-            // Боковое направление
             const right = new THREE.Vector3();
             right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
-
-            // Перемещение камеры и цели OrbitControls
             if (keys.w) {
                 camera.position.addScaledVector(direction, moveSpeed);
                 controls.target.addScaledVector(direction, moveSpeed);
@@ -197,7 +313,6 @@
                 camera.position.y -= moveSpeed;
                 controls.target.y -= moveSpeed;
             }
-
             controls.update();
             renderer.render(scene, camera);
         }
