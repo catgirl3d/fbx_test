@@ -6,10 +6,10 @@
     <title>FBX/GLTF Viewer with Modern UI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        #file-input-label, #reset-camera {
+        #file-input-label, #reset-camera, .anim-btn {
             transition: all 0.3s ease;
         }
-        #file-input-label:hover, #reset-camera:hover {
+        #file-input-label:hover, #reset-camera:hover, .anim-btn:hover {
             transform: scale(1.05);
             box-shadow: 0 0 15px rgba(34, 197, 94, 0.8);
         }
@@ -48,13 +48,43 @@
     <button id="reset-camera" class="absolute top-40 left-4 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-blue-600">
         Сбросить камеру
     </button>
+    
+    <!-- Элементы управления анимацией -->
+    <div id="animation-controls" class="absolute top-52 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden">
+        <div class="mb-2">
+            <select id="animation-select" class="bg-gray-700 text-white py-1 px-2 rounded text-sm">
+                <option value="">Нет анимаций</option>
+            </select>
+        </div>
+        <div class="flex items-center space-x-2 mb-2">
+            <button id="play-pause-btn" class="anim-btn bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs">
+                ▶️ Играть
+            </button>
+            <button id="stop-btn" class="anim-btn bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs">
+                ⏹️ Стоп
+            </button>
+            <input type="range" id="animation-slider" class="flex-1" min="0" max="100" value="0" step="0.1">
+            <span id="duration-label" class="text-xs">0s</span>
+        </div>
+        <div class="flex items-center space-x-2 text-xs">
+            <label>Скорость:</label>
+            <input type="number" id="speed-input" class="w-12 bg-gray-700 text-white py-1 px-1 rounded text-xs" min="0.1" max="5" step="0.1" value="1">
+            <label class="ml-2">
+                <input type="checkbox" id="loop-checkbox" class="mr-1" checked>
+                Зацикливать
+            </label>
+        </div>
+    </div>
+    
     <div id="progress" class="absolute top-52 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
     <div id="debug" class="absolute top-64 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    
     <script>
         // Инициализация сцены
         const scene = new THREE.Scene();
@@ -65,22 +95,187 @@
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        // Освещение
-        const ambientLight = new THREE.AmbientLight(0x404040);
+        // Улучшенное освещение
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-        directionalLight.position.set(0, 1, 0);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        directionalLight.position.set(10, 10, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
         scene.add(directionalLight);
 
         // Управление камерой
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 0, 0);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
         controls.update();
 
-        // Храним текущую модель
+        // Храним текущую модель и анимацию
         let currentModel = null;
+        let mixer = null;
+        let animations = [];
+        let currentAction = null;
+        let clock = new THREE.Clock();
+        let isPlaying = false;
+        let animationDuration = 0;
+        let isSliderDragging = false;
+
+        // Элементы управления анимацией
+        const animationControls = document.getElementById('animation-controls');
+        const animationSelect = document.getElementById('animation-select');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const animationSlider = document.getElementById('animation-slider');
+        const durationLabel = document.getElementById('duration-label');
+        const speedInput = document.getElementById('speed-input');
+        const loopCheckbox = document.getElementById('loop-checkbox');
+
+        // Функция обновления списка анимаций
+        function updateAnimationList() {
+            animationSelect.innerHTML = '<option value="">Нет анимаций</option>';
+            
+            if (animations.length > 0) {
+                animations.forEach((clip, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = `${clip.name || `Анимация ${index + 1}`} (${clip.duration.toFixed(1)}s)`;
+                    animationSelect.appendChild(option);
+                });
+                animationControls.classList.remove('hidden');
+            } else {
+                animationControls.classList.add('hidden');
+            }
+        }
+
+        // Функция воспроизведения анимации
+        function playAnimation(index) {
+            if (!mixer || !animations[index]) {
+                console.warn('Нет mixer или анимации');
+                return;
+            }
+
+            // Остановка предыдущей анимации
+            if (currentAction) {
+                currentAction.stop();
+                currentAction = null;
+            }
+            
+            const clip = animations[index];
+            currentAction = mixer.clipAction(clip);
+            animationDuration = clip.duration;
+            
+            // Настройка циклов
+            if (loopCheckbox.checked) {
+                currentAction.setLoop(THREE.LoopRepeat, Infinity);
+            } else {
+                currentAction.setLoop(THREE.LoopOnce);
+                currentAction.clampWhenFinished = true;
+            }
+            
+            // Установка скорости и запуск
+            currentAction.timeScale = parseFloat(speedInput.value) || 1;
+            currentAction.reset();
+            currentAction.play();
+            
+            isPlaying = true;
+            playPauseBtn.textContent = '⏸️ Пауза';
+            
+            // Настройка слайдера
+            animationSlider.max = animationDuration;
+            animationSlider.value = 0;
+            durationLabel.textContent = `${animationDuration.toFixed(1)}s`;
+            
+            console.log(`Запуск анимации: ${clip.name}, длительность: ${animationDuration}s`);
+        }
+
+        function stopAnimation() {
+            if (currentAction) {
+                currentAction.stop();
+                currentAction.reset();
+                currentAction = null;
+            }
+            isPlaying = false;
+            playPauseBtn.textContent = '▶️ Играть';
+            animationSlider.value = 0;
+        }
+
+        // Обработчики событий анимации
+        animationSelect.addEventListener('change', (event) => {
+            if (event.target.value !== '') {
+                playAnimation(parseInt(event.target.value));
+            } else {
+                stopAnimation();
+            }
+        });
+
+        playPauseBtn.addEventListener('click', () => {
+            if (!currentAction) {
+                // Если нет текущей анимации, попробовать запустить первую доступную
+                if (animations.length > 0) {
+                    animationSelect.value = 0;
+                    playAnimation(0);
+                }
+                return;
+            }
+            
+            if (isPlaying) {
+                currentAction.paused = true;
+                isPlaying = false;
+                playPauseBtn.textContent = '▶️ Играть';
+            } else {
+                currentAction.paused = false;
+                isPlaying = true;
+                playPauseBtn.textContent = '⏸️ Пауза';
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            stopAnimation();
+        });
+
+        // Обработка слайдера времени
+        animationSlider.addEventListener('mousedown', () => {
+            isSliderDragging = true;
+        });
+
+        animationSlider.addEventListener('mouseup', () => {
+            isSliderDragging = false;
+        });
+
+        animationSlider.addEventListener('input', (event) => {
+            if (currentAction && animationDuration > 0) {
+                const time = parseFloat(event.target.value);
+                currentAction.time = time;
+                if (mixer) {
+                    mixer.setTime(time);
+                }
+            }
+        });
+
+        speedInput.addEventListener('input', (event) => {
+            if (currentAction) {
+                const speed = parseFloat(event.target.value) || 1;
+                currentAction.timeScale = speed;
+            }
+        });
+
+        loopCheckbox.addEventListener('change', (event) => {
+            if (currentAction) {
+                if (event.target.checked) {
+                    currentAction.setLoop(THREE.LoopRepeat, Infinity);
+                } else {
+                    currentAction.setLoop(THREE.LoopOnce);
+                    currentAction.clampWhenFinished = true;
+                }
+            }
+        });
 
         // Функция загрузки FBX
         function loadFBX(file, fileName) {
@@ -88,34 +283,68 @@
                 scene.remove(currentModel);
                 currentModel = null;
             }
+            
+            // Очистка анимации
+            if (mixer) {
+                mixer.stopAllAction();
+                mixer = null;
+            }
+            animations = [];
+            stopAnimation();
+            
             const progressDiv = document.getElementById('progress');
             const debugDiv = document.getElementById('debug');
             progressDiv.classList.remove('hidden');
             debugDiv.classList.add('hidden');
+            animationControls.classList.add('hidden');
+            
             const loader = new THREE.FBXLoader();
             loader.load(
                 file,
                 (fbx) => {
                     let meshCount = 0;
                     let materialCount = 0;
+                    
                     fbx.traverse((child) => {
                         if (child.isMesh) {
                             meshCount++;
                             if (child.material) {
                                 materialCount++;
-                                if (!child.material.map) {
-                                    child.material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+                                // Улучшение материалов
+                                if (Array.isArray(child.material)) {
+                                    child.material.forEach(mat => {
+                                        if (!mat.map) {
+                                            mat.color = new THREE.Color(0xaaaaaa);
+                                        }
+                                    });
                                 } else {
-                                    child.material.map.encoding = THREE.sRGBEncoding;
+                                    if (!child.material.map) {
+                                        child.material.color = new THREE.Color(0xaaaaaa);
+                                    }
                                 }
                             }
+                            child.castShadow = true;
+                            child.receiveShadow = true;
                         }
                     });
-                    console.log(`Модель ${fileName}: ${meshCount} мешей, ${materialCount} материалов`);
-                    debugDiv.innerText = `Модель: ${meshCount} мешей, ${materialCount} материалов`;
+                    
+                    // Инициализация анимации
+                    if (fbx.animations && fbx.animations.length > 0) {
+                        console.log(`Найдено анимаций: ${fbx.animations.length}`);
+                        fbx.animations.forEach((clip, i) => {
+                            console.log(`Анимация ${i}: ${clip.name}, длительность: ${clip.duration}s`);
+                        });
+                        
+                        mixer = new THREE.AnimationMixer(fbx);
+                        animations = fbx.animations;
+                    }
+                    
+                    console.log(`Модель ${fileName}: ${meshCount} мешей, ${materialCount} материалов, ${animations.length} анимаций`);
+                    debugDiv.innerText = `Модель: ${meshCount} мешей, ${materialCount} материалов, ${animations.length} анимаций`;
                     debugDiv.classList.remove('hidden');
+                    
                     if (meshCount === 0) {
-                        document.getElementById('error').innerText = `Модель ${fileName} загружена, но не содержит видимой геометрии. Проверьте содержимое в Blender.`;
+                        document.getElementById('error').innerText = `Модель ${fileName} загружена, но не содержит видимой геометрии.`;
                         const placeholder = new THREE.Mesh(
                             new THREE.BoxGeometry(1, 1, 1),
                             new THREE.MeshStandardMaterial({ color: 0xff0000 })
@@ -123,28 +352,44 @@
                         scene.add(placeholder);
                         currentModel = placeholder;
                     } else {
+                        // Центрирование и масштабирование модели
                         const box = new THREE.Box3().setFromObject(fbx);
                         const center = box.getCenter(new THREE.Vector3());
                         const size = box.getSize(new THREE.Vector3());
                         const maxDim = Math.max(size.x, size.y, size.z) || 1;
                         const scale = 2 / maxDim;
-                        fbx.scale.set(scale, scale, scale);
-                        fbx.position.sub(center.multiplyScalar(scale));
+                        
+                        fbx.scale.setScalar(scale);
+                        fbx.position.copy(center.multiplyScalar(-scale));
+                        
                         scene.add(fbx);
                         currentModel = fbx;
-                        controls.target.copy(center);
+                        
+                        // Настройка камеры
+                        controls.target.set(0, 0, 0);
+                        camera.position.set(
+                            size.x * scale,
+                            size.y * scale,
+                            size.z * scale * 2
+                        );
                         controls.update();
                         document.getElementById('error').innerText = '';
                     }
+                    
+                    updateAnimationList();
                     progressDiv.classList.add('hidden');
                 },
                 (progress) => {
-                    const percent = (progress.loaded / progress.total * 100).toFixed(2);
-                    progressDiv.innerText = `Загрузка: ${percent}%`;
+                    if (progress.total > 0) {
+                        const percent = (progress.loaded / progress.total * 100).toFixed(2);
+                        progressDiv.innerText = `Загрузка: ${percent}%`;
+                    } else {
+                        progressDiv.innerText = `Загрузка: ${(progress.loaded / 1024 / 1024).toFixed(2)} MB`;
+                    }
                 },
                 (error) => {
                     console.error(`Ошибка загрузки ${fileName}:`, error);
-                    document.getElementById('error').innerText = `Ошибка загрузки ${fileName}: ${error.message}\nПроверьте формат файла (бинарный FBX) или консоль.`;
+                    document.getElementById('error').innerText = `Ошибка загрузки ${fileName}: ${error.message}`;
                     progressDiv.classList.add('hidden');
                     debugDiv.classList.add('hidden');
                 }
@@ -157,30 +402,65 @@
                 scene.remove(currentModel);
                 currentModel = null;
             }
+            
+            // Очистка анимации
+            if (mixer) {
+                mixer.stopAllAction();
+                mixer = null;
+            }
+            animations = [];
+            stopAnimation();
+            
             const progressDiv = document.getElementById('progress');
             const debugDiv = document.getElementById('debug');
             progressDiv.classList.remove('hidden');
             debugDiv.classList.add('hidden');
+            animationControls.classList.add('hidden');
+            
             const loader = new THREE.GLTFLoader();
             loader.load(
                 file,
                 (gltf) => {
                     let meshCount = 0;
                     let materialCount = 0;
+                    
                     gltf.scene.traverse((child) => {
                         if (child.isMesh) {
                             meshCount++;
                             if (child.material) {
                                 materialCount++;
-                                if (!child.material.map) {
-                                    child.material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+                                if (Array.isArray(child.material)) {
+                                    child.material.forEach(mat => {
+                                        if (!mat.map) {
+                                            mat.color = new THREE.Color(0xaaaaaa);
+                                        }
+                                    });
+                                } else {
+                                    if (!child.material.map) {
+                                        child.material.color = new THREE.Color(0xaaaaaa);
+                                    }
                                 }
                             }
+                            child.castShadow = true;
+                            child.receiveShadow = true;
                         }
                     });
-                    console.log(`Модель ${fileName}: ${meshCount} мешей, ${materialCount} материалов`);
-                    debugDiv.innerText = `Модель: ${meshCount} мешей, ${materialCount} материалов`;
+                    
+                    // Инициализация анимации
+                    if (gltf.animations && gltf.animations.length > 0) {
+                        console.log(`Найдено анимаций: ${gltf.animations.length}`);
+                        gltf.animations.forEach((clip, i) => {
+                            console.log(`Анимация ${i}: ${clip.name}, длительность: ${clip.duration}s`);
+                        });
+                        
+                        mixer = new THREE.AnimationMixer(gltf.scene);
+                        animations = gltf.animations;
+                    }
+                    
+                    console.log(`Модель ${fileName}: ${meshCount} мешей, ${materialCount} материалов, ${animations.length} анимаций`);
+                    debugDiv.innerText = `Модель: ${meshCount} мешей, ${materialCount} материалов, ${animations.length} анимаций`;
                     debugDiv.classList.remove('hidden');
+                    
                     if (meshCount === 0) {
                         document.getElementById('error').innerText = `Модель ${fileName} загружена, но не содержит видимой геометрии.`;
                         const placeholder = new THREE.Mesh(
@@ -190,24 +470,40 @@
                         scene.add(placeholder);
                         currentModel = placeholder;
                     } else {
+                        // Центрирование и масштабирование модели
                         const box = new THREE.Box3().setFromObject(gltf.scene);
                         const center = box.getCenter(new THREE.Vector3());
                         const size = box.getSize(new THREE.Vector3());
                         const maxDim = Math.max(size.x, size.y, size.z) || 1;
                         const scale = 2 / maxDim;
-                        gltf.scene.scale.set(scale, scale, scale);
-                        gltf.scene.position.sub(center.multiplyScalar(scale));
+                        
+                        gltf.scene.scale.setScalar(scale);
+                        gltf.scene.position.copy(center.multiplyScalar(-scale));
+                        
                         scene.add(gltf.scene);
                         currentModel = gltf.scene;
-                        controls.target.copy(center);
+                        
+                        // Настройка камеры
+                        controls.target.set(0, 0, 0);
+                        camera.position.set(
+                            size.x * scale,
+                            size.y * scale,
+                            size.z * scale * 2
+                        );
                         controls.update();
                         document.getElementById('error').innerText = '';
                     }
+                    
+                    updateAnimationList();
                     progressDiv.classList.add('hidden');
                 },
                 (progress) => {
-                    const percent = (progress.loaded / progress.total * 100).toFixed(2);
-                    progressDiv.innerText = `Загрузка: ${percent}%`;
+                    if (progress.total > 0) {
+                        const percent = (progress.loaded / progress.total * 100).toFixed(2);
+                        progressDiv.innerText = `Загрузка: ${percent}%`;
+                    } else {
+                        progressDiv.innerText = `Загрузка: ${(progress.loaded / 1024 / 1024).toFixed(2)} MB`;
+                    }
                 },
                 (error) => {
                     console.error(`Ошибка загрузки ${fileName}:`, error);
@@ -227,12 +523,13 @@
                 const extension = file.name.split('.').pop().toLowerCase();
                 console.log(`Выбранный файл: ${file.name}, расширение: ${extension}`);
                 const url = URL.createObjectURL(file);
+                
                 if (extension === 'fbx') {
                     loadFBX(url, file.name);
                 } else if (extension === 'gltf' || extension === 'glb') {
                     loadGLTF(url, file.name);
                 } else {
-                    document.getElementById('error').innerText = 'Поддерживаются только .fbx, .gltf, .glb (регистр не важен)';
+                    document.getElementById('error').innerText = 'Поддерживаются только .fbx, .gltf, .glb';
                     document.getElementById('file-name').innerText = '';
                     document.getElementById('progress').classList.add('hidden');
                     document.getElementById('debug').classList.add('hidden');
@@ -280,15 +577,36 @@
             }
         });
 
-        // Анимация
+        // Основной цикл анимации
         function animate() {
             requestAnimationFrame(animate);
+            
+            const delta = clock.getDelta();
+            
+            // Обновление анимации
+            if (mixer && isPlaying) {
+                mixer.update(delta);
+                
+                // Обновление слайдера времени (только если пользователь не перетаскивает)
+                if (currentAction && !isSliderDragging) {
+                    animationSlider.value = currentAction.time;
+                    
+                    // Проверка окончания анимации (для неповторяющихся)
+                    if (!loopCheckbox.checked && currentAction.time >= animationDuration) {
+                        isPlaying = false;
+                        playPauseBtn.textContent = '▶️ Играть';
+                    }
+                }
+            }
+            
+            // Управление камерой клавишами
             const direction = new THREE.Vector3();
             camera.getWorldDirection(direction);
             direction.y = 0;
             direction.normalize();
             const right = new THREE.Vector3();
             right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
+            
             if (keys.w) {
                 camera.position.addScaledVector(direction, moveSpeed);
                 controls.target.addScaledVector(direction, moveSpeed);
@@ -313,6 +631,7 @@
                 camera.position.y -= moveSpeed;
                 controls.target.y -= moveSpeed;
             }
+            
             controls.update();
             renderer.render(scene, camera);
         }
