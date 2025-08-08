@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FBX Viewer</title>
+    <title>FBX Viewer with WSAD Controls</title>
     <style>
         body { margin: 0; }
         canvas { display: block; }
@@ -35,7 +35,7 @@
         directionalLight.position.set(0, 1, 0);
         scene.add(directionalLight);
 
-        // Управление камерой
+        // Управление камерой (OrbitControls)
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.update();
 
@@ -63,9 +63,54 @@
             }
         );
 
+        // Управление клавишами WSAD
+        const keys = { w: false, s: false, a: false, d: false, q: false, e: false };
+        const moveSpeed = 0.1; // Скорость перемещения камеры
+
+        document.addEventListener('keydown', (event) => {
+            switch (event.code) {
+                case 'KeyW': keys.w = true; break;
+                case 'KeyS': keys.s = true; break;
+                case 'KeyA': keys.a = true; break;
+                case 'KeyD': keys.d = true; break;
+                case 'KeyQ': keys.q = true; break; // Вверх
+                case 'KeyE': keys.e = true; break; // Вниз
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            switch (event.code) {
+                case 'KeyW': keys.w = false; break;
+                case 'KeyS': keys.s = false; break;
+                case 'KeyA': keys.a = false; break;
+                case 'KeyD': keys.d = false; break;
+                case 'KeyQ': keys.q = false; break;
+                case 'KeyE': keys.e = false; break;
+            }
+        });
+
         // Анимация
         function animate() {
             requestAnimationFrame(animate);
+
+            // Получаем направление камеры
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            direction.y = 0; // Игнорируем вертикальную компоненту для WSAD
+            direction.normalize();
+
+            // Боковое направление (перпендикулярное направлению камеры)
+            const right = new THREE.Vector3();
+            right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
+
+            // Перемещение камеры
+            if (keys.w) camera.position.addScaledVector(direction, moveSpeed); // Вперёд
+            if (keys.s) camera.position.addScaledVector(direction, -moveSpeed); // Назад
+            if (keys.a) camera.position.addScaledVector(right, -moveSpeed); // Влево
+            if (keys.d) camera.position.addScaledVector(right, moveSpeed); // Вправо
+            if (keys.q) camera.position.y += moveSpeed; // Вверх
+            if (keys.e) camera.position.y -= moveSpeed; // Вниз
+
             controls.update();
             renderer.render(scene, camera);
         }
