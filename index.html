@@ -49,29 +49,26 @@
     <div id="info" class="absolute top-4 right-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg">
         WSAD: Перемещение | Q/E: Вверх/Вниз | Мышь: Вращение/Масштаб
     </div>
-    <label for="file-input" id="file-input-label" class="absolute top-16 left-4 bg-green-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-green-600">
-        Выбрать файл
-    </label>
-    <input type="file" id="file-input" accept=".fbx,.gltf,.glb">
-    <div class="absolute top-28 left-4">
-        <select id="bg-color" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+    <div id="left-controls" class="absolute top-16 left-4 flex flex-col space-y-3 w-48">
+        <label for="file-input" id="file-input-label" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-green-600 text-center block w-full">
+            Выбрать файл
+        </label>
+        <input type="file" id="file-input" accept=".fbx,.gltf,.glb" class="hidden">
+        <button id="reset-camera" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-blue-600 w-full">
+            Сбросить камеру
+        </button>
+        <select id="bg-color" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 w-full">
             <option value="#dddddd">Серый</option>
             <option value="#1e3a8a">Тёмно-синий</option>
             <option value="#000000">Чёрный</option>
             <option value="#ffffff">Белый</option>
         </select>
-    </div>
-    <div class="absolute top-28 left-48">
-        <label for="display-mode" class="text-gray-700 font-semibold mr-2">Режим отображения:</label>
-        <select id="display-mode" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+        <select id="display-mode" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 w-full">
             <option value="standard">Стандартный</option>
             <option value="wireframe">Каркасный</option>
             <option value="lighting">Только освещение</option>
         </select>
     </div>
-    <button id="reset-camera" class="absolute top-40 left-4 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-blue-600">
-        Сбросить камеру
-    </button>
     
     <!-- Элементы управления анимацией -->
     <div id="animation-controls" class="absolute top-52 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden">
@@ -100,11 +97,11 @@
         </div>
     </div>
     
-    <div id="scene-inspector" class="absolute top-28 right-4 w-64 max-h-[70vh] bg-gray-800 bg-opacity-90 text-white px-4 py-3 rounded-lg overflow-auto shadow-lg">
-        <h2 class="text-lg font-bold mb-2">Инспектор сцены</h2>
-        <div id="scene-tree" class="text-sm mb-3 max-h-48 overflow-auto border border-gray-600 rounded p-2 bg-gray-900"></div>
-        <div id="object-properties" class="text-xs bg-gray-700 p-2 rounded max-h-32 overflow-auto">
-            <h3 class="font-semibold mb-1">Свойства объекта</h3>
+    <div id="scene-inspector" class="absolute top-28 right-4 w-80 max-h-[75vh] bg-gray-800 bg-opacity-90 text-white px-6 py-4 rounded-lg overflow-auto shadow-lg">
+        <h2 class="text-lg font-bold mb-3">Инспектор сцены</h2>
+        <div id="scene-tree" class="text-sm mb-4 max-h-56 overflow-auto border border-gray-600 rounded p-3 bg-gray-900"></div>
+        <div id="object-properties" class="text-xs bg-gray-700 p-3 rounded max-h-36 overflow-auto">
+            <h3 class="font-semibold mb-2">Свойства объекта</h3>
             <div id="properties-content">Выберите объект в дереве</div>
         </div>
     </div>
@@ -118,6 +115,14 @@
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     
+    <style>
+        /* Additional styles for left controls uniform width */
+        #left-controls > * {
+            min-width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
+
     <script>
         // Инициализация сцены
         const scene = new THREE.Scene();
