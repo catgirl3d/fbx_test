@@ -49,21 +49,21 @@
     <div id="info" class="absolute top-4 right-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg">
         WSAD: Перемещение | Q/E: Вверх/Вниз | Мышь: Вращение/Масштаб
     </div>
-    <div id="left-controls" class="absolute top-16 left-4 flex flex-col space-y-3 w-48">
-        <label for="file-input" id="file-input-label" class="bg-green-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-green-600 text-center block w-full">
+    <div id="left-controls" class="absolute top-16 left-4 flex flex-col space-y-2 w-44">
+        <label for="file-input" id="file-input-label" class="bg-green-500 text-white font-semibold py-2 px-3 rounded-lg cursor-pointer shadow-lg hover:bg-green-600 text-center block w-full">
             Выбрать файл
         </label>
         <input type="file" id="file-input" accept=".fbx,.gltf,.glb" class="hidden">
-        <button id="reset-camera" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-blue-600 w-full">
+        <button id="reset-camera" class="bg-blue-500 text-white font-semibold py-2 px-3 rounded-lg cursor-pointer shadow-lg hover:bg-blue-600 w-full">
             Сбросить камеру
         </button>
-        <select id="bg-color" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 w-full">
+        <select id="bg-color" class="bg-gray-800 text-white font-semibold py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 w-full">
             <option value="#dddddd">Серый</option>
             <option value="#1e3a8a">Тёмно-синий</option>
             <option value="#000000">Чёрный</option>
             <option value="#ffffff">Белый</option>
         </select>
-        <select id="display-mode" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 w-full">
+        <select id="display-mode" class="bg-gray-800 text-white font-semibold py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 w-full">
             <option value="standard">Стандартный</option>
             <option value="wireframe">Каркасный</option>
             <option value="lighting">Только освещение</option>
@@ -96,15 +96,15 @@
             </label>
         </div>
     </div>
-    
-    <div id="scene-inspector" class="absolute top-28 right-4 w-80 max-h-[75vh] bg-gray-800 bg-opacity-90 text-white px-6 py-4 rounded-lg overflow-auto shadow-lg">
-        <h2 class="text-lg font-bold mb-3">Инспектор сцены</h2>
-        <div id="scene-tree" class="text-sm mb-4 max-h-56 overflow-auto border border-gray-600 rounded p-3 bg-gray-900"></div>
-        <div id="object-properties" class="text-xs bg-gray-700 p-3 rounded max-h-36 overflow-auto">
-            <h3 class="font-semibold mb-2">Свойства объекта</h3>
+    <div id="scene-inspector" class="absolute top-28 right-4 w-80 max-h-[85vh] bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg overflow-auto shadow-lg">
+        <h2 class="text-lg font-bold mb-2">Инспектор сцены</h2>
+        <div id="scene-tree" class="text-sm mb-3 max-h-[65vh] overflow-auto border border-gray-600 rounded p-1 bg-gray-900"></div>
+        <div id="object-properties" class="text-xs bg-gray-700 p-1 rounded max-h-36 overflow-auto">
+            <h3 class="font-semibold mb-1">Свойства объекта</h3>
             <div id="properties-content">Выберите объект в дереве</div>
         </div>
     </div>
+    
     
     <div id="progress" class="absolute top-52 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
     <div id="debug" class="absolute top-64 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
