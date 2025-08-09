@@ -25,6 +25,22 @@
         #progress {
             transition: opacity 0.3s ease;
         }
+        /* Loading spinner inside progress text */
+        #progress::before {
+            content: '';
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.8);
+            border-top-color: #34d399;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gray-200">
