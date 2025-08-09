@@ -61,6 +61,14 @@
             <option value="#ffffff">Белый</option>
         </select>
     </div>
+    <div class="absolute top-28 left-48">
+        <label for="display-mode" class="text-gray-700 font-semibold mr-2">Режим отображения:</label>
+        <select id="display-mode" class="bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+            <option value="standard">Стандартный</option>
+            <option value="wireframe">Каркасный</option>
+            <option value="lighting">Только освещение</option>
+        </select>
+    </div>
     <button id="reset-camera" class="absolute top-40 left-4 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer shadow-lg hover:bg-blue-600">
         Сбросить камеру
     </button>
@@ -89,6 +97,15 @@
                 <input type="checkbox" id="loop-checkbox" class="mr-1" checked>
                 Зацикливать
             </label>
+        </div>
+    </div>
+    
+    <div id="scene-inspector" class="absolute top-28 right-4 w-64 max-h-[70vh] bg-gray-800 bg-opacity-90 text-white px-4 py-3 rounded-lg overflow-auto shadow-lg">
+        <h2 class="text-lg font-bold mb-2">Инспектор сцены</h2>
+        <div id="scene-tree" class="text-sm mb-3 max-h-48 overflow-auto border border-gray-600 rounded p-2 bg-gray-900"></div>
+        <div id="object-properties" class="text-xs bg-gray-700 p-2 rounded max-h-32 overflow-auto">
+            <h3 class="font-semibold mb-1">Свойства объекта</h3>
+            <div id="properties-content">Выберите объект в дереве</div>
         </div>
     </div>
     
@@ -659,6 +676,193 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+    
+        // --- Scene Inspector and Display Mode Switching ---
+    
+        const sceneTreeDiv = document.getElementById('scene-tree');
+        const propertiesContentDiv = document.getElementById('properties-content');
+        const displayModeSelect = document.getElementById('display-mode');
+    
+        // Helper function to create tree item elements recursively
+        function createTreeItem(object) {
+            const item = document.createElement('div');
+            item.style.paddingLeft = '12px';
+            item.style.cursor = 'pointer';
+            item.textContent = object.name || object.type;
+    
+            // Visibility toggle checkbox
+            const visibilityCheckbox = document.createElement('input');
+            visibilityCheckbox.type = 'checkbox';
+            visibilityCheckbox.checked = object.visible;
+            visibilityCheckbox.style.marginRight = '6px';
+    
+            visibilityCheckbox.addEventListener('click', (event) => {
+                event.stopPropagation();
+                object.visible = visibilityCheckbox.checked;
+            });
+    
+            item.prepend(visibilityCheckbox);
+    
+            // Expand/collapse children if any
+            if (object.children && object.children.length > 0) {
+                const expandBtn = document.createElement('span');
+                expandBtn.textContent = '▶';
+                expandBtn.style.display = 'inline-block';
+                expandBtn.style.width = '12px';
+                expandBtn.style.userSelect = 'none';
+                expandBtn.style.marginRight = '4px';
+                expandBtn.style.cursor = 'pointer';
+    
+                let expanded = false;
+                const childrenContainer = document.createElement('div');
+                childrenContainer.style.display = 'none';
+    
+                expandBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    expanded = !expanded;
+                    childrenContainer.style.display = expanded ? 'block' : 'none';
+                    expandBtn.textContent = expanded ? '▼' : '▶';
+                });
+    
+                item.prepend(expandBtn);
+    
+                object.children.forEach(child => {
+                    const childItem = createTreeItem(child);
+                    childrenContainer.appendChild(childItem);
+                });
+    
+                item.appendChild(childrenContainer);
+            } else {
+                // Add placeholder for alignment
+                const placeholderSpan = document.createElement('span');
+                placeholderSpan.style.display = 'inline-block';
+                placeholderSpan.style.width = '16px';
+                item.prepend(placeholderSpan);
+            }
+    
+            // Selection handling
+            item.addEventListener('click', (event) => {
+                event.stopPropagation();
+                selectObject(object, item);
+            });
+    
+            return item;
+        }
+    
+        let selectedItem = null;
+        let selectedObject = null;
+    
+        function selectObject(object, itemElement) {
+            if (selectedItem) {
+                selectedItem.style.backgroundColor = '';
+            }
+            selectedItem = itemElement;
+            selectedObject = object;
+            selectedItem.style.backgroundColor = '#2563eb'; // blue highlight
+    
+            // Show properties
+            showProperties(object);
+        }
+    
+        function showProperties(object) {
+            if (!object) {
+                propertiesContentDiv.innerHTML = 'Выберите объект в дереве';
+                return;
+            }
+            let html = `<p><strong>Имя:</strong> ${object.name || '(без имени)'}</p>`;
+            html += `<p><strong>Тип:</strong> ${object.type}</p>`;
+            if (object.isMesh) {
+                html += `<p><strong>Вершин:</strong> ${object.geometry?.attributes?.position?.count || 'N/A'}</p>`;
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        html += `<p><strong>Материалов:</strong> ${object.material.length}</p>`;
+                    } else {
+                        html += `<p><strong>Материал:</strong> ${object.material.type}</p>`;
+                    }
+                }
+                html += `<p><strong>Видимый:</strong> ${object.visible}</p>`;
+            }
+            propertiesContentDiv.innerHTML = html;
+        }
+    
+        // Build the tree from currentModel
+        function buildSceneTree() {
+            sceneTreeDiv.innerHTML = '';
+            if (!currentModel) {
+                sceneTreeDiv.innerHTML = '<p>Модель не загружена</p>';
+                propertiesContentDiv.innerHTML = 'Выберите объект в дереве';
+                return;
+            }
+            const rootItem = createTreeItem(currentModel);
+            sceneTreeDiv.appendChild(rootItem);
+        }
+    
+        // Rebuild tree when model changes
+        const originalLoadFBX = loadFBX;
+        loadFBX = function(file, fileName) {
+            originalLoadFBX(file, fileName);
+            setTimeout(buildSceneTree, 500);
+        };
+    
+        const originalLoadGLTF = loadGLTF;
+        loadGLTF = function(file, fileName) {
+            originalLoadGLTF(file, fileName);
+            setTimeout(buildSceneTree, 500);
+        };
+    
+        // Display mode switching
+        function setDisplayMode(mode) {
+            if (!currentModel) return;
+    
+            currentModel.traverse((child) => {
+                if (child.isMesh) {
+                    switch (mode) {
+                        case 'standard':
+                            if (child.material.originalWireframe !== undefined) {
+                                child.material.wireframe = child.material.originalWireframe;
+                            } else {
+                                child.material.wireframe = false;
+                            }
+                            if (child.material.originalColor) {
+                                child.material.color.copy(child.material.originalColor);
+                            }
+                            child.material.needsUpdate = true;
+                            break;
+                        case 'wireframe':
+                            if (child.material.originalWireframe === undefined) {
+                                child.material.originalWireframe = child.material.wireframe;
+                            }
+                            child.material.wireframe = true;
+                            child.material.needsUpdate = true;
+                            break;
+                        case 'lighting':
+                            // For lighting only, we can set material to MeshLambertMaterial with no map and white color
+                            if (!child.userData.originalMaterial) {
+                                child.userData.originalMaterial = child.material;
+                            }
+                            child.material = new THREE.MeshLambertMaterial({ color: 0xffffff });
+                            child.material.needsUpdate = true;
+                            break;
+                    }
+                }
+            });
+    
+            // Restore original materials if switching back to standard
+            if (mode === 'standard' && currentModel) {
+                currentModel.traverse((child) => {
+                    if (child.isMesh && child.userData.originalMaterial) {
+                        child.material = child.userData.originalMaterial;
+                        delete child.userData.originalMaterial;
+                        child.material.needsUpdate = true;
+                    }
+                });
+            }
+        }
+    
+        displayModeSelect.addEventListener('change', (event) => {
+            setDisplayMode(event.target.value);
+        });
+    
     </script>
-</body>
-</html>
+    </body>
+    </html>
