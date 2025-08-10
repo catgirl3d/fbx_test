@@ -120,6 +120,60 @@
             z-index: 9999 !important;
             pointer-events: auto;
         }
+        /* Mobile responsive styles */
+        @media (max-width: 768px) {
+            #left-controls {
+                top: 5rem;
+                left: 0.5rem;
+                width: auto;
+                max-width: 150px;
+            }
+            
+            #animation-controls {
+                left: 0.5rem;
+            }
+            
+            #progress,
+            #debug {
+                left: 0.5rem;
+            }
+            
+            #info {
+                top: 0.5rem;
+                right: 0.5rem;
+                font-size: 0.75rem;
+                padding: 0.25rem 0.5rem;
+            }
+            
+            #file-name {
+                top: 0.5rem;
+                font-size: 0.875rem;
+                padding: 0.25rem 0.5rem;
+            }
+            
+            #inspector-toggle {
+                top: 0.5rem;
+                right: 0.5rem;
+                padding: 0.25rem;
+            }
+            
+            #scene-inspector {
+                width: 100%;
+                height: 70%;
+                top: auto;
+                bottom: 0;
+                right: 0 !important;
+                transition: bottom 0.3s ease-out;
+            }
+            
+            #scene-inspector.open {
+                bottom: 0 !important;
+            }
+            
+            #scene-inspector.closed {
+                bottom: -70%;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-200">
@@ -192,8 +246,12 @@
                 </svg>
             </button>
         </div>
-        <div id="scene-tree" class="text-sm mb-4 max-h-[70vh] overflow-auto border border-gray-600 rounded p-2 bg-gray-900"></div>
-        <div id="object-properties" class="text-xs bg-gray-700 p-2 rounded max-h-40 overflow-auto">
+        <!-- Search input for filtering scene tree -->
+        <div class="mb-4">
+            <input type="text" id="scene-search" placeholder="Поиск объектов..." class="w-full px-3 py-2 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+        </div>
+        <div id="scene-tree" class="text-sm mb-4 max-h-[60vh] overflow-auto border border-gray-600 rounded p-2 bg-gray-900"></div>
+        <div id="object-properties" class="text-xs bg-gray-700 p-2 rounded max-h-60 overflow-auto">
             <h3 class="font-semibold mb-2">Свойства объекта</h3>
             <div id="properties-content">Выберите объект в дереве</div>
         </div>
@@ -1098,6 +1156,19 @@
         });
     
         // --- Scene Inspector and Display Mode Switching ---
+        // Toggle inspector panel for mobile responsiveness
+        const inspectorToggleBtn = document.getElementById('inspector-toggle');
+        const sceneInspector = document.getElementById('scene-inspector');
+
+        inspectorToggleBtn.addEventListener('click', () => {
+            if (sceneInspector.classList.contains('closed')) {
+                sceneInspector.classList.remove('closed');
+                sceneInspector.classList.add('open');
+            } else {
+                sceneInspector.classList.remove('open');
+                sceneInspector.classList.add('closed');
+            }
+        });
     
         const sceneTreeDiv = document.getElementById('scene-tree');
         const propertiesContentDiv = document.getElementById('properties-content');
@@ -1172,17 +1243,33 @@
                 inspector.classList.add('right-[-320px]');
             }
         });
+        // Add event listener for search input
+        const sceneSearchInput = document.getElementById('scene-search');
+        let searchTimeout = null;
+        
+        sceneSearchInput.addEventListener('input', (e) => {
+            // Debounce search to avoid excessive filtering
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const searchTerm = e.target.value.toLowerCase();
+                buildSceneTree(searchTerm);
+            }, 300);
+        });
 
         inspector.addEventListener('click', (event) => {
             event.stopPropagation();
         });
     
         // Helper function to create tree item elements recursively
-        function createTreeItem(object) {
+        function createTreeItem(object, searchTerm = '') {
             const item = document.createElement('div');
             item.style.paddingLeft = '12px';
             item.style.cursor = 'pointer';
             item.textContent = object.name || object.type;
+    
+            // Check if this item matches the search term
+            const objectName = (object.name || object.type || '').toLowerCase();
+            const matchesSearch = searchTerm === '' || objectName.includes(searchTerm);
     
             // Visibility toggle checkbox
             const visibilityCheckbox = document.createElement('input');
@@ -1198,6 +1285,7 @@
             item.prepend(visibilityCheckbox);
     
             // Expand/collapse children if any
+            let hasVisibleChildren = false;
             if (object.children && object.children.length > 0) {
                 const expandBtn = document.createElement('span');
                 expandBtn.textContent = '▶';
@@ -1220,14 +1308,26 @@
     
                 item.prepend(expandBtn);
     
+                // Create children items
                 object.children.forEach(child => {
-                    const childItem = createTreeItem(child);
-                    childrenContainer.appendChild(childItem);
+                    const childItem = createTreeItem(child, searchTerm);
+                    // Check if child item should be visible
+                    if (childItem.style.display !== 'none') {
+                        childrenContainer.appendChild(childItem);
+                        hasVisibleChildren = true;
+                    }
                 });
     
                 item.appendChild(childrenContainer);
-            } else {
-                // Add placeholder for alignment
+            }
+    
+            // Hide item if it doesn't match search and has no visible children
+            if (!matchesSearch && !hasVisibleChildren) {
+                item.style.display = 'none';
+            }
+    
+            // Add placeholder for alignment if no children
+            if (!object.children || object.children.length === 0) {
                 const placeholderSpan = document.createElement('span');
                 placeholderSpan.style.display = 'inline-block';
                 placeholderSpan.style.width = '16px';
@@ -1355,22 +1455,84 @@
                         html += `<p><strong>Материалов:</strong> ${object.material.length}</p>`;
                     } else {
                         html += `<p><strong>Материал:</strong> ${object.material.type}</p>`;
+                        
+                        // Add material properties editing
+                        if (object.material instanceof THREE.MeshStandardMaterial) {
+                            html += `<div class="mt-2">`;
+                            html += `<p><strong>Свойства материала:</strong></p>`;
+                            
+                            // Color picker
+                            html += `<div class="flex items-center mt-1">`;
+                            html += `<label class="mr-2">Цвет:</label>`;
+                            html += `<input type="color" id="material-color" value="#${object.material.color.getHexString()}" class="w-8 h-8 border border-gray-600">`;
+                            html += `</div>`;
+                            
+                            // Roughness slider
+                            html += `<div class="mt-2">`;
+                            html += `<label class="block">Шероховатость: <span id="roughness-value">${object.material.roughness.toFixed(2)}</span></label>`;
+                            html += `<input type="range" id="material-roughness" min="0" max="1" step="0.01" value="${object.material.roughness}" class="w-full">`;
+                            html += `</div>`;
+                            
+                            // Metalness slider
+                            html += `<div class="mt-2">`;
+                            html += `<label class="block">Металличность: <span id="metalness-value">${object.material.metalness.toFixed(2)}</span></label>`;
+                            html += `<input type="range" id="material-metalness" min="0" max="1" step="0.01" value="${object.material.metalness}" class="w-full">`;
+                            html += `</div>`;
+                            
+                            html += `</div>`;
+                        }
                     }
                 }
                 html += `<p><strong>Видимый:</strong> ${object.visible}</p>`;
             }
             propertiesContentDiv.innerHTML = html;
+            
+            // Add event listeners for material property editing
+            if (object.isMesh && object.material && !(object.material instanceof Array) && object.material instanceof THREE.MeshStandardMaterial) {
+                // Color picker
+                const colorPicker = document.getElementById('material-color');
+                if (colorPicker) {
+                    colorPicker.addEventListener('input', (e) => {
+                        object.material.color.set(e.target.value);
+                        object.material.needsUpdate = true;
+                    });
+                }
+                
+                // Roughness slider
+                const roughnessSlider = document.getElementById('material-roughness');
+                const roughnessValue = document.getElementById('roughness-value');
+                if (roughnessSlider && roughnessValue) {
+                    roughnessSlider.addEventListener('input', (e) => {
+                        const value = parseFloat(e.target.value);
+                        object.material.roughness = value;
+                        roughnessValue.textContent = value.toFixed(2);
+                        object.material.needsUpdate = true;
+                    });
+                }
+                
+                // Metalness slider
+                const metalnessSlider = document.getElementById('material-metalness');
+                const metalnessValue = document.getElementById('metalness-value');
+                if (metalnessSlider && metalnessValue) {
+                    metalnessSlider.addEventListener('input', (e) => {
+                        const value = parseFloat(e.target.value);
+                        object.material.metalness = value;
+                        metalnessValue.textContent = value.toFixed(2);
+                        object.material.needsUpdate = true;
+                    });
+                }
+            }
         }
     
         // Build the tree from currentModel
-        function buildSceneTree() {
+        function buildSceneTree(searchTerm = '') {
             sceneTreeDiv.innerHTML = '';
             if (!currentModel) {
                 sceneTreeDiv.innerHTML = '<p>Модель не загружена</p>';
                 propertiesContentDiv.innerHTML = 'Выберите объект в дереве';
                 return;
             }
-            const rootItem = createTreeItem(currentModel);
+            const rootItem = createTreeItem(currentModel, searchTerm);
             sceneTreeDiv.appendChild(rootItem);
         }
     
