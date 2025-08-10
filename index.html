@@ -41,6 +41,85 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Stacking / z-index fixes to prevent panels from covering each other */
+        /* Use fixed positioning for UI panels so z-index ordering is reliable across browsers.
+           Make non-interactive indicators ignore pointer-events so they don't block clicks.
+           Keep canvas behind UI but still receive pointer events for OrbitControls. */
+    
+        /* Renderer canvas (three.js) should fill viewport and sit at the back */
+        canvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+    
+        /* File name - visible but non-interactive */
+        #file-name {
+            position: fixed;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 110;
+            pointer-events: none;
+        }
+    
+        /* Left-side controls must be the topmost interactive UI so buttons remain clickable */
+        #left-controls {
+            position: fixed;
+            top: 4rem;
+            left: 1rem;
+            z-index: 1000; /* top-most interactive left controls */
+            pointer-events: auto;
+        }
+    
+        /* Animation controls should appear directly under left-controls (stacked) */
+        #animation-controls {
+            position: fixed;
+            left: 1rem;
+            z-index: 900; /* below left-controls */
+            pointer-events: auto;
+        }
+    
+        /* Progress / debug indicators: stacked below animation-controls */
+        #progress,
+        #debug {
+            position: fixed;
+            left: 1rem;
+            pointer-events: none; /* indicators must not intercept clicks */
+            z-index: 800; /* base value; precise stacking enforced in JS when positioning */
+        }
+    
+        /* Make child inputs/buttons of progress/debug still non-interactive (these are just displays) */
+        #progress *, #debug * {
+            pointer-events: none;
+        }
+    
+        /* Info panel (top-right) should not cover the animation controls */
+        #info {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 700;
+            pointer-events: auto;
+        }
+    
+        /* Scene inspector stays below core controls but above indicators */
+        #scene-inspector {
+            position: fixed;
+            top: 0;
+            right: -320px; /* keep default closed position */
+            z-index: 600;
+            pointer-events: auto;
+        }
+    
+        /* Ensure the inspector toggle remains clickable (always on top) */
+        #inspector-toggle {
+            z-index: 9999 !important;
+            pointer-events: auto;
+        }
     </style>
 </head>
 <body class="bg-gray-200">
@@ -129,6 +208,13 @@
     <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- Postprocessing & outline (used for object highlighting) -->
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script> <!-- Added CopyShader.js -->
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/OutlinePass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/FXAAShader.js"></script>
     
     <style>
         /* Additional styles for left controls uniform width */
@@ -151,7 +237,39 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
-
+ 
+        // Post-processing (composer + outline)
+        // composer and outlinePass are used to visually highlight selected objects
+        let composer, outlinePass, effectFXAA;
+        function setupPostProcessing() {
+            try {
+                composer = new THREE.EffectComposer(renderer);
+                const renderPass = new THREE.RenderPass(scene, camera);
+                composer.addPass(renderPass);
+ 
+                outlinePass = new THREE.OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
+                outlinePass.edgeStrength = 5.0;
+                outlinePass.edgeGlow = 0.5;
+                outlinePass.edgeThickness = 1.0;
+                outlinePass.visibleEdgeColor.set('#ffffff');
+                outlinePass.hiddenEdgeColor.set('#2563eb');
+                outlinePass.pulsePeriod = 0; // no pulsing by default
+                composer.addPass(outlinePass);
+ 
+                // FXAA for crisper edges (optional)
+                effectFXAA = new THREE.ShaderPass(THREE.FXAAShader);
+                effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
+                effectFXAA.renderToScreen = true;
+                composer.addPass(effectFXAA);
+                console.log('Post-processing initialized (composer, outlinePass, FXAA).');
+            } catch (err) {
+                console.error('Error initializing post-processing:', err);
+                composer = null;
+                outlinePass = null;
+            }
+        }
+        setupPostProcessing();
+ 
         // Улучшенное освещение
         const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
         scene.add(ambientLight);
@@ -190,21 +308,166 @@
         const speedInput = document.getElementById('speed-input');
         const loopCheckbox = document.getElementById('loop-checkbox');
 
+        // Left controls reference (used to avoid spatial overlap)
+        const leftControls = document.getElementById('left-controls');
+
+        // Ensure animation-controls are positioned so they never cover the left-controls.
+        // We position animationControls fixed relative to leftControls and adjust to avoid overlap.
+        function positionAnimationControls() {
+            if (!leftControls || !animationControls) return;
+    
+            // measure in viewport coordinates
+            const leftRect = leftControls.getBoundingClientRect();
+    
+            // Prepare animationControls for measurement
+            animationControls.style.position = 'fixed';
+            animationControls.style.minWidth = `${leftRect.width}px`;
+            animationControls.style.left = `${Math.max(8, leftRect.left)}px`;
+            animationControls.style.top = `${leftRect.bottom + 8}px`;
+    
+            // small helper to test intersection
+            function rectsIntersect(a, b) {
+                return !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+            }
+    
+            // Re-measure after applying initial placement
+            let animRect = animationControls.getBoundingClientRect();
+    
+            // If the animation panel still intersects leftControls (very rare) try placing it to the right
+            if (rectsIntersect(animRect, leftRect)) {
+                const rightX = leftRect.right + 8;
+                animationControls.style.left = `${rightX}px`;
+                // Align top with leftControls if there's space, otherwise keep below
+                animationControls.style.top = `${leftRect.top}px`;
+                animRect = animationControls.getBoundingClientRect();
+            }
+    
+            // If the panel is off-screen to the right, shift it left so it's visible
+            if (animRect.right > window.innerWidth - 8) {
+                const shiftLeft = Math.max(8, window.innerWidth - animRect.width - 8);
+                animationControls.style.left = `${shiftLeft}px`;
+                animRect = animationControls.getBoundingClientRect();
+            }
+    
+            // If the panel goes off the bottom of the viewport, try to place it above the leftControls
+            if (animRect.bottom > window.innerHeight - 8) {
+                const aboveTop = Math.max(8, leftRect.top - animRect.height - 8);
+                animationControls.style.top = `${aboveTop}px`;
+                animRect = animationControls.getBoundingClientRect();
+            }
+    
+            // Final guard: ensure the animation panel does not cover the top-left buttons vertically;
+            // if it still overlaps, reduce its top to sit below leftControls bottom.
+            if (rectsIntersect(animationControls.getBoundingClientRect(), leftRect)) {
+                animationControls.style.top = `${leftRect.bottom + 8}px`;
+            }
+        }
+    
+        // Reposition responsively and when left-controls change
+        window.addEventListener('resize', positionAnimationControls);
+        if (leftControls) {
+            const mo = new MutationObserver(positionAnimationControls);
+            mo.observe(leftControls, { attributes: true, childList: true, subtree: true, characterData: true });
+        }
+    
+        // Initial positioning (defer to allow initial rendering)
+        setTimeout(positionAnimationControls, 50);
+    
+        // Position progress/debug indicators so they appear sequentially (below animation panel or left-controls)
+        const progressDiv = document.getElementById('progress');
+        const debugDiv = document.getElementById('debug');
+    
+        function positionIndicators() {
+                    if (!leftControls || !animationControls || !progressDiv || !debugDiv) return;
+            
+                    const leftRect = leftControls.getBoundingClientRect();
+                    const leftX = Math.max(8, leftRect.left);
+                    const leftWidth = Math.max(120, leftRect.width);
+            
+                    // Decide baseTop: if animation-controls visible, place indicators below it; otherwise below leftControls
+                    let baseTop;
+                    if (!animationControls.classList.contains('hidden')) {
+                        const animRect = animationControls.getBoundingClientRect();
+                        // If animation controls have zero height (not rendered) treat as hidden
+                        if (animRect.height > 0) {
+                            baseTop = animRect.bottom + 8;
+                        } else {
+                            baseTop = leftRect.bottom + 8;
+                        }
+                    } else {
+                        baseTop = leftRect.bottom + 8;
+                    }
+            
+                    // Position progress (stacked: left-controls -> animation-controls -> progress -> debug)
+                    progressDiv.style.position = 'fixed';
+                    progressDiv.style.left = `${leftX}px`;
+                    progressDiv.style.top = `${baseTop}px`;
+                    progressDiv.style.minWidth = `${leftWidth}px`;
+                    progressDiv.style.zIndex = '800';        // follow the stacking order from CSS (800)
+                    progressDiv.style.pointerEvents = 'none';
+            
+                    // Position debug below progress
+                    const progRect = progressDiv.getBoundingClientRect();
+                    const debugTop = progRect && progRect.height > 0 ? (progRect.bottom + 8) : (baseTop + 36);
+            
+                    debugDiv.style.position = 'fixed';
+                    debugDiv.style.left = `${leftX}px`;
+                    debugDiv.style.top = `${debugTop}px`;
+                    debugDiv.style.minWidth = `${leftWidth}px`;
+                    debugDiv.style.zIndex = '790'; // below progress
+                    debugDiv.style.pointerEvents = 'none';
+            
+                    // If indicators run off-screen to the right, shift them left
+                    const finalProgRect = progressDiv.getBoundingClientRect();
+                    if (finalProgRect.right > window.innerWidth - 8) {
+                        const shiftLeft = Math.max(8, window.innerWidth - finalProgRect.width - 8);
+                        progressDiv.style.left = `${shiftLeft}px`;
+                        debugDiv.style.left = `${shiftLeft}px`;
+                    }
+                }
+            
+                // Reposition indicators on resize and when UI changes
+                window.addEventListener('resize', positionIndicators);
+                const indicatorObserver = new MutationObserver(positionIndicators);
+                if (leftControls) indicatorObserver.observe(leftControls, { attributes: true, childList: true, subtree: true, characterData: true });
+                if (animationControls) indicatorObserver.observe(animationControls, { attributes: true, childList: true, subtree: true, characterData: true });
+                if (progressDiv) indicatorObserver.observe(progressDiv, { attributes: true, attributeFilter: ['class', 'style'] });
+                if (debugDiv) indicatorObserver.observe(debugDiv, { attributes: true, attributeFilter: ['class', 'style'] });
+            
+                // initial indicator placement
+                setTimeout(positionIndicators, 60);
+
         // Функция обновления списка анимаций
         function updateAnimationList() {
             animationSelect.innerHTML = '<option value="">Нет анимаций</option>';
             
             if (animations.length > 0) {
-                animations.forEach((clip, index) => {
-                    const option = document.createElement('option');
-                    option.value = index;
-                    option.textContent = `${clip.name || `Анимация ${index + 1}`} (${clip.duration.toFixed(1)}s)`;
-                    animationSelect.appendChild(option);
-                });
-                animationControls.classList.remove('hidden');
-            } else {
-                animationControls.classList.add('hidden');
-            }
+                    animations.forEach((clip, index) => {
+                        const option = document.createElement('option');
+                        option.value = index;
+                        option.textContent = `${clip.name || `Анимация ${index + 1}`} (${clip.duration.toFixed(1)}s)`;
+                        animationSelect.appendChild(option);
+                    });
+                    animationControls.classList.remove('hidden');
+        
+                    // Recalculate and enforce safe placement so animation panel doesn't overlap left controls
+                    // small defer to allow browser to update layout
+                    setTimeout(() => {
+                        if (typeof positionAnimationControls === 'function') {
+                            positionAnimationControls();
+                        }
+                        // Also reposition indicators so they stack after the animation panel
+                        if (typeof positionIndicators === 'function') {
+                            positionIndicators();
+                        }
+                    }, 20);
+                } else {
+                    animationControls.classList.add('hidden');
+                    // Ensure indicators reposition when animation panel hides
+                    if (typeof positionIndicators === 'function') {
+                        setTimeout(positionIndicators, 10);
+                    }
+                }
         }
 
         // Функция воспроизведения анимации
@@ -473,6 +736,10 @@
             progressDiv.classList.remove('hidden');
             debugDiv.classList.add('hidden');
             animationControls.classList.add('hidden');
+            // Position indicators so they're visible above panels (do this shortly after changing classes)
+            if (typeof positionIndicators === 'function') {
+                setTimeout(positionIndicators, 20);
+            }
             
             const loader = new THREE.FBXLoader();
             
@@ -591,6 +858,10 @@
             progressDiv.classList.remove('hidden');
             debugDiv.classList.add('hidden');
             animationControls.classList.add('hidden');
+            // Position indicators so they're visible above panels (do this shortly after changing classes)
+            if (typeof positionIndicators === 'function') {
+                setTimeout(positionIndicators, 20);
+            }
             
             const loader = new THREE.GLTFLoader();
             loader.load(
@@ -805,7 +1076,11 @@
             }
             
             controls.update();
-            renderer.render(scene, camera);
+            if (typeof composer !== 'undefined' && composer) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
         }
         animate();
 
@@ -814,6 +1089,12 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            if (typeof composer !== 'undefined' && composer) {
+                composer.setSize(window.innerWidth, window.innerHeight);
+            }
+            if (typeof effectFXAA !== 'undefined' && effectFXAA && effectFXAA.uniforms && effectFXAA.uniforms['resolution']) {
+                effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
+            }
         });
     
         // --- Scene Inspector and Display Mode Switching ---
@@ -834,10 +1115,49 @@
 
         toggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            console.log('Toggle clicked - current right:', inspector.style.right);
+            // Toggle classes (for Tailwind) and also enforce inline right to ensure the panel becomes visible.
+            const opening = !inspector.classList.contains('right-0');
             inspector.classList.toggle('right-0');
             inspector.classList.toggle('right-[-320px]');
-            console.log('New right:', inspector.style.right);
+    
+            if (opening) {
+                // Force inline style so animation works even without Tailwind JIT class support
+                inspector.style.right = '0px';
+    
+                // Build / refresh inspector contents shortly after opening
+                setTimeout(() => {
+                    try {
+                        console.log('Inspector opened — currentModel:', currentModel);
+    
+                        // Ensure scene tree exists and is up-to-date
+                        if (typeof buildSceneTree === 'function') {
+                            buildSceneTree();
+                        }
+    
+                        // If still empty, show an explicit message
+                        if (sceneTreeDiv && sceneTreeDiv.innerHTML.trim() === '') {
+                            sceneTreeDiv.innerHTML = currentModel ? '<p>Модель загружена, но дерево пустое.</p>' : '<p>Модель не загружена</p>';
+                        }
+    
+                        // Populate properties pane with root model properties if available
+                        if (currentModel && typeof showProperties === 'function') {
+                            showProperties(currentModel);
+                        } else if (propertiesContentDiv && propertiesContentDiv.innerHTML.trim() === '') {
+                            propertiesContentDiv.innerHTML = 'Выберите объект в дереве';
+                        }
+                    } catch (err) {
+                        console.error('Error while populating inspector on open:', err);
+                        if (sceneTreeDiv && sceneTreeDiv.innerHTML.trim() === '') {
+                            sceneTreeDiv.innerHTML = '<p>Ошибка при формировании дерева. Проверьте консоль.</p>';
+                        }
+                    }
+                }, 60);
+            } else {
+                // closing: set inline right back to closed position
+                inspector.style.right = '-320px';
+            }
+    
+            console.log('Inspector toggled. open=', opening, ' inline right=', inspector.style.right);
         });
 
         closeBtn.addEventListener('click', (e) => {
@@ -925,16 +1245,99 @@
     
         let selectedItem = null;
         let selectedObject = null;
+        // Track currently highlighted meshes when OutlinePass is not available (fallback)
+        let highlightedMeshes = [];
+ 
+        // Raycaster & pointer for clicking in the scene to select objects
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+ 
+        renderer.domElement.addEventListener('pointerdown', (event) => {
+            // Ignore clicks if the inspector or UI handled the event (simple guard)
+            // Use canvas bounding rect to correctly map pointer when canvas is resized or scaled
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = - ((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+            const root = currentModel || scene;
+            const targets = (root && root.children) ? root.children : scene.children;
+            const intersects = raycaster.intersectObjects(targets, true);
+            if (intersects.length > 0) {
+                // Pick the first (closest) mesh
+                const intersectedObject = intersects[0].object;
+                selectObject(intersectedObject, null);
+            } else {
+                // Clear selection
+                selectObject(null, null);
+            }
+        });
     
         function selectObject(object, itemElement) {
+            // Clear previous tree selection highlight (if any)
             if (selectedItem) {
-                selectedItem.style.backgroundColor = '';
+                try { selectedItem.style.backgroundColor = ''; } catch(e) {}
             }
-            selectedItem = itemElement;
+ 
+            // Apply tree highlight if an item element is provided
+            if (itemElement) {
+                selectedItem = itemElement;
+                try { selectedItem.style.backgroundColor = '#2563eb'; } catch(e) {}
+            } else {
+                selectedItem = null;
+            }
+ 
+            // Clear any previous fallback highlights
+            if (highlightedMeshes && highlightedMeshes.length > 0) {
+                highlightedMeshes.forEach(m => {
+                    try {
+                        if (m.userData && m.userData._origEmissiveHex !== undefined && m.material && 'emissive' in m.material) {
+                            m.material.emissive.setHex(m.userData._origEmissiveHex);
+                            delete m.userData._origEmissiveHex;
+                        }
+                    } catch (e) {}
+                });
+                highlightedMeshes = [];
+            }
+ 
             selectedObject = object;
-            selectedItem.style.backgroundColor = '#2563eb'; // blue highlight
-    
-            // Show properties
+            console.log('Selection changed:', object, 'outlinePass present=', !!outlinePass);
+ 
+            // Update outlinePass selection (use meshes contained in the selected object)
+            if (typeof outlinePass !== 'undefined' && outlinePass) {
+                if (!object) {
+                    outlinePass.selectedObjects = [];
+                } else {
+                    const selection = [];
+                    if (object.isMesh) {
+                        selection.push(object);
+                    } else {
+                        // collect meshes under the object
+                        object.traverse((c) => {
+                            if (c.isMesh) selection.push(c);
+                        });
+                    }
+                    outlinePass.selectedObjects = selection;
+                }
+            } else {
+                // Fallback: if OutlinePass isn't available, tint emissive on meshes to indicate selection
+                if (object) {
+                    const meshes = [];
+                    if (object.isMesh) meshes.push(object);
+                    else object.traverse((c) => { if (c.isMesh) meshes.push(c); });
+                    meshes.forEach(m => {
+                        try {
+                            if (m.material && 'emissive' in m.material) {
+                                // store original emissive color (as hex) so we can restore later
+                                m.userData._origEmissiveHex = m.material.emissive.getHex();
+                                m.material.emissive.setHex(0x44a3ff); // light blue emissive
+                                highlightedMeshes.push(m);
+                            }
+                        } catch (e) {}
+                    });
+                }
+            }
+ 
+            // Show properties in the inspector
             showProperties(object);
         }
     
