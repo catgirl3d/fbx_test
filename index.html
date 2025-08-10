@@ -31,11 +31,11 @@
             display: inline-block;
             width: 16px;
             height: 16px;
-            border: 2px solid rgba(255,255,255,0.8);
+            border: 2px solid rgba(255,255,255,0.3);
             border-top-color: #34d399;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
-            margin-right: 6px;
+            margin-right: 8px;
             vertical-align: middle;
         }
         @keyframes spin {
@@ -83,8 +83,18 @@
             pointer-events: auto;
         }
     
-        /* Progress / debug indicators: stacked below animation-controls */
-        #progress,
+        /* Progress indicator: positioned in bottom-left corner */
+        #progress {
+            position: fixed;
+            bottom: 1rem;
+            left: 1rem;
+            pointer-events: none; /* indicators must not intercept clicks */
+            z-index: 800;
+            color: white; /* Ensure text is visible */
+            background: rgba(31, 41, 55, 0.9); /* Darker background for better contrast */
+        }
+        
+        /* Debug indicator: stacked below other controls */
         #debug {
             position: fixed;
             left: 1rem;
@@ -133,7 +143,11 @@
                 left: 0.5rem;
             }
             
-            #progress,
+            #progress {
+                bottom: 0.5rem;
+                left: 0.5rem;
+            }
+            
             #debug {
                 left: 0.5rem;
             }
@@ -204,7 +218,7 @@
     </div>
     
     <!-- Элементы управления анимацией -->
-    <div id="animation-controls" class="absolute top-52 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden">
+    <div id="animation-controls" class="absolute left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden">
         <div class="mb-2">
             <select id="animation-select" class="bg-gray-700 text-white py-1 px-2 rounded text-sm">
                 <option value="">Нет анимаций</option>
@@ -258,7 +272,7 @@
     </div>
 
     
-    <div id="progress" class="absolute top-52 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
+    <div id="progress" class="fixed bottom-1 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
     <div id="debug" class="absolute top-64 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -436,13 +450,13 @@
         const debugDiv = document.getElementById('debug');
     
         function positionIndicators() {
-                    if (!leftControls || !animationControls || !progressDiv || !debugDiv) return;
+                    if (!leftControls || !animationControls || !debugDiv) return;
             
                     const leftRect = leftControls.getBoundingClientRect();
                     const leftX = Math.max(8, leftRect.left);
                     const leftWidth = Math.max(120, leftRect.width);
             
-                    // Decide baseTop: if animation-controls visible, place indicators below it; otherwise below leftControls
+                    // Decide baseTop: if animation-controls visible, place debug below it; otherwise below leftControls
                     let baseTop;
                     if (!animationControls.classList.contains('hidden')) {
                         const animRect = animationControls.getBoundingClientRect();
@@ -456,30 +470,18 @@
                         baseTop = leftRect.bottom + 8;
                     }
             
-                    // Position progress (stacked: left-controls -> animation-controls -> progress -> debug)
-                    progressDiv.style.position = 'fixed';
-                    progressDiv.style.left = `${leftX}px`;
-                    progressDiv.style.top = `${baseTop}px`;
-                    progressDiv.style.minWidth = `${leftWidth}px`;
-                    progressDiv.style.zIndex = '800';        // follow the stacking order from CSS (800)
-                    progressDiv.style.pointerEvents = 'none';
-            
-                    // Position debug below progress
-                    const progRect = progressDiv.getBoundingClientRect();
-                    const debugTop = progRect && progRect.height > 0 ? (progRect.bottom + 8) : (baseTop + 36);
-            
+                    // Position debug (progress is now fixed in bottom-left via CSS)
                     debugDiv.style.position = 'fixed';
                     debugDiv.style.left = `${leftX}px`;
-                    debugDiv.style.top = `${debugTop}px`;
+                    debugDiv.style.top = `${baseTop}px`;
                     debugDiv.style.minWidth = `${leftWidth}px`;
-                    debugDiv.style.zIndex = '790'; // below progress
+                    debugDiv.style.zIndex = '790';
                     debugDiv.style.pointerEvents = 'none';
             
-                    // If indicators run off-screen to the right, shift them left
-                    const finalProgRect = progressDiv.getBoundingClientRect();
-                    if (finalProgRect.right > window.innerWidth - 8) {
-                        const shiftLeft = Math.max(8, window.innerWidth - finalProgRect.width - 8);
-                        progressDiv.style.left = `${shiftLeft}px`;
+                    // If debug runs off-screen to the right, shift it left
+                    const finalDebugRect = debugDiv.getBoundingClientRect();
+                    if (finalDebugRect.right > window.innerWidth - 8) {
+                        const shiftLeft = Math.max(8, window.innerWidth - finalDebugRect.width - 8);
                         debugDiv.style.left = `${shiftLeft}px`;
                     }
                 }
@@ -489,7 +491,6 @@
                 const indicatorObserver = new MutationObserver(positionIndicators);
                 if (leftControls) indicatorObserver.observe(leftControls, { attributes: true, childList: true, subtree: true, characterData: true });
                 if (animationControls) indicatorObserver.observe(animationControls, { attributes: true, childList: true, subtree: true, characterData: true });
-                if (progressDiv) indicatorObserver.observe(progressDiv, { attributes: true, attributeFilter: ['class', 'style'] });
                 if (debugDiv) indicatorObserver.observe(debugDiv, { attributes: true, attributeFilter: ['class', 'style'] });
             
                 // initial indicator placement
@@ -521,7 +522,7 @@
                     }, 20);
                 } else {
                     animationControls.classList.add('hidden');
-                    // Ensure indicators reposition when animation panel hides
+                    // Ensure debug indicator repositions when animation panel hides
                     if (typeof positionIndicators === 'function') {
                         setTimeout(positionIndicators, 10);
                     }
@@ -794,7 +795,7 @@
             progressDiv.classList.remove('hidden');
             debugDiv.classList.add('hidden');
             animationControls.classList.add('hidden');
-            // Position indicators so they're visible above panels (do this shortly after changing classes)
+            // Position debug indicator (progress is now fixed in bottom-left)
             if (typeof positionIndicators === 'function') {
                 setTimeout(positionIndicators, 20);
             }
@@ -916,7 +917,7 @@
             progressDiv.classList.remove('hidden');
             debugDiv.classList.add('hidden');
             animationControls.classList.add('hidden');
-            // Position indicators so they're visible above panels (do this shortly after changing classes)
+            // Position debug indicator (progress is now fixed in bottom-left)
             if (typeof positionIndicators === 'function') {
                 setTimeout(positionIndicators, 20);
             }
