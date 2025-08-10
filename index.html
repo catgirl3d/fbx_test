@@ -1,1608 +1,1121 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FBX/GLTF Viewer with Modern UI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        #file-input-label, #reset-camera, .anim-btn {
-            transition: all 0.3s ease;
-        }
-        #file-input-label:hover, #reset-camera:hover, .anim-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 15px rgba(34, 197, 94, 0.8);
-        }
-        #file-input {
-            display: none;
-        }
-        #bg-color {
-            transition: all 0.3s ease;
-        }
-        #bg-color:hover {
-            box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
-        }
-        #progress {
-            transition: opacity 0.3s ease;
-        }
-        /* Loading spinner inside progress text */
-        #progress::before {
-            content: '';
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: #34d399;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 8px;
-            vertical-align: middle;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Viewer — Pro</title>
 
-        /* Stacking / z-index fixes to prevent panels from covering each other */
-        /* Use fixed positioning for UI panels so z-index ordering is reliable across browsers.
-           Make non-interactive indicators ignore pointer-events so they don't block clicks.
-           Keep canvas behind UI but still receive pointer events for OrbitControls. */
-    
-        /* Renderer canvas (three.js) should fill viewport and sit at the back */
-        canvas {
-            position: fixed;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-        }
-    
-        /* File name - visible but non-interactive */
-        #file-name {
-            position: fixed;
-            top: 1rem;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 110;
-            pointer-events: none;
-        }
-    
-        /* Left-side controls must be the topmost interactive UI so buttons remain clickable */
-        #left-controls {
-            position: fixed;
-            top: 4rem;
-            left: 1rem;
-            z-index: 1000; /* top-most interactive left controls */
-            pointer-events: auto;
-        }
-    
-        /* Animation controls should appear directly under left-controls (stacked) */
-        #animation-controls {
-            position: fixed;
-            left: 1rem;
-            z-index: 900; /* below left-controls */
-            pointer-events: auto;
-        }
-    
-        /* Progress indicator: positioned in bottom-left corner */
-        #progress {
-            position: fixed;
-            bottom: 1rem;
-            left: 1rem;
-            pointer-events: none; /* indicators must not intercept clicks */
-            z-index: 800;
-            color: white; /* Ensure text is visible */
-            background: rgba(31, 41, 55, 0.9); /* Darker background for better contrast */
-        }
-        
-        /* Debug indicator: stacked below other controls */
-        #debug {
-            position: fixed;
-            left: 1rem;
-            pointer-events: none; /* indicators must not intercept clicks */
-            z-index: 800; /* base value; precise stacking enforced in JS when positioning */
-        }
-    
-        /* Make child inputs/buttons of progress/debug still non-interactive (these are just displays) */
-        #progress *, #debug * {
-            pointer-events: none;
-        }
-    
-        /* Info panel (top-right) should not cover the animation controls */
-        #info {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            z-index: 700;
-            pointer-events: auto;
-        }
-    
-        /* Scene inspector stays below core controls but above indicators */
-        #scene-inspector {
-            position: fixed;
-            top: 0;
-            right: -320px; /* keep default closed position */
-            z-index: 600;
-            pointer-events: auto;
-        }
-    
-        /* Ensure the inspector toggle remains clickable (always on top) */
-        #inspector-toggle {
-            z-index: 9999 !important;
-            pointer-events: auto;
-        }
-        /* Mobile responsive styles */
-        @media (max-width: 768px) {
-            #left-controls {
-                top: 5rem;
-                left: 0.5rem;
-                width: auto;
-                max-width: 150px;
-            }
-            
-            #animation-controls {
-                left: 0.5rem;
-            }
-            
-            #progress {
-                bottom: 0.5rem;
-                left: 0.5rem;
-            }
-            
-            #debug {
-                left: 0.5rem;
-            }
-            
-            #info {
-                top: 0.5rem;
-                right: 0.5rem;
-                font-size: 0.75rem;
-                padding: 0.25rem 0.5rem;
-            }
-            
-            #file-name {
-                top: 0.5rem;
-                font-size: 0.875rem;
-                padding: 0.25rem 0.5rem;
-            }
-            
-            #inspector-toggle {
-                top: 0.5rem;
-                right: 0.5rem;
-                padding: 0.25rem;
-            }
-            
-            #scene-inspector {
-                width: 100%;
-                height: 70%;
-                top: auto;
-                bottom: 0;
-                right: 0 !important;
-                transition: bottom 0.3s ease-out;
-            }
-            
-            #scene-inspector.open {
-                bottom: 0 !important;
-            }
-            
-            #scene-inspector.closed {
-                bottom: -70%;
-            }
-        }
-    </style>
+  <!-- Import map for bare specifier "three" -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js"
+    }
+  }
+  </script>
+
+  <style>
+    :root{
+      /* Light theme (default) */
+      --panel-w: 360px;
+      --bg-page: #f5f7fc;
+      --bg-panel: #ffffff;
+      --text: #0b1220;
+      --muted: #5b667a;
+      --accent: #2563eb;
+      --danger: #ef4444;
+      --ok: #10b981;
+      --border: #d9deea;
+      --chip-bg:#fff;
+      --chip-bd:#e6ebf7;
+      --chip-tx:#344054;
+      --toast-bg:#111827; --toast-bd:#1f2937; --toast-tx:#e5edff;
+      --button-hover:#f6f8fe;
+      --button-checked:#f3f7ff;
+      --tree-sel-bg:#eef3ff; --tree-sel-bd:#c8d5ff;
+      --progress-bg:#fff; --progress-bd:#e6ebf7; --meter-bg:#eef2fb; --meter-bd:#e1e7fb;
+      --grid-c1:#8892a6; --grid-c2:#cbd5e1;
+      --canvas-default:#ffffff; /* canvas scene background default (white) */
+    }
+    body.theme-dark{
+      /* Dark theme overrides */
+      --bg-page:#0b0d12;
+      --bg-panel:#121520;
+      --text:#e9eef5;
+      --muted:#a9b3c7;
+      --accent:#4da3ff;
+      --danger:#ff5e7a;
+      --ok:#4cd480;
+      --border:#222736;
+      --chip-bg:#0f1322; --chip-bd:#1b213d; --chip-tx:#b7c5e6;
+      --toast-bg:#0f1528; --toast-bd:#1b2240; --toast-tx:#cfe0ff;
+      --button-hover:#161a28;
+      --button-checked:#0d1420;
+      --tree-sel-bg:#1a2542; --tree-sel-bd:#2c3e6a;
+      --progress-bg:#0f1322; --progress-bd:#1c2340; --meter-bg:#0b1020; --meter-bd:#1b2446;
+      --grid-c1:#293347; --grid-c2:#1b2233;
+      --canvas-default:#0b0d12;
+    }
+
+    html, body{ margin:0; padding:0; height:100%; background: var(--bg-page); color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    .viewer-wrap{ position:fixed; inset:0; overflow:hidden; }
+    canvas.viewer-canvas{ position:absolute; inset:0; display:block; outline: none; }
+
+    .left-col{
+      position: fixed; top: 0; left: 0; bottom: 0; width: var(--panel-w); max-width: 92vw;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      padding: 12px 12px 16px;
+      display:flex; flex-direction:column; gap:12px; z-index: 30;
+      box-shadow: 0 0 30px rgba(0,0,0,.06);
+    }
+    .left-col header{ display:flex; align-items:center; gap:10px; }
+    .logo-dot{ width:10px; height:10px; border-radius:50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+    .left-col h1{ font-size: 16px; margin:0; font-weight: 700; letter-spacing: .2px; }
+    .toolbar{ display:flex; gap:8px; flex-wrap:wrap; }
+    .btn, .toggle{
+      appearance:none; border:1px solid var(--border); background: var(--bg-panel); color: var(--text);
+      padding: 8px 10px; border-radius: 10px; cursor: pointer; transition: .15s transform, .15s background, .15s border-color;
+      font-size: 13px; line-height: 1; display:inline-flex; gap:8px; align-items:center;
+    }
+    .btn:hover, .toggle:hover{ background:var(--button-hover); border-color:color-mix(in srgb, var(--border) 60%, transparent); transform: translateY(-1px) }
+    .btn.secondary{ background: color-mix(in srgb, var(--bg-panel) 90%, white); }
+    .btn.danger{ border-color: color-mix(in srgb, var(--danger) 25%, var(--border)); background: color-mix(in srgb, var(--danger) 8%, var(--bg-panel)); color:color-mix(in srgb, var(--danger) 60%, black); }
+    .btn.ok{ border-color:color-mix(in srgb, var(--ok) 25%, var(--border)); background:color-mix(in srgb, var(--ok) 8%, var(--bg-panel)); color:color-mix(in srgb, var(--ok) 65%, black); }
+    .toggle input{ display:none; }
+    .toggle:has(input:checked){ border-color:color-mix(in srgb, var(--accent) 30%, var(--border)); background:var(--button-checked); }
+    .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    .row label{ font-size:12px; color: var(--muted) }
+    .field{ background:var(--bg-panel); border:1px solid var(--border); border-radius: 8px; padding:6px 8px; color:var(--text) }
+    .split{ height:1px; background:var(--border); opacity:.5; margin: 4px 0 }
+    .group{ display:flex; flex-direction:column; gap:8px }
+    .scroll{ overflow:auto; }
+    .small{ font-size:12px; color: var(--muted) }
+    .kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:var(--chip-bg); border:1px solid var(--chip-bd); border-radius:6px; padding:1px 6px; font-size:11px; color:var(--chip-tx) }
+
+    .inspector{
+      position: fixed; top:0; right: calc(-1 * var(--panel-w)); bottom:0; width: var(--panel-w);
+      background: var(--bg-panel);
+      border-left:1px solid var(--border);
+      transition: right .25s ease;
+      z-index: 40; display:flex; flex-direction:column; box-shadow: 0 0 30px rgba(0,0,0,.06);
+    }
+    .inspector.right-0{ right: 0 }
+    .inspector header{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; gap:8px; border-bottom:1px solid var(--border) }
+    .inspector .tree{ flex:1; overflow:auto; padding: 10px 8px; }
+    .tag{ font-size:11px; padding: 2px 6px; border-radius: 999px; background:var(--chip-bg); border:1px solid var(--chip-bd); color:var(--chip-tx) }
+    .tree ul{ list-style:none; padding-left: 14px; margin: 0 }
+    .tree li{ margin: 2px 0 }
+    .tree button{ background: none; border:1px solid transparent; color: var(--text); cursor: pointer; padding: 2px 6px; border-radius: 6px }
+    .tree button:hover{ background:var(--button-hover); border-color:color-mix(in srgb, var(--border) 60%, transparent) }
+    .tree .selected{ background:var(--tree-sel-bg); border-color:var(--tree-sel-bd) }
+
+    .overlay{ position:fixed; inset:0; display:none; place-items:center; background: rgba(0,0,0,.6); z-index: 50; }
+    .overlay.show{ display:grid }
+    .progress{
+      min-width: 280px; max-width: 60vw; background:var(--progress-bg); border:1px solid var(--progress-bd); border-radius: 12px; padding:16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.15);
+    }
+    .progress h3{ margin:0 0 8px 0; font-size:14px }
+    .meter{ height: 8px; background: var(--meter-bg); border:1px solid var(--meter-bd); border-radius: 999px; overflow:hidden }
+    .meter > i{ display:block; height:100%; width:0%; background: linear-gradient(90deg, #60a5fa, #93c5fd); transition: width .15s }
+    .indeterminate{ position:relative; overflow:hidden }
+    .indeterminate > i{ position:absolute; width:40%; left:-40%; animation: roll 1.2s infinite linear }
+    @keyframes roll { to { left: 100% } }
+
+    .toast{
+      position:fixed; left: 12px; bottom: 12px; z-index: 60; padding: 10px 12px;
+      background:var(--toast-bg); border:1px solid var(--toast-bd); color:var(--toast-tx); border-radius: 10px; box-shadow: 0 10px 20px rgba(0,0,0,.25);
+      display:none;
+    }
+    .toast.show{ display:block }
+    .debug{
+      position:fixed; left:12px; right: calc(var(--panel-w) + 12px); bottom: 12px; z-index: 20;
+      display:flex; gap:8px; align-items:center; flex-wrap:wrap; pointer-events:none;
+    }
+    .chip{ pointer-events:auto; background:var(--chip-bg); border:1px solid var(--chip-bd); border-radius: 999px; padding: 6px 10px; font-size:12px; color:var(--chip-tx) }
+    .chip b{ color:var(--text) }
+    .open-inspector-tab{
+      position: fixed; top: 50%; right: 0; transform: translateY(-50%);
+      z-index: 35; padding: 8px 10px; border-radius: 10px 0 0 10px;
+      background:var(--bg-panel); border:1px solid var(--border); border-right: none; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    }
+    .range{ width: 220px }
+    .lang-select{ margin-left:auto }
+    .theme-switch{
+      margin-left:4px;
+      display:inline-flex; align-items:center; gap:6px;
+      border:1px solid var(--border); background:var(--bg-panel); padding:6px 8px; border-radius:10px; cursor:pointer;
+    }
+    .theme-switch .icon{ width:16px; height:16px; display:inline-block }
+  </style>
 </head>
-<body class="bg-gray-200">
-    <div id="file-name" class="absolute top-4 left-1/2 transform -translate-x-1/2 text-white text-xl font-bold bg-gray-800 bg-opacity-75 px-4 py-2 rounded-lg"></div>
-    <div id="error" class="absolute top-16 left-4 text-red-500 text-lg"></div>
-    <div id="info" class="absolute top-4 right-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg">
-        WSAD: Перемещение | Q/E: Вверх/Вниз | Мышь: Вращение/Масштаб
-    </div>
-    <div id="left-controls" class="absolute top-16 left-4 flex flex-col space-y-2 w-44">
-        <label for="file-input" id="file-input-label" class="bg-green-500 text-white font-semibold py-2 px-3 rounded-lg cursor-pointer shadow-lg hover:bg-green-600 text-center block w-full">
-            Выбрать файл
+<body>
+  <div class="viewer-wrap" id="drop-zone" aria-label="3D Viewer">
+    <canvas class="viewer-canvas" id="viewport" tabindex="0"></canvas>
+  </div>
+
+  <aside class="left-col" aria-label="Controls">
+    <header>
+      <span class="logo-dot" aria-hidden="true"></span>
+      <h1 data-i="title">3D Viewer</h1>
+      <button id="theme-toggle" class="theme-switch" title="Theme">
+        <span class="icon" id="theme-icon">🌞</span>
+        <span id="theme-label">Light</span>
+      </button>
+      <select id="lang" class="field lang-select">
+        <option value="ru">Русский</option>
+        <option value="en">English</option>
+      </select>
+    </header>
+
+    <div class="group">
+      <div class="toolbar">
+        <label class="btn">
+          <input id="file-input" type="file" accept=".gltf,.glb,.fbx,.obj,.bin,.dae,.vrm,.zip" hidden />
+          <span data-i="btnLoad">Загрузить модель</span>
         </label>
-        <input type="file" id="file-input" accept=".fbx,.gltf,.glb" class="hidden">
-        <button id="reset-camera" class="bg-blue-500 text-white font-semibold py-2 px-3 rounded-lg cursor-pointer shadow-lg hover:bg-blue-600 w-full">
-            Сбросить камеру
-        </button>
-        <select id="bg-color" class="bg-gray-800 text-white font-semibold py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 w-full">
-            <option value="#dddddd">Серый</option>
-            <option value="#1e3a8a">Тёмно-синий</option>
-            <option value="#000000">Чёрный</option>
-            <option value="#ffffff">Белый</option>
+        <button id="reset-camera" class="btn secondary" data-i="btnFrame">К камере</button>
+        <button id="clear-scene" class="btn danger" data-i="btnClear">Очистить</button>
+      </div>
+
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="toggle-shadows" /><span data-i="toggleShadows">Тени</span></label>
+        <label class="toggle"><input type="checkbox" id="toggle-fxaa" checked /><span>FXAA</span></label>
+        <label class="toggle"><input type="checkbox" id="toggle-lightonly" /><span data-i="toggleLight">Только освещение</span></label>
+        <label class="toggle"><input type="checkbox" id="toggle-grid" checked /><span data-i="toggleGrid">Сетка</span></label>
+      </div>
+
+      <div class="row">
+        <label data-i="bgLabel">Фон</label>
+        <select id="bg-select" class="field">
+          <option value="white" selected>Белый</option>
+          <option value="lightgray">Светло-серый</option>
+          <option value="midgray">Средне-серый</option>
+          <option value="darkgray">Тёмный</option>
+          <option value="transparent">Прозрачный</option>
+          <option value="custom">Произвольный</option>
         </select>
-        <select id="display-mode" class="bg-gray-800 text-white font-semibold py-2 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 w-full">
-            <option value="standard">Стандартный</option>
-            <option value="wireframe">Каркасный</option>
-            <option value="lighting">Только освещение</option>
+        <input id="bg-color" class="field" type="color" value="#ffffff" title="Custom" />
+      </div>
+
+      <div class="row">
+        <label>HDRI</label>
+        <input class="field" type="text" id="hdri-url" placeholder="URL .hdr" />
+        <button id="apply-hdri" class="btn" data-i="btnApply">Применить</button>
+      </div>
+
+      <div class="row">
+        <label data-i="matOverride">Материал</label>
+        <select id="mat-override" class="field">
+          <option value="none" selected>Оригинал</option>
+          <option value="standard">Standard</option>
+          <option value="phong">Phong</option>
+          <option value="basic">Basic</option>
+          <option value="normal">Normal</option>
+          <option value="toon">Toon</option>
         </select>
-    </div>
-    
-    <!-- Элементы управления анимацией -->
-    <div id="animation-controls" class="absolute left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden">
-        <div class="mb-2">
-            <select id="animation-select" class="bg-gray-700 text-white py-1 px-2 rounded text-sm">
-                <option value="">Нет анимаций</option>
-            </select>
-        </div>
-        <div class="flex items-center space-x-2 mb-2">
-            <button id="play-pause-btn" class="anim-btn bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs">
-                ▶️ Играть
-            </button>
-            <button id="stop-btn" class="anim-btn bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs">
-                ⏹️ Стоп
-            </button>
-            <input type="range" id="animation-slider" class="flex-1" min="0" max="100" value="0" step="0.1">
-            <span id="duration-label" class="text-xs">0s</span>
-        </div>
-        <div class="flex items-center space-x-2 text-xs">
-            <label>Скорость:</label>
-            <input type="number" id="speed-input" class="w-12 bg-gray-700 text-white py-1 px-1 rounded text-xs" min="0.1" max="5" step="0.1" value="1">
-            <label class="ml-2">
-                <input type="checkbox" id="loop-checkbox" class="mr-1" checked>
-                Зацикливать
-            </label>
-        </div>
-    </div>
-    <!-- Toggle button for inspector -->
-    <button id="inspector-toggle" class="fixed top-4 right-4 z-[999] p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors shadow-lg">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5h12m-12 7h12m-12 7h12M1 5h12m-12 7h12m-12 7h12"/>
-        </svg>
-    </button>
+        <label class="toggle"><input type="checkbox" id="toggle-wireframe" /><span data-i="wireframe">Каркас</span></label>
+      </div>
 
-    <!-- Scene inspector panel -->
-    <div id="scene-inspector" class="fixed top-0 right-[-320px] h-full w-80 bg-gray-800 bg-opacity-95 text-white px-4 py-4 shadow-xl transition-all duration-300 ease-out overflow-y-auto z-40">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold">Инспектор сцены</h2>
-            <button id="close-inspector" class="p-1 hover:bg-gray-700 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
+      <div class="split"></div>
+
+      <div class="group">
+        <label class="small" data-i="animTitle">Анимации</label>
+        <div class="row" id="anim-row">
+          <select id="anim-select" class="field" style="min-width:200px"></select>
+          <button id="anim-playpause" class="btn ok" data-i="animPlay">Пуск</button>
+          <button id="anim-stop" class="btn" data-i="animStop">Стоп</button>
+          <label class="toggle"><input type="checkbox" id="anim-loop" checked /><span data-i="animLoop">Зациклить</span></label>
+          <label class="row small">
+            <span data-i="animSpeed">Скорость</span>
+            <input id="anim-speed" class="field" type="number" step="0.25" min="0.25" max="3" value="1" style="width:70px" />
+            <span>x</span>
+          </label>
         </div>
-        <!-- Search input for filtering scene tree -->
-        <div class="mb-4">
-            <input type="text" id="scene-search" placeholder="Поиск объектов..." class="w-full px-3 py-2 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+        <div class="row">
+          <input id="anim-progress" class="range" type="range" min="0" max="1" step="0.001" value="0" />
+          <span class="small" id="anim-time">0.00 / 0.00s</span>
         </div>
-        <div id="scene-tree" class="text-sm mb-4 max-h-[60vh] overflow-auto border border-gray-600 rounded p-2 bg-gray-900"></div>
-        <div id="object-properties" class="text-xs bg-gray-700 p-2 rounded max-h-60 overflow-auto">
-            <h3 class="font-semibold mb-2">Свойства объекта</h3>
-            <div id="properties-content">Выберите объект в дереве</div>
-        </div>
+        <div class="small" data-i="animHint">По умолчанию анимация не проигрывается.</div>
+      </div>
     </div>
 
-    
-    <div id="progress" class="fixed bottom-1 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
-    <div id="debug" class="absolute top-64 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <!-- Postprocessing & outline (used for object highlighting) -->
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script> <!-- Added CopyShader.js -->
-    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/OutlinePass.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/FXAAShader.js"></script>
-    
-    <style>
-        /* Additional styles for left controls uniform width */
-        #left-controls > * {
-            min-width: 100%;
-            box-sizing: border-box;
+    <div class="split"></div>
+
+    <div class="group scroll" style="min-height: 0">
+      <label class="small" data-i="hotkeys">Горячие клавиши</label>
+      <div class="row small">
+        <span class="kbd">LMB</span> <span data-i="hkSelect">выбор</span>
+        <span class="kbd">F</span> <span data-i="hkFocus">к объекту</span>
+        <span class="kbd">R</span> <span data-i="hkReset">сброс камеры</span>
+        <span class="kbd">Del</span> <span data-i="hkClearSel">снять выделение</span>
+      </div>
+    </div>
+  </aside>
+
+  <aside id="scene-inspector" class="inspector right-[-360px]" aria-label="Scene Inspector">
+    <header>
+      <strong data-i="inspector">Сцена</strong>
+      <div class="row">
+        <span class="tag" id="poly-count">—</span>
+        <button class="btn" id="inspector-close" data-i="btnHideInspector">Скрыть</button>
+      </div>
+    </header>
+    <div class="tree" id="tree"></div>
+  </aside>
+
+  <button class="open-inspector-tab" id="open-inspector" title="Inspector">☰</button>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="overlay" id="overlay">
+    <div class="progress">
+      <h3 id="progress-title">Загрузка…</h3>
+      <div class="meter indeterminate" id="meter"><i></i></div>
+      <div class="small" id="progress-sub">Ожидаем данные…</div>
+    </div>
+  </div>
+
+  <div class="debug" id="debug-bar">
+    <div class="chip"><b>FPS:</b> <span id="fps">—</span></div>
+    <div class="chip"><b data-i="objects">Объекты:</b> <span id="obj-count">—</span></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js';
+    import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/GLTFLoader.js';
+    import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/FBXLoader.js';
+    import { DRACOLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/DRACOLoader.js';
+    import { KTX2Loader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/KTX2Loader.js';
+    import { MeshoptDecoder } from 'https://cdn.jsdelivr.net/npm/meshoptimizer@0.20.0/meshopt_decoder.module.js';
+    import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/postprocessing/RenderPass.js';
+    import { OutlinePass } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/postprocessing/OutlinePass.js';
+    import { ShaderPass } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/postprocessing/ShaderPass.js';
+    import { FXAAShader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/shaders/FXAAShader.js';
+    import { RGBELoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/RGBELoader.js';
+
+    // ======= i18n =======
+    const i18n = {
+      ru: {
+        title: '3D Viewer', btnLoad:'Загрузить модель', btnFrame:'К камере', btnClear:'Очистить',
+        toggleShadows:'Тени', toggleLight:'Только освещение', toggleGrid:'Сетка', bgLabel:'Фон', btnApply:'Применить',
+        matOverride:'Материал', wireframe:'Каркас',
+        animTitle:'Анимации', animPlay:'Пуск', animPause:'Пауза', animStop:'Стоп', animLoop:'Зациклить', animSpeed:'Скорость',
+        animHint:'По умолчанию анимация не проигрывается.', hotkeys:'Горячие клавиши',
+        hkSelect:'выбор', hkFocus:'к объекту', hkReset:'сброс камеры', hkClearSel:'снять выделение',
+        inspector:'Сцена', btnHideInspector:'Скрыть', btnShowInspector:'Инспектор', objects:'Объекты:'
+      },
+      en: {
+        title: '3D Viewer', btnLoad:'Load model', btnFrame:'Frame', btnClear:'Clear',
+        toggleShadows:'Shadows', toggleLight:'Light only', toggleGrid:'Grid', bgLabel:'Background', btnApply:'Apply',
+        matOverride:'Material', wireframe:'Wireframe',
+        animTitle:'Animations', animPlay:'Play', animPause:'Pause', animStop:'Stop', animLoop:'Loop', animSpeed:'Speed',
+        animHint:'By default animations do not play.', hotkeys:'Hotkeys',
+        hkSelect:'select', hkFocus:'focus', hkReset:'reset camera', hkClearSel:'clear selection',
+        inspector:'Scene', btnHideInspector:'Hide', btnShowInspector:'Inspector', objects:'Objects:'
+      }
+    };
+    function applyLang(lang){
+      document.querySelectorAll('[data-i]').forEach(el=>{
+        const key = el.getAttribute('data-i');
+        if (i18n[lang][key] !== undefined) el.textContent = i18n[lang][key];
+      });
+      openInspectorBtn.title = i18n[lang].btnShowInspector;
+      themeLabel.textContent = (lang==='ru' ? (isDark() ? 'Ночная' : 'Светлая') : (isDark() ? 'Dark' : 'Light'));
+      saveSettings();
+    }
+
+    // ======= Local storage =======
+    const LS_KEY = 'viewerSettings.v1';
+    function loadSettings(){
+      try{ return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }catch{ return {}; }
+    }
+    function saveSettings(){
+      const s = {
+        lang: langSelect.value,
+        theme: isDark() ? 'dark' : 'light',
+        toggles:{
+          shadows: toggleShadows.checked,
+          fxaa: toggleFXAA.checked,
+          lightonly: toggleLightOnly.checked,
+          grid: toggleGrid.checked
+        },
+        background:{ mode: bgSelect.value, color: bgColor.value },
+        hdri: hdriUrlInput.value.trim(),
+        material:{ override: matOverride.value, wireframe: toggleWireframe.checked },
+        anim:{ loop: animLoop.checked, speed: parseFloat(animSpeed.value)||1 }
+      };
+      localStorage.setItem(LS_KEY, JSON.stringify(s));
+    }
+
+    // ======= DOM =======
+    const d = document;
+    const canvas = d.getElementById('viewport');
+    const leftCol = d.querySelector('.left-col');
+    const inspector = d.getElementById('scene-inspector');
+    const treeRoot = d.getElementById('tree');
+    const inspectorClose = d.getElementById('inspector-close');
+    const openInspectorBtn = d.getElementById('open-inspector');
+    const polyCountEl = d.getElementById('poly-count');
+    const toastEl = d.getElementById('toast');
+    const overlay = d.getElementById('overlay');
+    const meter = d.getElementById('meter');
+    const progressTitle = d.getElementById('progress-title');
+    const progressSub = d.getElementById('progress-sub');
+    const objCountEl = d.getElementById('obj-count');
+    const fpsEl = d.getElementById('fps');
+
+    const langSelect = d.getElementById('lang');
+    const themeToggle = d.getElementById('theme-toggle');
+    const themeIcon = d.getElementById('theme-icon');
+    const themeLabel = d.getElementById('theme-label');
+
+    const fileInput = d.getElementById('file-input');
+    const resetCameraBtn = d.getElementById('reset-camera');
+    const clearSceneBtn = d.getElementById('clear-scene');
+    const toggleShadows = d.getElementById('toggle-shadows');
+    const toggleFXAA = d.getElementById('toggle-fxaa');
+    const toggleLightOnly = d.getElementById('toggle-lightonly');
+    const toggleGrid = d.getElementById('toggle-grid');
+    const bgSelect = d.getElementById('bg-select');
+    const bgColor = d.getElementById('bg-color');
+    const hdriUrlInput = d.getElementById('hdri-url');
+    const applyHdriBtn = d.getElementById('apply-hdri');
+
+    const matOverride = d.getElementById('mat-override');
+    const toggleWireframe = d.getElementById('toggle-wireframe');
+
+    const animSelect = d.getElementById('anim-select');
+    const animPlayPause = d.getElementById('anim-playpause');
+    const animStop = d.getElementById('anim-stop');
+    const animLoop = d.getElementById('anim-loop');
+    const animSpeed = d.getElementById('anim-speed');
+    const animProgress = d.getElementById('anim-progress');
+    const animTime = d.getElementById('anim-time');
+
+    const dropZone = d.getElementById('drop-zone');
+
+    // ======= THREE setup =======
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:false, powerPreference:'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.shadowMap.enabled = false;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(getComputedStyle(d.body).getPropertyValue('--canvas-default').trim());
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 50000);
+    camera.position.set(2, 1.2, 3);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.target.set(0, 0.8, 0);
+    controls.update();
+
+    // Grid (adaptive)
+    let grid = null;
+    function createGrid(size=10, divisions=20){
+      if (grid){ scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); grid=null; }
+      grid = new THREE.GridHelper(size, divisions, getColor('--grid-c1'), getColor('--grid-c2'));
+      grid.material.transparent = true; grid.material.opacity = 0.6;
+      grid.position.y = 0;
+      scene.add(grid);
+      grid.visible = toggleGrid.checked;
+    }
+    function getColor(cssVar){
+      const v = getComputedStyle(d.body).getPropertyValue(cssVar).trim();
+      return new THREE.Color(v);
+    }
+    createGrid(10, 20);
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.5);
+    scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(3,5,2);
+    dir.castShadow = false;
+    scene.add(dir);
+
+    // Post-processing
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    const outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
+    outlinePass.edgeStrength = 3.0;
+    outlinePass.edgeGlow = 0.0;
+    outlinePass.edgeThickness = 1.0;
+    outlinePass.visibleEdgeColor.set(0x2563eb);
+    outlinePass.hiddenEdgeColor.set(0x0);
+    composer.addPass(outlinePass);
+
+    const fxaaPass = new ShaderPass(FXAAShader);
+    fxaaPass.material.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
+    composer.addPass(fxaaPass);
+
+    // Animation
+    let mixer = null;
+    let currentClips = [];
+    let activeAction = null;
+    let clock = new THREE.Clock();
+
+    // Current model state
+    let currentModel = null;
+    let savedOriginal = new WeakMap();
+    let selectedObject = null;
+    let envHdrTex = null;
+
+    // Loaders
+    const gltfLoader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/libs/draco/');
+    gltfLoader.setDRACOLoader(dracoLoader);
+    const ktx2 = new KTX2Loader()
+      .setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/libs/basis/')
+      .detectSupport(renderer);
+    gltfLoader.setKTX2Loader(ktx2);
+    gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+    const fbxLoader = new FBXLoader();
+    const rgbeLoader = new RGBELoader();
+
+    // ======= Theme =======
+    function isDark(){ return d.body.classList.contains('theme-dark'); }
+    function setTheme(theme){
+      d.body.classList.toggle('theme-dark', theme === 'dark');
+      themeIcon.textContent = theme === 'dark' ? '🌙' : '🌞';
+      themeLabel.textContent = (langSelect.value === 'ru') ? (theme==='dark' ? 'Ночная' : 'Светлая') : (theme==='dark' ? 'Dark' : 'Light');
+      // Update scene background to theme default if not custom selection
+      if (bgSelect.value === 'white' || bgSelect.value==='lightgray' || bgSelect.value==='midgray' || bgSelect.value==='darkgray'){
+        updateBackgroundFromUI(); // will map to theme-agnostic colors
+      } else if (bgSelect.value === 'transparent'){
+        updateBackgroundFromUI();
+      } else if (bgSelect.value === 'custom'){
+        // keep custom
+      } else {
+        scene.background = new THREE.Color(getComputedStyle(d.body).getPropertyValue('--canvas-default').trim());
+      }
+      // Rebuild grid with theme colors
+      createGrid(gridSize, gridDiv);
+      saveSettings();
+    }
+    themeToggle.addEventListener('click', ()=> setTheme(isDark() ? 'light' : 'dark'));
+
+    // ======= Inspector open/close =======
+    function openInspector(open) {
+      inspector.classList.toggle('right-0', open);
+      inspector.classList.toggle('right-[-360px]', !open);
+    }
+    openInspectorBtn.addEventListener('click', ()=> openInspector(true));
+    leftCol.addEventListener('dblclick', () => openInspector(true));
+    inspectorClose.addEventListener('click', () => openInspector(false));
+
+    // ======= Drag & Drop =======
+    ;['dragenter','dragover'].forEach(evt=>dropZone.addEventListener(evt, (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      showOverlay('Загрузка…', 'Перетащите файл сюда');
+    }));
+    ;['dragleave','drop'].forEach(evt=>dropZone.addEventListener(evt, (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      hideOverlay();
+    }));
+    dropZone.addEventListener('drop', (e)=>{
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleFile(file);
+    });
+
+    // ======= File input =======
+    fileInput.addEventListener('change', (e)=>{
+      const file = e.target.files?.[0];
+      if (file) handleFile(file);
+      fileInput.value = '';
+    });
+
+    function handleFile(file){
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.gltf') || name.endsWith('.glb')) {
+        loadGLTF(file);
+      } else if (name.endsWith('.fbx')) {
+        loadFBX(file);
+      } else {
+        toast('Поддерживаются: glTF/GLB/FBX');
+      }
+    }
+
+    // ======= Safe revoke URL helper =======
+    function loadWithURL(loader, file, onSuccess, onProgress, onError){
+      const url = URL.createObjectURL(file);
+      loader.load(url, (asset)=>{
+          URL.revokeObjectURL(url);
+          onSuccess && onSuccess(asset);
+        }, (evt)=>{
+          if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
+          else setIndeterminate();
+          onProgress && onProgress(evt);
+        }, (err)=>{
+          URL.revokeObjectURL(url);
+          onError && onError(err);
+        });
+    }
+
+    // ======= Model lifecycle =======
+    function disposeObject(obj){
+      obj.traverse(o=>{
+        if (o.isMesh){
+          if (o.geometry) o.geometry.dispose();
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          mats.filter(Boolean).forEach(m=>{
+            ['map','normalMap','metalnessMap','roughnessMap','emissiveMap','aoMap','alphaMap','bumpMap','envMap']
+              .forEach(k=>{ if (m && m[k]?.isTexture) m[k].dispose(); });
+            m?.dispose?.();
+          });
         }
-    </style>
+      });
+    }
+    function clearCurrentModel(){
+      if (currentModel){
+        outlinePass.selectedObjects = [];
+        selectObject(null);
+        scene.remove(currentModel);
+        disposeObject(currentModel);
+        currentModel = null;
+      }
+      updateStats();
+      buildSceneTree(null);
+      resetAnimationsUI();
+    }
 
-    <script>
-        // Инициализация сцены
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xdddddd);
+    // ======= Material enhancement (arrays-safe) & override =======
+    function enhanceMaterial(material){
+      if (!material) return material;
+      if (Array.isArray(material)) return material.map(m => enhanceMaterial(m));
+      if (!(material instanceof THREE.MeshStandardMaterial)){
+        const m = new THREE.MeshStandardMaterial({
+          name: material.name || '',
+          color: material.color ? material.color.clone() : new THREE.Color(0xcccccc),
+          opacity: material.opacity ?? 1,
+          transparent: !!material.transparent,
+          side: material.side ?? THREE.FrontSide,
+          wireframe: !!material.wireframe
+        });
+        if (material.map) { m.map = material.map; if (m.map) m.map.encoding = THREE.sRGBEncoding; }
+        m.metalness = material.metalness ?? 0.0;
+        m.roughness = material.roughness ?? 0.5;
+        material = m;
+      } else {
+        if (material.map) material.map.encoding = THREE.sRGBEncoding;
+      }
+      material.needsUpdate = true;
+      return material;
+    }
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 5);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        document.body.appendChild(renderer.domElement);
- 
-        // Post-processing (composer + outline)
-        // composer and outlinePass are used to visually highlight selected objects
-        let composer, outlinePass, effectFXAA;
-        function setupPostProcessing() {
-            try {
-                composer = new THREE.EffectComposer(renderer);
-                const renderPass = new THREE.RenderPass(scene, camera);
-                composer.addPass(renderPass);
- 
-                outlinePass = new THREE.OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
-                outlinePass.edgeStrength = 5.0;
-                outlinePass.edgeGlow = 0.5;
-                outlinePass.edgeThickness = 1.0;
-                outlinePass.visibleEdgeColor.set('#ffffff');
-                outlinePass.hiddenEdgeColor.set('#2563eb');
-                outlinePass.pulsePeriod = 0; // no pulsing by default
-                composer.addPass(outlinePass);
- 
-                // FXAA for crisper edges (optional)
-                effectFXAA = new THREE.ShaderPass(THREE.FXAAShader);
-                effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
-                effectFXAA.renderToScreen = true;
-                composer.addPass(effectFXAA);
-                console.log('Post-processing initialized (composer, outlinePass, FXAA).');
-            } catch (err) {
-                console.error('Error initializing post-processing:', err);
-                composer = null;
-                outlinePass = null;
-            }
+    function makeOverride(type){
+      switch(type){
+        case 'standard': return new THREE.MeshStandardMaterial({ color: 0xffffff, metalness:0, roughness:0.5 });
+        case 'phong':    return new THREE.MeshPhongMaterial({ color: 0xffffff, shininess:30 });
+        case 'basic':    return new THREE.MeshBasicMaterial({ color: 0xffffff });
+        case 'normal':   return new THREE.MeshNormalMaterial();
+        case 'toon':     return new THREE.MeshToonMaterial({ color: 0xffffff });
+        default: return null; // none
+      }
+    }
+    function applyMaterialOverride(root){
+      if (!root) return;
+      const overrideType = matOverride.value;
+      const wire = toggleWireframe.checked;
+      const overrideMat = makeOverride(overrideType);
+      root.traverse(o=>{
+        if (!o.isMesh) return;
+        if (overrideMat){
+          const base = overrideMat.clone();
+          base.wireframe = wire;
+          o.material = base;
+        } else {
+          // no override -> ensure sane standard base but keep existing
+          if (Array.isArray(o.material)) o.material = o.material.map(m => enhanceMaterial(m));
+          else o.material = enhanceMaterial(o.material);
+          o.material.wireframe = wire || o.material.wireframe;
         }
-        setupPostProcessing();
- 
-        // Улучшенное освещение
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
-        scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-        directionalLight.position.set(10, 10, 5);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        scene.add(directionalLight);
+        o.material.needsUpdate = true;
+      });
+    }
 
-        // Управление камерой
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 0, 0);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.update();
+    // ======= Light-only toggle =======
+    function setLightOnly(root, on){
+      if (!root) return;
+      root.traverse(o=>{
+        if (!o.isMesh) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(m=>{
+          if (!m) return;
+          if (on){
+            if (!savedOriginal.has(m)){
+              savedOriginal.set(m, {
+                color: m.color?.clone?.(),
+                emissive: m.emissive?.clone?.(),
+                map: m.map || null,
+                emissiveMap: m.emissiveMap || null,
+                roughness: m.roughness,
+                metalness: m.metalness
+              });
+            }
+            m.map = null;
+            m.emissiveMap = null;
+            m.color?.set?.(0xffffff);
+            if ('roughness' in m) m.roughness = 0.6;
+            if ('metalness' in m) m.metalness = 0.0;
+            m.needsUpdate = true;
+          } else {
+            const saved = savedOriginal.get(m);
+            if (saved){
+              m.map = saved.map;
+              m.emissiveMap = saved.emissiveMap;
+              saved.color && m.color?.copy?.(saved.color);
+              saved.emissive && m.emissive?.copy?.(saved.emissive);
+              if ('roughness' in m && saved.roughness !== undefined) m.roughness = saved.roughness;
+              if ('metalness' in m && saved.metalness !== undefined) m.metalness = saved.metalness;
+              m.needsUpdate = true;
+            }
+          }
+        });
+      });
+    }
 
-        // Храним текущую модель и анимацию
-        let currentModel = null;
-        let mixer = null;
-        let animations = [];
-        let currentAction = null;
-        let clock = new THREE.Clock();
-        let isPlaying = false;
-        let animationDuration = 0;
-        let isSliderDragging = false;
+    // ======= Camera framing =======
+    function frameObject(obj){
+      if (!obj) return;
+      const box = new THREE.Box3().setFromObject(obj);
+      const sphere = box.getBoundingSphere(new THREE.Sphere());
+      const fov = THREE.MathUtils.degToRad(camera.fov);
+      const dist = sphere.radius / Math.sin(Math.min(Math.PI/4, fov/2));
+      const dirTo = new THREE.Vector3(0, 0.2, 1).normalize();
+      camera.position.copy(sphere.center.clone().addScaledVector(dirTo, dist*1.2));
+      controls.target.copy(sphere.center);
+      controls.update();
+    }
+    function resetCamera(){ frameObject(currentModel || scene); }
 
-        // Элементы управления анимацией
-        const animationControls = document.getElementById('animation-controls');
-        const animationSelect = document.getElementById('animation-select');
-        const playPauseBtn = document.getElementById('play-pause-btn');
-        const stopBtn = document.getElementById('stop-btn');
-        const animationSlider = document.getElementById('animation-slider');
-        const durationLabel = document.getElementById('duration-label');
-        const speedInput = document.getElementById('speed-input');
-        const loopCheckbox = document.getElementById('loop-checkbox');
+    // ======= Adaptive Grid =======
+    let gridSize = 10, gridDiv = 20;
+    function resizeGridToModel(root){
+      if (!root) { createGrid(10, 20); gridSize=10; gridDiv=20; return; }
+      const box = new THREE.Box3().setFromObject(root);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const radius = Math.max(size.x, size.z) * 0.6;
+      // choose grid size as power-of-two-like nice value
+      const nice = (v)=>{
+        const p = Math.pow(2, Math.ceil(Math.log2(Math.max(1, v))));
+        return Math.min(Math.max(10, p), 32768);
+      };
+      gridSize = nice(radius * 2);
+      gridDiv = Math.min(200, Math.max(10, Math.round(gridSize/0.5)));
+      createGrid(gridSize, gridDiv);
+    }
 
-        // Left controls reference (used to avoid spatial overlap)
-        const leftControls = document.getElementById('left-controls');
-
-        // Ensure animation-controls are positioned so they never cover the left-controls.
-        // We position animationControls fixed relative to leftControls and adjust to avoid overlap.
-        function positionAnimationControls() {
-            if (!leftControls || !animationControls) return;
-    
-            // measure in viewport coordinates
-            const leftRect = leftControls.getBoundingClientRect();
-    
-            // Prepare animationControls for measurement
-            animationControls.style.position = 'fixed';
-            animationControls.style.minWidth = `${leftRect.width}px`;
-            animationControls.style.left = `${Math.max(8, leftRect.left)}px`;
-            animationControls.style.top = `${leftRect.bottom + 8}px`;
-    
-            // small helper to test intersection
-            function rectsIntersect(a, b) {
-                return !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
-            }
-    
-            // Re-measure after applying initial placement
-            let animRect = animationControls.getBoundingClientRect();
-    
-            // If the animation panel still intersects leftControls (very rare) try placing it to the right
-            if (rectsIntersect(animRect, leftRect)) {
-                const rightX = leftRect.right + 8;
-                animationControls.style.left = `${rightX}px`;
-                // Align top with leftControls if there's space, otherwise keep below
-                animationControls.style.top = `${leftRect.top}px`;
-                animRect = animationControls.getBoundingClientRect();
-            }
-    
-            // If the panel is off-screen to the right, shift it left so it's visible
-            if (animRect.right > window.innerWidth - 8) {
-                const shiftLeft = Math.max(8, window.innerWidth - animRect.width - 8);
-                animationControls.style.left = `${shiftLeft}px`;
-                animRect = animationControls.getBoundingClientRect();
-            }
-    
-            // If the panel goes off the bottom of the viewport, try to place it above the leftControls
-            if (animRect.bottom > window.innerHeight - 8) {
-                const aboveTop = Math.max(8, leftRect.top - animRect.height - 8);
-                animationControls.style.top = `${aboveTop}px`;
-                animRect = animationControls.getBoundingClientRect();
-            }
-    
-            // Final guard: ensure the animation panel does not cover the top-left buttons vertically;
-            // if it still overlaps, reduce its top to sit below leftControls bottom.
-            if (rectsIntersect(animationControls.getBoundingClientRect(), leftRect)) {
-                animationControls.style.top = `${leftRect.bottom + 8}px`;
-            }
+    // ======= Scene tree =======
+    function buildSceneTree(root){
+      treeRoot.innerHTML = '';
+      const ul = document.createElement('ul');
+      treeRoot.appendChild(ul);
+      function addNode(o, parent){
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.textContent = o.name || o.type;
+        btn.addEventListener('click', ()=> selectObject(o, btn));
+        if (o === selectedObject) btn.classList.add('selected');
+        li.appendChild(btn);
+        parent.appendChild(li);
+        if (o.children?.length){
+          const ul2 = document.createElement('ul');
+          li.appendChild(ul2);
+          o.children.forEach(c=> addNode(c, ul2));
         }
-    
-        // Reposition responsively and when left-controls change
-        window.addEventListener('resize', positionAnimationControls);
-        if (leftControls) {
-            const mo = new MutationObserver(positionAnimationControls);
-            mo.observe(leftControls, { attributes: true, childList: true, subtree: true, characterData: true });
+      }
+      (root || scene).children.forEach(o=> addNode(o, ul));
+    }
+
+    // ======= Selection =======
+    function selectObject(obj, buttonEl){
+      selectedObject = obj;
+      outlinePass.selectedObjects = obj ? [obj] : [];
+      document.querySelectorAll('#tree button').forEach(b=>b.classList.remove('selected'));
+      if (buttonEl) buttonEl.classList.add('selected');
+    }
+    canvas.addEventListener('mousedown', (e)=>{
+      if (e.button!==0) return;
+      const rect = canvas.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ( (e.clientX-rect.left) / rect.width ) * 2 - 1,
+        - ( (e.clientY-rect.top) / rect.height ) * 2 + 1
+      );
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(ndc, camera);
+      const meshes = [];
+      if (currentModel){
+        currentModel.traverse(o=>{ if (o.isMesh) meshes.push(o); });
+      }else{
+        scene.traverse(o=>{ if (o.isMesh) meshes.push(o); });
+      }
+      const hit = ray.intersectObjects(meshes, true)[0];
+      if (hit){
+        selectObject(hit.object);
+        openInspector(true);
+        buildSceneTree(currentModel);
+      }
+    });
+    window.addEventListener('keydown', (e)=>{
+      if (e.code==='KeyF' && selectedObject) {
+        frameObject(selectedObject);
+      } else if (e.code==='KeyR'){
+        resetCamera();
+      } else if (e.code==='Delete'){
+        selectObject(null);
+      }
+    });
+
+    // ======= Stats =======
+    function updateStats(){
+      let tris = 0; let objs = 0;
+      scene.traverse(o=>{
+        objs++;
+        if (o.isMesh && o.geometry){
+          const index = o.geometry.index;
+          const pos = o.geometry.attributes.position;
+          if (index) tris += index.count / 3;
+          else if (pos) tris += pos.count / 3;
         }
-    
-        // Initial positioning (defer to allow initial rendering)
-        setTimeout(positionAnimationControls, 50);
-    
-        // Position progress/debug indicators so they appear sequentially (below animation panel or left-controls)
-        const progressDiv = document.getElementById('progress');
-        const debugDiv = document.getElementById('debug');
-    
-        function positionIndicators() {
-                    if (!leftControls || !animationControls || !debugDiv) return;
-            
-                    const leftRect = leftControls.getBoundingClientRect();
-                    const leftX = Math.max(8, leftRect.left);
-                    const leftWidth = Math.max(120, leftRect.width);
-            
-                    // Decide baseTop: if animation-controls visible, place debug below it; otherwise below leftControls
-                    let baseTop;
-                    if (!animationControls.classList.contains('hidden')) {
-                        const animRect = animationControls.getBoundingClientRect();
-                        // If animation controls have zero height (not rendered) treat as hidden
-                        if (animRect.height > 0) {
-                            baseTop = animRect.bottom + 8;
-                        } else {
-                            baseTop = leftRect.bottom + 8;
-                        }
-                    } else {
-                        baseTop = leftRect.bottom + 8;
-                    }
-            
-                    // Position debug (progress is now fixed in bottom-left via CSS)
-                    debugDiv.style.position = 'fixed';
-                    debugDiv.style.left = `${leftX}px`;
-                    debugDiv.style.top = `${baseTop}px`;
-                    debugDiv.style.minWidth = `${leftWidth}px`;
-                    debugDiv.style.zIndex = '790';
-                    debugDiv.style.pointerEvents = 'none';
-            
-                    // If debug runs off-screen to the right, shift it left
-                    const finalDebugRect = debugDiv.getBoundingClientRect();
-                    if (finalDebugRect.right > window.innerWidth - 8) {
-                        const shiftLeft = Math.max(8, window.innerWidth - finalDebugRect.width - 8);
-                        debugDiv.style.left = `${shiftLeft}px`;
-                    }
-                }
-            
-                // Reposition indicators on resize and when UI changes
-                window.addEventListener('resize', positionIndicators);
-                const indicatorObserver = new MutationObserver(positionIndicators);
-                if (leftControls) indicatorObserver.observe(leftControls, { attributes: true, childList: true, subtree: true, characterData: true });
-                if (animationControls) indicatorObserver.observe(animationControls, { attributes: true, childList: true, subtree: true, characterData: true });
-                if (debugDiv) indicatorObserver.observe(debugDiv, { attributes: true, attributeFilter: ['class', 'style'] });
-            
-                // initial indicator placement
-                setTimeout(positionIndicators, 60);
+      });
+      polyCountEl.textContent = new Intl.NumberFormat('ru-RU').format(tris) + ' трис.';
+      objCountEl.textContent = objs;
+    }
 
-        // Функция обновления списка анимаций
-        function updateAnimationList() {
-            animationSelect.innerHTML = '<option value="">Нет анимаций</option>';
-            
-            if (animations.length > 0) {
-                    animations.forEach((clip, index) => {
-                        const option = document.createElement('option');
-                        option.value = index;
-                        option.textContent = `${clip.name || `Анимация ${index + 1}`} (${clip.duration.toFixed(1)}s)`;
-                        animationSelect.appendChild(option);
-                    });
-                    animationControls.classList.remove('hidden');
-        
-                    // Recalculate and enforce safe placement so animation panel doesn't overlap left controls
-                    // small defer to allow browser to update layout
-                    setTimeout(() => {
-                        if (typeof positionAnimationControls === 'function') {
-                            positionAnimationControls();
-                        }
-                        // Also reposition indicators so they stack after the animation panel
-                        if (typeof positionIndicators === 'function') {
-                            positionIndicators();
-                        }
-                    }, 20);
-                } else {
-                    animationControls.classList.add('hidden');
-                    // Ensure debug indicator repositions when animation panel hides
-                    if (typeof positionIndicators === 'function') {
-                        setTimeout(positionIndicators, 10);
-                    }
-                }
+    // ======= Overlay/progress =======
+    function showOverlay(title, sub){
+      overlay.classList.add('show');
+      progressTitle.textContent = title || 'Загрузка…';
+      progressSub.textContent = sub || '';
+      setIndeterminate();
+    }
+    function hideOverlay(){ overlay.classList.remove('show'); }
+    function setProgress(p){
+      meter.classList.remove('indeterminate');
+      meter.firstElementChild.style.width = Math.round(p*100)+'%';
+      progressSub.textContent = Math.round(p*100) + '%';
+    }
+    function setIndeterminate(){
+      meter.classList.add('indeterminate');
+      meter.firstElementChild.style.width = '40%';
+      progressSub.textContent = 'Ожидаем данные…';
+    }
+
+    function toast(msg){
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(()=> toastEl.classList.remove('show'), 2600);
+    }
+
+    // ======= HDRI / Background =======
+    async function applyHDRI(url){
+      if (!url) { scene.environment = null; updateBackgroundFromUI(); saveSettings(); return; }
+      showOverlay('HDRI', 'Загружаем окружение…');
+      return new Promise((resolve, reject)=>{
+        const loader = new RGBELoader();
+        loader.load(url, (tex)=>{
+          tex.mapping = THREE.EquirectangularReflectionMapping;
+          envHdrTex && envHdrTex.dispose?.();
+          envHdrTex = tex;
+          scene.environment = tex;
+          hideOverlay();
+          saveSettings();
+          resolve();
+        }, undefined, (err)=>{ hideOverlay(); toast('Не удалось загрузить HDRI'); reject(err); });
+      });
+    }
+    function updateBackgroundFromUI(){
+      const opt = bgSelect.value;
+      if (opt === 'transparent'){
+        scene.background = null;
+        renderer.alpha = true;
+      } else if (opt === 'lightgray'){
+        scene.background = new THREE.Color(isDark()?0x1f2937:0xe5e7eb);
+      } else if (opt === 'midgray'){
+        scene.background = new THREE.Color(isDark()?0x111827:0x9ca3af);
+      } else if (opt === 'darkgray'){
+        scene.background = new THREE.Color(isDark()?0x0b0d12:0x374151);
+      } else if (opt === 'white'){
+        scene.background = new THREE.Color(isDark()?0x0b0d12:0xffffff);
+      } else if (opt === 'custom'){
+        scene.background = new THREE.Color(bgColor.value);
+      }
+      saveSettings();
+    }
+    bgSelect.addEventListener('change', ()=>{
+      updateBackgroundFromUI();
+    });
+    bgColor.addEventListener('input', ()=>{
+      bgSelect.value = 'custom';
+      updateBackgroundFromUI();
+    });
+
+    // ======= Loaders: GLTF & FBX =======
+    async function postLoad(root, animations){
+      root.traverse(o=>{
+        if (o.isMesh){
+          o.castShadow = renderer.shadowMap.enabled;
+          o.receiveShadow = renderer.shadowMap.enabled;
+          if (Array.isArray(o.material)) {
+            o.material = o.material.map(m => enhanceMaterial(m));
+          } else {
+            o.material = enhanceMaterial(o.material);
+          }
         }
+      });
+      scene.add(root);
+      currentModel = root;
+      buildSceneTree(currentModel);
+      frameObject(currentModel);
+      updateStats();
+      resizeGridToModel(currentModel);
+      applyMaterialOverride(currentModel);
+      if (toggleLightOnly.checked) setLightOnly(currentModel, true);
 
-        // Функция воспроизведения анимации
-        function playAnimation(index) {
-            if (!mixer || !animations[index]) {
-                console.warn('Нет mixer или анимации');
-                return;
-            }
+      setupAnimations(animations || []);
+      hideOverlay();
+    }
 
-            // Остановка предыдущей анимации
-            if (currentAction) {
-                currentAction.stop();
-                currentAction = null;
-            }
-            
-            const clip = animations[index];
-            currentAction = mixer.clipAction(clip);
-            animationDuration = clip.duration;
-            
-            // Настройка циклов
-            if (loopCheckbox.checked) {
-                currentAction.setLoop(THREE.LoopRepeat, Infinity);
-            } else {
-                currentAction.setLoop(THREE.LoopOnce);
-                currentAction.clampWhenFinished = true;
-            }
-            
-            // Установка скорости и запуск
-            currentAction.timeScale = parseFloat(speedInput.value) || 1;
-            currentAction.reset();
-            currentAction.play();
-            
-            isPlaying = true;
-            playPauseBtn.textContent = '⏸️ Пауза';
-            
-            // Настройка слайдера
-            animationSlider.max = animationDuration;
-            animationSlider.value = 0;
-            durationLabel.textContent = `${animationDuration.toFixed(1)}s`;
-            
-            console.log(`Запуск анимации: ${clip.name}, длительность: ${animationDuration}s`);
-        }
+    function setupAnimations(clips){
+      resetAnimationsUI();
+      currentClips = clips;
+      if (!currentClips.length) return;
+      mixer = new THREE.AnimationMixer(currentModel);
+      currentClips.forEach((clip, i)=>{
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = clip.name || ('Clip ' + (i+1));
+        animSelect.appendChild(opt);
+      });
+      animSelect.selectedIndex = 0;
+      activeAction = mixer.clipAction(currentClips[0]);
+      applyLoopAndSpeed();
+      updateAnimTimeUI(0, currentClips[0].duration);
+    }
 
-        function stopAnimation() {
-            if (currentAction) {
-                currentAction.stop();
-                currentAction.reset();
-                currentAction = null;
-            }
-            isPlaying = false;
-            playPauseBtn.textContent = '▶️ Играть';
-            animationSlider.value = 0;
-        }
+    function resetAnimationsUI(){
+      animSelect.innerHTML = '';
+      currentClips = [];
+      if (activeAction){ activeAction.stop(); activeAction = null; }
+      if (mixer){ mixer.stopAllAction(); mixer.uncacheRoot(mixer.getRoot()); mixer = null; }
+      animProgress.value = 0;
+      animTime.textContent = '0.00 / 0.00s';
+      animPlayPause.dataset.state = 'stopped';
+      animPlayPause.textContent = i18n[langSelect.value].animPlay;
+    }
 
-        // Обработчики событий анимации
-        animationSelect.addEventListener('change', (event) => {
-            if (event.target.value !== '') {
-                playAnimation(parseInt(event.target.value));
-            } else {
-                stopAnimation();
-            }
-        });
+    function playPause(){
+      if (!mixer || !currentClips.length) return;
+      if (!activeAction){
+        activeAction = mixer.clipAction(currentClips[animSelect.selectedIndex]);
+        applyLoopAndSpeed();
+      }
+      if (animPlayPause.dataset.state !== 'playing'){
+        activeAction.paused = false;
+        activeAction.play();
+        animPlayPause.dataset.state = 'playing';
+        animPlayPause.textContent = i18n[langSelect.value].animPause;
+      } else {
+        activeAction.paused = true;
+        animPlayPause.dataset.state = 'paused';
+        animPlayPause.textContent = i18n[langSelect.value].animPlay;
+      }
+      saveSettings();
+    }
+    function stopAnim(){
+      if (!mixer) return;
+      mixer.stopAllAction();
+      if (activeAction){ activeAction.stop(); }
+      activeAction = mixer.clipAction(currentClips[animSelect.selectedIndex] || currentClips[0]);
+      applyLoopAndSpeed();
+      animPlayPause.dataset.state = 'stopped';
+      animPlayPause.textContent = i18n[langSelect.value].animPlay;
+      updateAnimTimeUI(0, (activeAction? activeAction.getClip().duration : 0));
+    }
+    function applyLoopAndSpeed(){
+      if (!activeAction) return;
+      activeAction.setLoop(animLoop.checked ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
+      const s = parseFloat(animSpeed.value) || 1;
+      activeAction.setEffectiveTimeScale(s);
+      activeAction.setEffectiveWeight(1);
+      activeAction.paused = true; // default paused
+      saveSettings();
+    }
 
-        playPauseBtn.addEventListener('click', () => {
-            if (!currentAction) {
-                // Если нет текущей анимации, попробовать запустить первую доступную
-                if (animations.length > 0) {
-                    animationSelect.value = 0;
-                    playAnimation(0);
-                }
-                return;
-            }
-            
-            if (isPlaying) {
-                currentAction.paused = true;
-                isPlaying = false;
-                playPauseBtn.textContent = '▶️ Играть';
-            } else {
-                currentAction.paused = false;
-                isPlaying = true;
-                playPauseBtn.textContent = '⏸️ Пауза';
-            }
-        });
+    animSelect.addEventListener('change', ()=>{
+      if (!mixer || !currentClips.length) return;
+      const wasPlaying = (animPlayPause.dataset.state === 'playing');
+      mixer.stopAllAction();
+      activeAction?.stop();
+      activeAction = mixer.clipAction(currentClips[animSelect.selectedIndex]);
+      applyLoopAndSpeed();
+      updateAnimTimeUI(0, activeAction.getClip().duration);
+      if (wasPlaying){ activeAction.play(); } else { animPlayPause.textContent = i18n[langSelect.value].animPlay; animPlayPause.dataset.state='stopped'; }
+      saveSettings();
+    });
 
-        stopBtn.addEventListener('click', () => {
-            stopAnimation();
-        });
+    animPlayPause.addEventListener('click', playPause);
+    animStop.addEventListener('click', stopAnim);
+    animLoop.addEventListener('change', applyLoopAndSpeed);
+    animSpeed.addEventListener('change', applyLoopAndSpeed);
 
-        // Обработка слайдера времени
-        animationSlider.addEventListener('mousedown', () => {
-            isSliderDragging = true;
-        });
+    animProgress.addEventListener('input', ()=>{
+      if (!activeAction || !mixer) return;
+      const dur = activeAction.getClip().duration;
+      const t = parseFloat(animProgress.value) * dur;
+      activeAction.time = t;
+      mixer.update(0);
+      updateAnimTimeUI(t, dur);
+    });
+    function updateAnimTimeUI(time, dur){
+      const clamp = (v)=> Math.max(0, Math.min(v, dur||0));
+      const t = clamp(time); const d = dur || 0;
+      animTime.textContent = `${t.toFixed(2)} / ${d.toFixed(2)}s`;
+      animProgress.value = d ? (t / d) : 0;
+    }
 
-        animationSlider.addEventListener('mouseup', () => {
-            isSliderDragging = false;
-        });
+    // ======= Exposed =======
+    window.clearCurrentModel = clearCurrentModel;
+    window.openInspector = openInspector;
 
-        animationSlider.addEventListener('input', (event) => {
-            if (currentAction && animationDuration > 0) {
-                const time = parseFloat(event.target.value);
-                currentAction.time = time;
-                if (mixer) {
-                    mixer.setTime(time);
-                }
-            }
-        });
+    function loadGLTF(file){
+      clearCurrentModel();
+      showOverlay('Загрузка glTF/GLB', file.name);
+      loadWithURL(gltfLoader, file, (gltf)=>{
+        postLoad(gltf.scene, gltf.animations || []);
+      }, null, (err)=>{
+        hideOverlay(); toast('Ошибка GLTF: ' + err.message);
+      });
+    }
+    function loadFBX(file){
+      clearCurrentModel();
+      showOverlay('Загрузка FBX', file.name);
+      loadWithURL(fbxLoader, file, (obj)=>{
+        postLoad(obj, obj.animations || []);
+      }, null, (err)=>{
+        hideOverlay(); toast('Ошибка FBX: ' + err.message);
+      });
+    }
+    window.loadGLTF = loadGLTF;
+    window.loadFBX = loadFBX;
 
-        speedInput.addEventListener('input', (event) => {
-            if (currentAction) {
-                const speed = parseFloat(event.target.value) || 1;
-                currentAction.timeScale = speed;
-            }
-        });
+    // ======= UI actions =======
+    langSelect.addEventListener('change', ()=> applyLang(langSelect.value));
 
-        loopCheckbox.addEventListener('change', (event) => {
-            if (currentAction) {
-                if (event.target.checked) {
-                    currentAction.setLoop(THREE.LoopRepeat, Infinity);
-                } else {
-                    currentAction.setLoop(THREE.LoopOnce);
-                    currentAction.clampWhenFinished = true;
-                }
-            }
-        });
+    resetCameraBtn.addEventListener('click', resetCamera);
+    clearSceneBtn.addEventListener('click', ()=>{ clearCurrentModel(); buildSceneTree(null); toast('Сцена очищена'); saveSettings(); });
 
-        // Fallback textures for missing maps
-        const fallbackTextures = {
-            diffuse: null,
-            normal: null,
-            roughness: null,
-            metalness: null,
-            specular: null
-        };
+    toggleShadows.addEventListener('change', ()=>{
+      const on = toggleShadows.checked;
+      renderer.shadowMap.enabled = on;
+      dir.castShadow = on;
+      currentModel?.traverse?.(o=>{
+        if (o.isMesh) { o.castShadow = on; o.receiveShadow = on; }
+      });
+      saveSettings();
+    });
+    toggleFXAA.addEventListener('change', ()=>{
+      fxaaPass.enabled = toggleFXAA.checked; saveSettings();
+    });
+    toggleLightOnly.addEventListener('change', ()=>{
+      setLightOnly(currentModel, toggleLightOnly.checked); saveSettings();
+    });
+    toggleGrid.addEventListener('change', ()=>{
+      grid.visible = !!toggleGrid.checked; saveSettings();
+    });
 
-        // Create fallback textures
-        function createFallbackTextures() {
-            // Create a simple 1x1 white texture for diffuse
-            const whiteTexture = new THREE.DataTexture(new Uint8Array([255, 255, 255]), 1, 1, THREE.RGBFormat);
-            whiteTexture.needsUpdate = true;
-            fallbackTextures.diffuse = whiteTexture;
+    applyHdriBtn.addEventListener('click', ()=> applyHDRI(hdriUrlInput.value.trim()));
 
-            // Create a simple 1x1 gray texture for roughness (middle gray = 0.5)
-            const grayTexture = new THREE.DataTexture(new Uint8Array([128, 128, 128]), 1, 1, THREE.RGBFormat);
-            grayTexture.needsUpdate = true;
-            fallbackTextures.roughness = grayTexture;
+    matOverride.addEventListener('change', ()=>{ applyMaterialOverride(currentModel); saveSettings(); });
+    toggleWireframe.addEventListener('change', ()=>{ applyMaterialOverride(currentModel); saveSettings(); });
 
-            // Create a simple 1x1 black texture for metalness
-            const blackTexture = new THREE.DataTexture(new Uint8Array([0, 0, 0]), 1, 1, THREE.RGBFormat);
-            blackTexture.needsUpdate = true;
-            fallbackTextures.metalness = blackTexture;
+    // ======= Resize =======
+    function onResize(){
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      renderer.setSize(w, h);
+      composer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      outlinePass.setSize(w, h);
+      fxaaPass.material.uniforms['resolution'].value.set(1/w, 1/h);
+    }
+    window.addEventListener('resize', onResize);
 
-            // Create a simple 1x1 neutral normal map (forward vector)
-            const neutralNormal = new THREE.DataTexture(new Uint8Array([128, 128, 255]), 1, 1, THREE.RGBFormat);
-            neutralNormal.needsUpdate = true;
-            fallbackTextures.normal = neutralNormal;
-        }
+    // ======= Render loop =======
+    let lastFpsUpdate = 0;
+    function animate(){
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      mixer?.update(dt);
+      if (activeAction && animPlayPause.dataset.state === 'playing'){
+        const dur = activeAction.getClip().duration;
+        const t = activeAction.time % dur;
+        updateAnimTimeUI(t, dur);
+      }
+      controls.update();
+      composer.render();
+      const tnow = performance.now();
+      if (!lastFpsUpdate) lastFpsUpdate = tnow;
+      if (tnow - lastFpsUpdate >= 500){
+        const fps = (1/dt).toFixed(0);
+        fpsEl.textContent = fps;
+        lastFpsUpdate = tnow;
+      }
+    }
+    animate();
 
-        // Initialize fallback textures
-        createFallbackTextures();
+    // ======= Init: restore settings =======
+    (function initFromSettings(){
+      const s = loadSettings();
+      if (s.theme) setTheme(s.theme); else setTheme('light');
+      if (s.lang){ langSelect.value = s.lang; }
+      applyLang(langSelect.value);
 
-        // Enhanced material function with PBR support
-        function enhanceMaterial(material) {
-            // Convert to MeshStandardMaterial for PBR support if not already
-            if (!(material instanceof THREE.MeshStandardMaterial)) {
-                const newMaterial = new THREE.MeshStandardMaterial();
-                
-                // Copy basic properties
-                newMaterial.name = material.name;
-                newMaterial.color = material.color || new THREE.Color(0xcccccc);
-                newMaterial.opacity = material.opacity !== undefined ? material.opacity : 1;
-                newMaterial.transparent = material.transparent || false;
-                newMaterial.side = material.side || THREE.FrontSide;
-                newMaterial.visible = material.visible;
-                newMaterial.wireframe = material.wireframe;
-                
-                // Handle diffuse map
-                if (material.map) {
-                    newMaterial.map = material.map;
-                }
-                
-                // Try to extract PBR properties from the original material
-                // FBX materials might have these properties
-                if (material.specularMap) {
-                    // In FBX, specular maps might be used for metalness
-                    newMaterial.metalnessMap = material.specularMap;
-                    newMaterial.metalness = 1.0;
-                }
-                
-                // Set default PBR values if not specified
-                if (newMaterial.metalness === undefined) {
-                    newMaterial.metalness = 0.0;
-                }
-                
-                if (newMaterial.roughness === undefined) {
-                    newMaterial.roughness = 0.5;
-                }
-                
-                // Replace the material
-                material = newMaterial;
-            }
-            
-            // Ensure all required maps are present
-            if (!material.map) {
-                material.map = fallbackTextures.diffuse;
-            }
-            
-            // Set fallback textures for PBR maps if not present
-            if (!material.roughnessMap) {
-                // Try to derive roughness from shininess if available
-                if (material.shininess !== undefined) {
-                    material.roughness = Math.pow(1.0 - Math.min(1.0, material.shininess / 1000), 2);
-                }
-                material.roughnessMap = fallbackTextures.roughness;
-            }
-            
-            if (!material.metalnessMap) {
-                material.metalnessMap = fallbackTextures.metalness;
-            }
-            
-            if (!material.normalMap) {
-                material.normalMap = fallbackTextures.normal;
-            }
-            
-            // Handle transparency
-            if (material.opacity < 1.0 || material.transparent) {
-                material.transparent = true;
-                // For better transparency handling
-                if (material.alphaTest === undefined) {
-                    material.alphaTest = 0.01;
-                }
-            }
-            
-            // Handle double-sided materials
-            if (material.side === THREE.DoubleSide) {
-                material.side = THREE.DoubleSide;
-            } else {
-                // Check if material should be double-sided based on properties
-                // This is a heuristic - materials with transparency are often double-sided
-                if (material.opacity < 1.0) {
-                    material.side = THREE.DoubleSide;
-                }
-            }
-            
-            // Enable material updates
-            material.needsUpdate = true;
-            
-            return material;
-        }
-        // Функция загрузки FBX
-        function loadFBX(file, fileName) {
-            if (currentModel) {
-                scene.remove(currentModel);
-                currentModel = null;
-            }
-            
-            // Очистка анимации
-            if (mixer) {
-                mixer.stopAllAction();
-                mixer = null;
-            }
-            animations = [];
-            stopAnimation();
-            
-            const progressDiv = document.getElementById('progress');
-            const debugDiv = document.getElementById('debug');
-            progressDiv.classList.remove('hidden');
-            debugDiv.classList.add('hidden');
-            animationControls.classList.add('hidden');
-            // Position debug indicator (progress is now fixed in bottom-left)
-            if (typeof positionIndicators === 'function') {
-                setTimeout(positionIndicators, 20);
-            }
-            
-            const loader = new THREE.FBXLoader();
-            
-            // Configure loader to handle textures properly
-            loader.setPath('');
-            loader.load(
-                file,
-                (fbx) => {
-                    let meshCount = 0;
-                    let materialCount = 0;
-                    
-                    fbx.traverse((child) => {
-                        if (child.isMesh) {
-                            meshCount++;
-                            if (child.material) {
-                                materialCount++;
-                                // Улучшение материалов с поддержкой PBR
-                                if (Array.isArray(child.material)) {
-                                    child.material.forEach(mat => {
-                                        enhanceMaterial(mat);
-                                    });
-                                } else {
-                                    enhanceMaterial(child.material);
-                                }
-                            }
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                        }
-                    });
-                    
-                    // Инициализация анимации
-                    if (fbx.animations && fbx.animations.length > 0) {
-                        console.log(`Найдено анимаций: ${fbx.animations.length}`);
-                        fbx.animations.forEach((clip, i) => {
-                            console.log(`Анимация ${i}: ${clip.name}, длительность: ${clip.duration}s`);
-                        });
-                        
-                        mixer = new THREE.AnimationMixer(fbx);
-                        animations = fbx.animations;
-                    }
-                    
-                    console.log(`Модель ${fileName}: ${meshCount} мешей, ${materialCount} материалов, ${animations.length} анимаций`);
-                    debugDiv.innerText = `Модель: ${meshCount} мешей, ${materialCount} материалов, ${animations.length} анимаций`;
-                    debugDiv.classList.remove('hidden');
-                    
-                    if (meshCount === 0) {
-                        document.getElementById('error').innerText = `Модель ${fileName} загружена, но не содержит видимой геометрии.`;
-                        const placeholder = new THREE.Mesh(
-                            new THREE.BoxGeometry(1, 1, 1),
-                            new THREE.MeshStandardMaterial({ color: 0xff0000 })
-                        );
-                        scene.add(placeholder);
-                        currentModel = placeholder;
-                    } else {
-                        // Центрирование и масштабирование модели
-                        const box = new THREE.Box3().setFromObject(fbx);
-                        const center = box.getCenter(new THREE.Vector3());
-                        const size = box.getSize(new THREE.Vector3());
-                        const maxDim = Math.max(size.x, size.y, size.z) || 1;
-                        const scale = 2 / maxDim;
-                        
-                        fbx.scale.setScalar(scale);
-                        fbx.position.copy(center.multiplyScalar(-scale));
-                        
-                        scene.add(fbx);
-                        currentModel = fbx;
-                        
-                        // Настройка камеры
-                        controls.target.set(0, 0, 0);
-                        camera.position.set(
-                            size.x * scale,
-                            size.y * scale,
-                            size.z * scale * 2
-                        );
-                        controls.update();
-                        document.getElementById('error').innerText = '';
-                    }
-                    
-                    updateAnimationList();
-                    progressDiv.classList.add('hidden');
-                },
-                (progress) => {
-                    if (progress.total > 0) {
-                        const percent = (progress.loaded / progress.total * 100).toFixed(2);
-                        progressDiv.innerText = `Загрузка: ${percent}%`;
-                    } else {
-                        progressDiv.innerText = `Загрузка: ${(progress.loaded / 1024 / 1024).toFixed(2)} MB`;
-                    }
-                },
-                (error) => {
-                    console.error(`Ошибка загрузки ${fileName}:`, error);
-                    document.getElementById('error').innerText = `Ошибка загрузки ${fileName}: ${error.message}`;
-                    progressDiv.classList.add('hidden');
-                    debugDiv.classList.add('hidden');
-                }
-            );
-        }
+      if (s.toggles){
+        toggleShadows.checked = !!s.toggles.shadows;
+        toggleFXAA.checked = s.toggles.fxaa !== false;
+        toggleLightOnly.checked = !!s.toggles.lightonly;
+        toggleGrid.checked = s.toggles.grid !== false;
+      }
+      if (s.background){
+        bgSelect.value = s.background.mode || 'white';
+        bgColor.value = s.background.color || '#ffffff';
+        updateBackgroundFromUI();
+      } else {
+        updateBackgroundFromUI();
+      }
+      if (s.hdri){ hdriUrlInput.value = s.hdri; }
+      if (s.material){
+        matOverride.value = s.material.override || 'none';
+        toggleWireframe.checked = !!s.material.wireframe;
+      }
+      if (s.anim){
+        animLoop.checked = !!s.anim.loop;
+        animSpeed.value = s.anim.speed || 1;
+      }
+      // Grid visibility already applied in createGrid
+      saveSettings();
+    })();
 
-        // Функция загрузки GLTF/GLB
-        function loadGLTF(file, fileName) {
-            if (currentModel) {
-                scene.remove(currentModel);
-                currentModel = null;
-            }
-            
-            // Очистка анимации
-            if (mixer) {
-                mixer.stopAllAction();
-                mixer = null;
-            }
-            animations = [];
-            stopAnimation();
-            
-            const progressDiv = document.getElementById('progress');
-            const debugDiv = document.getElementById('debug');
-            progressDiv.classList.remove('hidden');
-            debugDiv.classList.add('hidden');
-            animationControls.classList.add('hidden');
-            // Position debug indicator (progress is now fixed in bottom-left)
-            if (typeof positionIndicators === 'function') {
-                setTimeout(positionIndicators, 20);
-            }
-            
-            const loader = new THREE.GLTFLoader();
-            loader.load(
-                file,
-                (gltf) => {
-                    let meshCount = 0;
-                    let materialCount = 0;
-                    
-                    gltf.scene.traverse((child) => {
-                        if (child.isMesh) {
-                            meshCount++;
-                            if (child.material) {
-                                materialCount++;
-                                // Улучшение материалов с поддержкой PBR
-                                if (Array.isArray(child.material)) {
-                                    child.material.forEach(mat => {
-                                        enhanceMaterial(mat);
-                                    });
-                                } else {
-                                    enhanceMaterial(child.material);
-                                }
-                            }
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                        }
-                    });
-                    
-                    // Инициализация анимации
-                    if (gltf.animations && gltf.animations.length > 0) {
-                        console.log(`Найдено анимаций: ${gltf.animations.length}`);
-                        gltf.animations.forEach((clip, i) => {
-                            console.log(`Анимация ${i}: ${clip.name}, длительность: ${clip.duration}s`);
-                        });
-                        
-                        mixer = new THREE.AnimationMixer(gltf.scene);
-                        animations = gltf.animations;
-                    }
-                    
-                    console.log(`Модель ${fileName}: ${meshCount} мешей, ${materialCount} материалов, ${animations.length} анимаций`);
-                    debugDiv.innerText = `Модель: ${meshCount} мешей, ${materialCount} материалов, ${animations.length} анимаций`;
-                    debugDiv.classList.remove('hidden');
-                    
-                    if (meshCount === 0) {
-                        document.getElementById('error').innerText = `Модель ${fileName} загружена, но не содержит видимой геометрии.`;
-                        const placeholder = new THREE.Mesh(
-                            new THREE.BoxGeometry(1, 1, 1),
-                            new THREE.MeshStandardMaterial({ color: 0xff0000 })
-                        );
-                        scene.add(placeholder);
-                        currentModel = placeholder;
-                    } else {
-                        // Центрирование и масштабирование модели
-                        const box = new THREE.Box3().setFromObject(gltf.scene);
-                        const center = box.getCenter(new THREE.Vector3());
-                        const size = box.getSize(new THREE.Vector3());
-                        const maxDim = Math.max(size.x, size.y, size.z) || 1;
-                        const scale = 2 / maxDim;
-                        
-                        gltf.scene.scale.setScalar(scale);
-                        gltf.scene.position.copy(center.multiplyScalar(-scale));
-                        
-                        scene.add(gltf.scene);
-                        currentModel = gltf.scene;
-                        
-                        // Настройка камеры
-                        controls.target.set(0, 0, 0);
-                        camera.position.set(
-                            size.x * scale,
-                            size.y * scale,
-                            size.z * scale * 2
-                        );
-                        controls.update();
-                        document.getElementById('error').innerText = '';
-                    }
-                    
-                    updateAnimationList();
-                    progressDiv.classList.add('hidden');
-                },
-                (progress) => {
-                    if (progress.total > 0) {
-                        const percent = (progress.loaded / progress.total * 100).toFixed(2);
-                        progressDiv.innerText = `Загрузка: ${percent}%`;
-                    } else {
-                        progressDiv.innerText = `Загрузка: ${(progress.loaded / 1024 / 1024).toFixed(2)} MB`;
-                    }
-                },
-                (error) => {
-                    console.error(`Ошибка загрузки ${fileName}:`, error);
-                    document.getElementById('error').innerText = `Ошибка загрузки ${fileName}: ${error.message}`;
-                    progressDiv.classList.add('hidden');
-                    debugDiv.classList.add('hidden');
-                }
-            );
-        }
-
-        // Обработка выбора файла
-        const fileInput = document.getElementById('file-input');
-        fileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                document.getElementById('file-name').innerText = `Файл: ${file.name}`;
-                const extension = file.name.split('.').pop().toLowerCase();
-                console.log(`Выбранный файл: ${file.name}, расширение: ${extension}`);
-                const url = URL.createObjectURL(file);
-                
-                if (extension === 'fbx') {
-                    loadFBX(url, file.name);
-                } else if (extension === 'gltf' || extension === 'glb') {
-                    loadGLTF(url, file.name);
-                } else {
-                    document.getElementById('error').innerText = 'Поддерживаются только .fbx, .gltf, .glb';
-                    document.getElementById('file-name').innerText = '';
-                    document.getElementById('progress').classList.add('hidden');
-                    document.getElementById('debug').classList.add('hidden');
-                }
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
-            }
-        });
-
-        // Сброс камеры
-        document.getElementById('reset-camera').addEventListener('click', () => {
-            camera.position.set(0, 0, 5);
-            controls.target.set(0, 0, 0);
-            controls.update();
-        });
-
-        // Выбор цвета фона
-        const bgColorSelect = document.getElementById('bg-color');
-        bgColorSelect.addEventListener('change', (event) => {
-            scene.background = new THREE.Color(event.target.value);
-        });
-
-        // Управление клавишами WSAD + Q/E
-        const keys = { w: false, s: false, a: false, d: false, q: false, e: false };
-        const moveSpeed = 0.1;
-
-        document.addEventListener('keydown', (event) => {
-            switch (event.code) {
-                case 'KeyW': keys.w = true; break;
-                case 'KeyS': keys.s = true; break;
-                case 'KeyA': keys.a = true; break;
-                case 'KeyD': keys.d = true; break;
-                case 'KeyQ': keys.q = true; break;
-                case 'KeyE': keys.e = true; break;
-            }
-        });
-
-        document.addEventListener('keyup', (event) => {
-            switch (event.code) {
-                case 'KeyW': keys.w = false; break;
-                case 'KeyS': keys.s = false; break;
-                case 'KeyA': keys.a = false; break;
-                case 'KeyD': keys.d = false; break;
-                case 'KeyQ': keys.q = false; break;
-                case 'KeyE': keys.e = false; break;
-            }
-        });
-
-        // Основной цикл анимации
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            const delta = clock.getDelta();
-            
-            // Обновление анимации
-            if (mixer && isPlaying) {
-                mixer.update(delta);
-                
-                // Обновление слайдера времени (только если пользователь не перетаскивает)
-                if (currentAction && !isSliderDragging) {
-                    animationSlider.value = currentAction.time;
-                    
-                    // Проверка окончания анимации (для неповторяющихся)
-                    if (!loopCheckbox.checked && currentAction.time >= animationDuration) {
-                        isPlaying = false;
-                        playPauseBtn.textContent = '▶️ Играть';
-                    }
-                }
-            }
-            
-            // Управление камерой клавишами
-            const direction = new THREE.Vector3();
-            camera.getWorldDirection(direction);
-            direction.y = 0;
-            direction.normalize();
-            const right = new THREE.Vector3();
-            right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
-            
-            if (keys.w) {
-                camera.position.addScaledVector(direction, moveSpeed);
-                controls.target.addScaledVector(direction, moveSpeed);
-            }
-            if (keys.s) {
-                camera.position.addScaledVector(direction, -moveSpeed);
-                controls.target.addScaledVector(direction, -moveSpeed);
-            }
-            if (keys.a) {
-                camera.position.addScaledVector(right, -moveSpeed);
-                controls.target.addScaledVector(right, -moveSpeed);
-            }
-            if (keys.d) {
-                camera.position.addScaledVector(right, moveSpeed);
-                controls.target.addScaledVector(right, moveSpeed);
-            }
-            if (keys.q) {
-                camera.position.y += moveSpeed;
-                controls.target.y += moveSpeed;
-            }
-            if (keys.e) {
-                camera.position.y -= moveSpeed;
-                controls.target.y -= moveSpeed;
-            }
-            
-            controls.update();
-            if (typeof composer !== 'undefined' && composer) {
-                composer.render();
-            } else {
-                renderer.render(scene, camera);
-            }
-        }
-        animate();
-
-        // Адаптация к размеру окна
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            if (typeof composer !== 'undefined' && composer) {
-                composer.setSize(window.innerWidth, window.innerHeight);
-            }
-            if (typeof effectFXAA !== 'undefined' && effectFXAA && effectFXAA.uniforms && effectFXAA.uniforms['resolution']) {
-                effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
-            }
-        });
-    
-        // --- Scene Inspector and Display Mode Switching ---
-        // Toggle inspector panel for mobile responsiveness
-        const inspectorToggleBtn = document.getElementById('inspector-toggle');
-        const sceneInspector = document.getElementById('scene-inspector');
-
-        inspectorToggleBtn.addEventListener('click', () => {
-            if (sceneInspector.classList.contains('closed')) {
-                sceneInspector.classList.remove('closed');
-                sceneInspector.classList.add('open');
-            } else {
-                sceneInspector.classList.remove('open');
-                sceneInspector.classList.add('closed');
-            }
-        });
-    
-        const sceneTreeDiv = document.getElementById('scene-tree');
-        const propertiesContentDiv = document.getElementById('properties-content');
-        const displayModeSelect = document.getElementById('display-mode');
-        
-        // Inspector panel elements
-        const inspector = document.getElementById('scene-inspector');
-        const toggleBtn = document.getElementById('inspector-toggle');
-        const closeBtn = document.getElementById('close-inspector');
-
-        // Debug initial state
-        console.log('Inspector element:', inspector);
-        console.log('Toggle button:', toggleBtn);
-        console.log('Close button:', closeBtn);
-
-        toggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Toggle classes (for Tailwind) and also enforce inline right to ensure the panel becomes visible.
-            const opening = !inspector.classList.contains('right-0');
-            inspector.classList.toggle('right-0');
-            inspector.classList.toggle('right-[-320px]');
-    
-            if (opening) {
-                // Force inline style so animation works even without Tailwind JIT class support
-                inspector.style.right = '0px';
-    
-                // Build / refresh inspector contents shortly after opening
-                setTimeout(() => {
-                    try {
-                        console.log('Inspector opened — currentModel:', currentModel);
-    
-                        // Ensure scene tree exists and is up-to-date
-                        if (typeof buildSceneTree === 'function') {
-                            buildSceneTree();
-                        }
-    
-                        // If still empty, show an explicit message
-                        if (sceneTreeDiv && sceneTreeDiv.innerHTML.trim() === '') {
-                            sceneTreeDiv.innerHTML = currentModel ? '<p>Модель загружена, но дерево пустое.</p>' : '<p>Модель не загружена</p>';
-                        }
-    
-                        // Populate properties pane with root model properties if available
-                        if (currentModel && typeof showProperties === 'function') {
-                            showProperties(currentModel);
-                        } else if (propertiesContentDiv && propertiesContentDiv.innerHTML.trim() === '') {
-                            propertiesContentDiv.innerHTML = 'Выберите объект в дереве';
-                        }
-                    } catch (err) {
-                        console.error('Error while populating inspector on open:', err);
-                        if (sceneTreeDiv && sceneTreeDiv.innerHTML.trim() === '') {
-                            sceneTreeDiv.innerHTML = '<p>Ошибка при формировании дерева. Проверьте консоль.</p>';
-                        }
-                    }
-                }, 60);
-            } else {
-                // closing: set inline right back to closed position
-                inspector.style.right = '-320px';
-            }
-    
-            console.log('Inspector toggled. open=', opening, ' inline right=', inspector.style.right);
-        });
-
-        closeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            inspector.classList.remove('right-0');
-            inspector.classList.add('right-[-320px]');
-        });
-
-        document.addEventListener('click', (event) => {
-            if (!inspector.contains(event.target) && !toggleBtn.contains(event.target)) {
-                inspector.classList.remove('right-0');
-                inspector.classList.add('right-[-320px]');
-            }
-        });
-        // Add event listener for search input
-        const sceneSearchInput = document.getElementById('scene-search');
-        let searchTimeout = null;
-        
-        sceneSearchInput.addEventListener('input', (e) => {
-            // Debounce search to avoid excessive filtering
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                const searchTerm = e.target.value.toLowerCase();
-                buildSceneTree(searchTerm);
-            }, 300);
-        });
-
-        inspector.addEventListener('click', (event) => {
-            event.stopPropagation();
-        });
-    
-        // Helper function to create tree item elements recursively
-        function createTreeItem(object, searchTerm = '') {
-            const item = document.createElement('div');
-            item.style.paddingLeft = '12px';
-            item.style.cursor = 'pointer';
-            item.textContent = object.name || object.type;
-    
-            // Check if this item matches the search term
-            const objectName = (object.name || object.type || '').toLowerCase();
-            const matchesSearch = searchTerm === '' || objectName.includes(searchTerm);
-    
-            // Visibility toggle checkbox
-            const visibilityCheckbox = document.createElement('input');
-            visibilityCheckbox.type = 'checkbox';
-            visibilityCheckbox.checked = object.visible;
-            visibilityCheckbox.style.marginRight = '6px';
-    
-            visibilityCheckbox.addEventListener('click', (event) => {
-                event.stopPropagation();
-                object.visible = visibilityCheckbox.checked;
-            });
-    
-            item.prepend(visibilityCheckbox);
-    
-            // Expand/collapse children if any
-            let hasVisibleChildren = false;
-            if (object.children && object.children.length > 0) {
-                const expandBtn = document.createElement('span');
-                expandBtn.textContent = '▶';
-                expandBtn.style.display = 'inline-block';
-                expandBtn.style.width = '12px';
-                expandBtn.style.userSelect = 'none';
-                expandBtn.style.marginRight = '4px';
-                expandBtn.style.cursor = 'pointer';
-    
-                let expanded = false;
-                const childrenContainer = document.createElement('div');
-                childrenContainer.style.display = 'none';
-    
-                expandBtn.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    expanded = !expanded;
-                    childrenContainer.style.display = expanded ? 'block' : 'none';
-                    expandBtn.textContent = expanded ? '▼' : '▶';
-                });
-    
-                item.prepend(expandBtn);
-    
-                // Create children items
-                object.children.forEach(child => {
-                    const childItem = createTreeItem(child, searchTerm);
-                    // Check if child item should be visible
-                    if (childItem.style.display !== 'none') {
-                        childrenContainer.appendChild(childItem);
-                        hasVisibleChildren = true;
-                    }
-                });
-    
-                item.appendChild(childrenContainer);
-            }
-    
-            // Hide item if it doesn't match search and has no visible children
-            if (!matchesSearch && !hasVisibleChildren) {
-                item.style.display = 'none';
-            }
-    
-            // Add placeholder for alignment if no children
-            if (!object.children || object.children.length === 0) {
-                const placeholderSpan = document.createElement('span');
-                placeholderSpan.style.display = 'inline-block';
-                placeholderSpan.style.width = '16px';
-                item.prepend(placeholderSpan);
-            }
-    
-            // Selection handling
-            item.addEventListener('click', (event) => {
-                event.stopPropagation();
-                selectObject(object, item);
-            });
-    
-            return item;
-        }
-    
-        let selectedItem = null;
-        let selectedObject = null;
-        // Track currently highlighted meshes when OutlinePass is not available (fallback)
-        let highlightedMeshes = [];
- 
-        // Raycaster & pointer for clicking in the scene to select objects
-        const raycaster = new THREE.Raycaster();
-        const pointer = new THREE.Vector2();
- 
-        renderer.domElement.addEventListener('pointerdown', (event) => {
-            // Ignore clicks if the inspector or UI handled the event (simple guard)
-            // Use canvas bounding rect to correctly map pointer when canvas is resized or scaled
-            const rect = renderer.domElement.getBoundingClientRect();
-            pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            pointer.y = - ((event.clientY - rect.top) / rect.height) * 2 + 1;
-            raycaster.setFromCamera(pointer, camera);
-            const root = currentModel || scene;
-            const targets = (root && root.children) ? root.children : scene.children;
-            const intersects = raycaster.intersectObjects(targets, true);
-            if (intersects.length > 0) {
-                // Pick the first (closest) mesh
-                const intersectedObject = intersects[0].object;
-                selectObject(intersectedObject, null);
-            } else {
-                // Clear selection
-                selectObject(null, null);
-            }
-        });
-    
-        function selectObject(object, itemElement) {
-            // Clear previous tree selection highlight (if any)
-            if (selectedItem) {
-                try { selectedItem.style.backgroundColor = ''; } catch(e) {}
-            }
- 
-            // Apply tree highlight if an item element is provided
-            if (itemElement) {
-                selectedItem = itemElement;
-                try { selectedItem.style.backgroundColor = '#2563eb'; } catch(e) {}
-            } else {
-                selectedItem = null;
-            }
- 
-            // Clear any previous fallback highlights
-            if (highlightedMeshes && highlightedMeshes.length > 0) {
-                highlightedMeshes.forEach(m => {
-                    try {
-                        if (m.userData && m.userData._origEmissiveHex !== undefined && m.material && 'emissive' in m.material) {
-                            m.material.emissive.setHex(m.userData._origEmissiveHex);
-                            delete m.userData._origEmissiveHex;
-                        }
-                    } catch (e) {}
-                });
-                highlightedMeshes = [];
-            }
- 
-            selectedObject = object;
-            console.log('Selection changed:', object, 'outlinePass present=', !!outlinePass);
- 
-            // Update outlinePass selection (use meshes contained in the selected object)
-            if (typeof outlinePass !== 'undefined' && outlinePass) {
-                if (!object) {
-                    outlinePass.selectedObjects = [];
-                } else {
-                    const selection = [];
-                    if (object.isMesh) {
-                        selection.push(object);
-                    } else {
-                        // collect meshes under the object
-                        object.traverse((c) => {
-                            if (c.isMesh) selection.push(c);
-                        });
-                    }
-                    outlinePass.selectedObjects = selection;
-                }
-            } else {
-                // Fallback: if OutlinePass isn't available, tint emissive on meshes to indicate selection
-                if (object) {
-                    const meshes = [];
-                    if (object.isMesh) meshes.push(object);
-                    else object.traverse((c) => { if (c.isMesh) meshes.push(c); });
-                    meshes.forEach(m => {
-                        try {
-                            if (m.material && 'emissive' in m.material) {
-                                // store original emissive color (as hex) so we can restore later
-                                m.userData._origEmissiveHex = m.material.emissive.getHex();
-                                m.material.emissive.setHex(0x44a3ff); // light blue emissive
-                                highlightedMeshes.push(m);
-                            }
-                        } catch (e) {}
-                    });
-                }
-            }
- 
-            // Show properties in the inspector
-            showProperties(object);
-        }
-    
-        function showProperties(object) {
-            if (!object) {
-                propertiesContentDiv.innerHTML = 'Выберите объект в дереве';
-                return;
-            }
-            let html = `<p><strong>Имя:</strong> ${object.name || '(без имени)'}</p>`;
-            html += `<p><strong>Тип:</strong> ${object.type}</p>`;
-            if (object.isMesh) {
-                html += `<p><strong>Вершин:</strong> ${object.geometry?.attributes?.position?.count || 'N/A'}</p>`;
-                if (object.material) {
-                    if (Array.isArray(object.material)) {
-                        html += `<p><strong>Материалов:</strong> ${object.material.length}</p>`;
-                    } else {
-                        html += `<p><strong>Материал:</strong> ${object.material.type}</p>`;
-                        
-                        // Add material properties editing
-                        if (object.material instanceof THREE.MeshStandardMaterial) {
-                            html += `<div class="mt-2">`;
-                            html += `<p><strong>Свойства материала:</strong></p>`;
-                            
-                            // Color picker
-                            html += `<div class="flex items-center mt-1">`;
-                            html += `<label class="mr-2">Цвет:</label>`;
-                            html += `<input type="color" id="material-color" value="#${object.material.color.getHexString()}" class="w-8 h-8 border border-gray-600">`;
-                            html += `</div>`;
-                            
-                            // Roughness slider
-                            html += `<div class="mt-2">`;
-                            html += `<label class="block">Шероховатость: <span id="roughness-value">${object.material.roughness.toFixed(2)}</span></label>`;
-                            html += `<input type="range" id="material-roughness" min="0" max="1" step="0.01" value="${object.material.roughness}" class="w-full">`;
-                            html += `</div>`;
-                            
-                            // Metalness slider
-                            html += `<div class="mt-2">`;
-                            html += `<label class="block">Металличность: <span id="metalness-value">${object.material.metalness.toFixed(2)}</span></label>`;
-                            html += `<input type="range" id="material-metalness" min="0" max="1" step="0.01" value="${object.material.metalness}" class="w-full">`;
-                            html += `</div>`;
-                            
-                            html += `</div>`;
-                        }
-                    }
-                }
-                html += `<p><strong>Видимый:</strong> ${object.visible}</p>`;
-            }
-            propertiesContentDiv.innerHTML = html;
-            
-            // Add event listeners for material property editing
-            if (object.isMesh && object.material && !(object.material instanceof Array) && object.material instanceof THREE.MeshStandardMaterial) {
-                // Color picker
-                const colorPicker = document.getElementById('material-color');
-                if (colorPicker) {
-                    colorPicker.addEventListener('input', (e) => {
-                        object.material.color.set(e.target.value);
-                        object.material.needsUpdate = true;
-                    });
-                }
-                
-                // Roughness slider
-                const roughnessSlider = document.getElementById('material-roughness');
-                const roughnessValue = document.getElementById('roughness-value');
-                if (roughnessSlider && roughnessValue) {
-                    roughnessSlider.addEventListener('input', (e) => {
-                        const value = parseFloat(e.target.value);
-                        object.material.roughness = value;
-                        roughnessValue.textContent = value.toFixed(2);
-                        object.material.needsUpdate = true;
-                    });
-                }
-                
-                // Metalness slider
-                const metalnessSlider = document.getElementById('material-metalness');
-                const metalnessValue = document.getElementById('metalness-value');
-                if (metalnessSlider && metalnessValue) {
-                    metalnessSlider.addEventListener('input', (e) => {
-                        const value = parseFloat(e.target.value);
-                        object.material.metalness = value;
-                        metalnessValue.textContent = value.toFixed(2);
-                        object.material.needsUpdate = true;
-                    });
-                }
-            }
-        }
-    
-        // Build the tree from currentModel
-        function buildSceneTree(searchTerm = '') {
-            sceneTreeDiv.innerHTML = '';
-            if (!currentModel) {
-                sceneTreeDiv.innerHTML = '<p>Модель не загружена</p>';
-                propertiesContentDiv.innerHTML = 'Выберите объект в дереве';
-                return;
-            }
-            const rootItem = createTreeItem(currentModel, searchTerm);
-            sceneTreeDiv.appendChild(rootItem);
-        }
-    
-        // Rebuild tree when model changes
-        const originalLoadFBX = loadFBX;
-        loadFBX = function(file, fileName) {
-            originalLoadFBX(file, fileName);
-            setTimeout(buildSceneTree, 500);
-        };
-    
-        const originalLoadGLTF = loadGLTF;
-        loadGLTF = function(file, fileName) {
-            originalLoadGLTF(file, fileName);
-            setTimeout(buildSceneTree, 500);
-        };
-    
-        // Display mode switching
-        function setDisplayMode(mode) {
-            if (!currentModel) return;
-    
-            currentModel.traverse((child) => {
-                if (child.isMesh) {
-                    switch (mode) {
-                        case 'standard':
-                            if (child.material.originalWireframe !== undefined) {
-                                child.material.wireframe = child.material.originalWireframe;
-                            } else {
-                                child.material.wireframe = false;
-                            }
-                            if (child.material.originalColor) {
-                                child.material.color.copy(child.material.originalColor);
-                            }
-                            child.material.needsUpdate = true;
-                            break;
-                        case 'wireframe':
-                            if (child.material.originalWireframe === undefined) {
-                                child.material.originalWireframe = child.material.wireframe;
-                            }
-                            child.material.wireframe = true;
-                            child.material.needsUpdate = true;
-                            break;
-                        case 'lighting':
-                            // For lighting only, we can set material to MeshLambertMaterial with no map and white color
-                            if (!child.userData.originalMaterial) {
-                                child.userData.originalMaterial = child.material;
-                            }
-                            child.material = new THREE.MeshLambertMaterial({ color: 0xffffff });
-                            child.material.needsUpdate = true;
-                            break;
-                    }
-                }
-            });
-    
-            // Restore original materials if switching back to standard
-            if (mode === 'standard' && currentModel) {
-                currentModel.traverse((child) => {
-                    if (child.isMesh && child.userData.originalMaterial) {
-                        child.material = child.userData.originalMaterial;
-                        delete child.userData.originalMaterial;
-                        child.material.needsUpdate = true;
-                    }
-                });
-            }
-        }
-    
-        displayModeSelect.addEventListener('change', (event) => {
-            setDisplayMode(event.target.value);
-        });
-    
-    </script>
-    </body>
-    </html>
+    // Helpers
+    function getNumber(v, def){ v = Number(v); return Number.isFinite(v)?v:def; }
+  </script>
+</body>
+</html>
