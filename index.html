@@ -208,6 +208,56 @@
         <button id="apply-hdri" class="btn" data-i="btnApply">Применить</button>
       </div>
 
+      <!-- ===== New: Render & lighting controls ===== -->
+      <div class="split"></div>
+      <div class="group">
+        <label class="small" data-i="renderTitle">Рендер</label>
+        <div class="row">
+          <label data-i="exposure">Экспозиция</label>
+          <input id="exposure" class="range" type="range" min="0" max="4" step="0.01" value="1" />
+          <span class="small" id="exposure-val">1.00</span>
+        </div>
+        <div class="row">
+          <label data-i="toneMapping">Тонемаппинг</label>
+          <select id="tone-mapping" class="field">
+            <option value="ACES" selected>ACES</option>
+            <option value="Linear">Linear</option>
+            <option value="Reinhard">Reinhard</option>
+            <option value="Cineon">Cineon</option>
+            <option value="Neutral">Neutral</option>
+            <option value="None">None</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="small" data-i="dirTitle">Направленный свет</label>
+        <div class="row">
+          <label data-i="dirIntensity">Интенсивность</label>
+          <input id="dir-intensity" class="range" type="range" min="0" max="5" step="0.01" value="0.9" />
+          <span class="small" id="dir-intensity-val">0.90</span>
+        </div>
+        <div class="row">
+          <label data-i="dirAngle">Угол</label>
+          <input id="dir-angle" class="range" type="range" min="0" max="360" step="1" value="34" />
+          <span class="small" id="dir-angle-val">34°</span>
+        </div>
+        <div class="row">
+          <label data-i="dirSoftness">Мягкость</label>
+          <input id="dir-softness" class="range" type="range" min="0" max="4" step="0.1" value="1" />
+          <span class="small" id="dir-softness-val">1.0</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="small" data-i="envIntensity">Окружение</label>
+        <div class="row">
+          <label data-i="envIntensity">Env intensity</label>
+          <input id="env-intensity" class="range" type="range" min="0" max="4" step="0.01" value="1" />
+          <span class="small" id="env-intensity-val">1.00</span>
+        </div>
+      </div>
+
       <div class="row">
         <label data-i="matOverride">Материал</label>
         <select id="mat-override" class="field">
@@ -309,7 +359,9 @@
         animTitle:'Анимации', animPlay:'Пуск', animPause:'Пауза', animStop:'Стоп', animLoop:'Зациклить', animSpeed:'Скорость',
         animHint:'По умолчанию анимация не проигрывается.', hotkeys:'Горячие клавиши',
         hkSelect:'выбор', hkFocus:'к объекту', hkReset:'сброс камеры', hkClearSel:'снять выделение',
-        inspector:'Сцена', btnHideInspector:'Скрыть', btnShowInspector:'Инспектор', objects:'Объекты:'
+        inspector:'Сцена', btnHideInspector:'Скрыть', btnShowInspector:'Инспектор', objects:'Объекты:',
+        renderTitle:'Рендер', exposure:'Экспозиция', toneMapping:'Тонемаппинг', envIntensity:'Окружение',
+        dirTitle:'Направленный свет', dirIntensity:'Интенсивность', dirAngle:'Угол', dirSoftness:'Мягкость'
       },
       en: {
         title: '3D Viewer', btnLoad:'Load model', btnFrame:'Frame', btnClear:'Clear',
@@ -318,7 +370,9 @@
         animTitle:'Animations', animPlay:'Play', animPause:'Pause', animStop:'Stop', animLoop:'Loop', animSpeed:'Speed',
         animHint:'By default animations do not play.', hotkeys:'Hotkeys',
         hkSelect:'select', hkFocus:'focus', hkReset:'reset camera', hkClearSel:'clear selection',
-        inspector:'Scene', btnHideInspector:'Hide', btnShowInspector:'Inspector', objects:'Objects:'
+        inspector:'Scene', btnHideInspector:'Hide', btnShowInspector:'Inspector', objects:'Objects:',
+        renderTitle:'Render', exposure:'Exposure', toneMapping:'Tone mapping', envIntensity:'Env intensity',
+        dirTitle:'Directional light', dirIntensity:'Intensity', dirAngle:'Angle', dirSoftness:'Softness'
       }
     };
     function applyLang(lang){
@@ -349,7 +403,9 @@
         background:{ mode: bgSelect.value, color: bgColor.value },
         hdri: hdriUrlInput.value.trim(),
         material:{ override: matOverride.value, wireframe: toggleWireframe.checked },
-        anim:{ loop: animLoop.checked, speed: parseFloat(animSpeed.value)||1 }
+        anim:{ loop: animLoop.checked, speed: parseFloat(animSpeed.value)||1 },
+        render:{ exposure: parseFloat(exposure.value)||1, tonemapping: toneMapping.value },
+        light:{ envIntensity: parseFloat(envIntensity.value)||1, dir:{ intensity: parseFloat(dirIntensity.value)||0.9, angle: parseFloat(dirAngle.value)||34, softness: parseFloat(dirSoftness.value)||1 } }
       };
       localStorage.setItem(LS_KEY, JSON.stringify(s));
     }
@@ -388,6 +444,20 @@
     const hdriUrlInput = d.getElementById('hdri-url');
     const applyHdriBtn = d.getElementById('apply-hdri');
 
+    const exposure = d.getElementById('exposure');
+    const exposureVal = d.getElementById('exposure-val');
+    const toneMapping = d.getElementById('tone-mapping');
+
+    const envIntensity = d.getElementById('env-intensity');
+    const envIntensityVal = d.getElementById('env-intensity-val');
+
+    const dirIntensity = d.getElementById('dir-intensity');
+    const dirIntensityVal = d.getElementById('dir-intensity-val');
+    const dirAngle = d.getElementById('dir-angle');
+    const dirAngleVal = d.getElementById('dir-angle-val');
+    const dirSoftness = d.getElementById('dir-softness');
+    const dirSoftnessVal = d.getElementById('dir-softness-val');
+
     const matOverride = d.getElementById('mat-override');
     const toggleWireframe = d.getElementById('toggle-wireframe');
 
@@ -402,7 +472,8 @@
     const dropZone = d.getElementById('drop-zone');
 
     // ======= THREE setup =======
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:false, powerPreference:'high-performance' });
+    // Fixed: create renderer with alpha:true so transparent background truly works
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:true, powerPreference:'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputEncoding = THREE.sRGBEncoding;
@@ -444,6 +515,7 @@
     const dir = new THREE.DirectionalLight(0xffffff, 0.9);
     dir.position.set(3,5,2);
     dir.castShadow = false;
+    dir.shadow.radius = 1;
     scene.add(dir);
 
     // Post-processing
@@ -645,7 +717,22 @@
           else o.material = enhanceMaterial(o.material);
           o.material.wireframe = wire || o.material.wireframe;
         }
+        // keep environment response in sync
+        applyEnvIntensityToMaterial(o.material, getNumber(envIntensity.value, 1));
         o.material.needsUpdate = true;
+      });
+    }
+
+    // ======= Env intensity helper =======
+    function applyEnvIntensityToMaterial(material, intensity){
+      const list = Array.isArray(material) ? material : [material];
+      list.filter(Boolean).forEach(m=>{
+        if ('envMapIntensity' in m){ m.envMapIntensity = intensity; m.needsUpdate = true; }
+      });
+    }
+    function setEnvIntensity(intensity, root){
+      (root || scene).traverse(o=>{
+        if (o.isMesh) applyEnvIntensityToMaterial(o.material, intensity);
       });
     }
 
@@ -835,6 +922,8 @@
           envHdrTex && envHdrTex.dispose?.();
           envHdrTex = tex;
           scene.environment = tex;
+          // keep env intensity consistent
+          setEnvIntensity(getNumber(envIntensity.value, 1), currentModel || scene);
           hideOverlay();
           saveSettings();
           resolve();
@@ -845,17 +934,22 @@
       const opt = bgSelect.value;
       if (opt === 'transparent'){
         scene.background = null;
-        renderer.alpha = true;
+        renderer.setClearAlpha(0); // <-- real transparency
       } else if (opt === 'lightgray'){
         scene.background = new THREE.Color(isDark()?0x1f2937:0xe5e7eb);
+        renderer.setClearAlpha(1);
       } else if (opt === 'midgray'){
         scene.background = new THREE.Color(isDark()?0x111827:0x9ca3af);
+        renderer.setClearAlpha(1);
       } else if (opt === 'darkgray'){
         scene.background = new THREE.Color(isDark()?0x0b0d12:0x374151);
+        renderer.setClearAlpha(1);
       } else if (opt === 'white'){
         scene.background = new THREE.Color(isDark()?0x0b0d12:0xffffff);
+        renderer.setClearAlpha(1);
       } else if (opt === 'custom'){
         scene.background = new THREE.Color(bgColor.value);
+        renderer.setClearAlpha(1);
       }
       saveSettings();
     }
@@ -878,6 +972,7 @@
           } else {
             o.material = enhanceMaterial(o.material);
           }
+          applyEnvIntensityToMaterial(o.material, getNumber(envIntensity.value, 1));
         }
       });
       scene.add(root);
@@ -1045,6 +1140,63 @@
     matOverride.addEventListener('change', ()=>{ applyMaterialOverride(currentModel); saveSettings(); });
     toggleWireframe.addEventListener('change', ()=>{ applyMaterialOverride(currentModel); saveSettings(); });
 
+    // New: render/lighting listeners
+    exposure.addEventListener('input', ()=>{
+      const v = getNumber(exposure.value, 1);
+      renderer.toneMappingExposure = v;
+      exposureVal.textContent = v.toFixed(2);
+      saveSettings();
+    });
+
+    const TM = {
+      'ACES': THREE.ACESFilmicToneMapping,
+      'Linear': THREE.LinearToneMapping,
+      'Reinhard': THREE.ReinhardToneMapping,
+      'Cineon': THREE.CineonToneMapping,
+      'Neutral': THREE.NeutralToneMapping,
+      'None': THREE.NoToneMapping
+    };
+    toneMapping.addEventListener('change', ()=>{
+      renderer.toneMapping = TM[toneMapping.value] ?? THREE.ACESFilmicToneMapping;
+      saveSettings();
+    });
+
+    envIntensity.addEventListener('input', ()=>{
+      const v = getNumber(envIntensity.value, 1);
+      envIntensityVal.textContent = v.toFixed(2);
+      setEnvIntensity(v, currentModel || scene);
+      saveSettings();
+    });
+
+    function setDirFromAngle(angleDeg){
+      // keep Y and radial distance in XZ-plane
+      const y = dir.position.y; // keep elevation
+      const r = Math.hypot(dir.position.x, dir.position.z) || 1;
+      const a = THREE.MathUtils.degToRad(angleDeg);
+      dir.position.x = Math.cos(a) * r;
+      dir.position.z = Math.sin(a) * r;
+      dir.position.y = y;
+      dir.lookAt(0,0,0);
+    }
+    dirIntensity.addEventListener('input', ()=>{
+      const v = getNumber(dirIntensity.value, 1);
+      dir.intensity = v;
+      dirIntensityVal.textContent = v.toFixed(2);
+      saveSettings();
+    });
+    dirAngle.addEventListener('input', ()=>{
+      const v = getNumber(dirAngle.value, 0);
+      setDirFromAngle(v);
+      dirAngleVal.textContent = `${Math.round(v)}°`;
+      saveSettings();
+    });
+    dirSoftness.addEventListener('input', ()=>{
+      const v = getNumber(dirSoftness.value, 1);
+      dir.shadow.radius = v; // effective with PCFSoftShadowMap
+      dirSoftnessVal.textContent = v.toFixed(1);
+      saveSettings();
+    });
+
     // ======= Resize =======
     function onResize(){
       const w = window.innerWidth;
@@ -1093,6 +1245,8 @@
         toggleFXAA.checked = s.toggles.fxaa !== false;
         toggleLightOnly.checked = !!s.toggles.lightonly;
         toggleGrid.checked = s.toggles.grid !== false;
+        renderer.shadowMap.enabled = toggleShadows.checked;
+        dir.castShadow = toggleShadows.checked;
       }
       if (s.background){
         bgSelect.value = s.background.mode || 'white';
@@ -1109,6 +1263,30 @@
       if (s.anim){
         animLoop.checked = !!s.anim.loop;
         animSpeed.value = s.anim.speed || 1;
+      }
+      // New: restore render + light
+      if (s.render){
+        exposure.value = getNumber(s.render.exposure, 1);
+        exposure.dispatchEvent(new Event('input'));
+        toneMapping.value = s.render.tonemapping || 'ACES';
+        toneMapping.dispatchEvent(new Event('change'));
+      }
+      if (s.light){
+        envIntensity.value = getNumber(s.light.envIntensity, 1);
+        envIntensity.dispatchEvent(new Event('input'));
+        dirIntensity.value = getNumber(s.light.dir?.intensity, 0.9);
+        dirIntensity.dispatchEvent(new Event('input'));
+        dirAngle.value = getNumber(s.light.dir?.angle, 34);
+        dirAngle.dispatchEvent(new Event('input'));
+        dirSoftness.value = getNumber(s.light.dir?.softness, 1);
+        dirSoftness.dispatchEvent(new Event('input'));
+      } else {
+        // initialize labels
+        exposure.dispatchEvent(new Event('input'));
+        envIntensity.dispatchEvent(new Event('input'));
+        dirIntensity.dispatchEvent(new Event('input'));
+        dirAngle.dispatchEvent(new Event('input'));
+        dirSoftness.dispatchEvent(new Event('input'));
       }
       // Grid visibility already applied in createGrid
       saveSettings();
