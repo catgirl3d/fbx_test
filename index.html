@@ -60,6 +60,9 @@
     html, body{ margin:0; padding:0; height:100%; background: var(--bg-page); color: var(--text);
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji","Segoe UI Emoji";
     }
+    /* avoid flicker: hide left panel until sections are initialized */
+    body.preload .left-col{ visibility:hidden }
+
     .viewer-wrap{ position:fixed; inset:0; overflow:hidden; }
     canvas.viewer-canvas{ position:absolute; inset:0; display:block; outline: none; }
 
@@ -95,6 +98,7 @@
     .small{ font-size:12px; color: var(--muted) }
     .kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:var(--chip-bg); border:1px solid var(--chip-bd); border-radius:6px; padding:1px 6px; font-size:11px; color:var(--chip-tx) }
 
+    /* Inspector */
     .inspector{
       position: fixed; top:0; right: calc(-1 * var(--panel-w)); bottom:0; width: var(--panel-w);
       background: var(--bg-panel);
@@ -151,9 +155,25 @@
       border:1px solid var(--border); background:var(--bg-panel); padding:6px 8px; border-radius:10px; cursor:pointer;
     }
     .theme-switch .icon{ width:16px; height:16px; display:inline-block }
+
+    /* Accordion (native details) */
+    details.section{ border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--bg-panel); }
+    details.section + details.section{ margin-top:8px; }
+    details.section > summary{
+      list-style:none; cursor:pointer; padding:10px 12px; font-weight:700; font-size:12px;
+      display:flex; align-items:center; justify-content:space-between; letter-spacing:.2px;
+      border-bottom:1px solid var(--border); color: var(--text);
+    }
+    details.section > summary::-webkit-details-marker{ display:none }
+    details.section[open] > summary{ background:var(--button-checked); }
+    .summary-title{ display:flex; align-items:center; gap:8px }
+    .summary-title::before{ content:""; width:3px; height:16px; border-radius:2px; background: color-mix(in srgb, var(--accent) 70%, transparent); }
+    .chev{ opacity:.7; transition: transform .15s ease; }
+    details.section[open] .chev{ transform: rotate(180deg) }
+    .section-body{ padding:10px 12px; display:flex; flex-direction:column; gap:8px }
   </style>
 </head>
-<body>
+<body class="preload">
   <div class="viewer-wrap" id="drop-zone" aria-label="3D Viewer">
     <canvas class="viewer-canvas" id="viewport" tabindex="0"></canvas>
   </div>
@@ -180,6 +200,7 @@
         </label>
         <button id="reset-camera" class="btn secondary" data-i="btnFrame">К камере</button>
         <button id="clear-scene" class="btn danger" data-i="btnClear">Очистить</button>
+        <button id="reset-all" class="btn secondary" data-i="btnResetAll">Сбросить всё</button>
       </div>
 
       <div class="row">
@@ -208,56 +229,7 @@
         <button id="apply-hdri" class="btn" data-i="btnApply">Применить</button>
       </div>
 
-      <!-- ===== New: Render & lighting controls ===== -->
-      <div class="split"></div>
-      <div class="group">
-        <label class="small" data-i="renderTitle">Рендер</label>
-        <div class="row">
-          <label data-i="exposure">Экспозиция</label>
-          <input id="exposure" class="range" type="range" min="0" max="4" step="0.01" value="1" />
-          <span class="small" id="exposure-val">1.00</span>
-        </div>
-        <div class="row">
-          <label data-i="toneMapping">Тонемаппинг</label>
-          <select id="tone-mapping" class="field">
-            <option value="ACES" selected>ACES</option>
-            <option value="Linear">Linear</option>
-            <option value="Reinhard">Reinhard</option>
-            <option value="Cineon">Cineon</option>
-            <option value="Neutral">Neutral</option>
-            <option value="None">None</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="group">
-        <label class="small" data-i="dirTitle">Направленный свет</label>
-        <div class="row">
-          <label data-i="dirIntensity">Интенсивность</label>
-          <input id="dir-intensity" class="range" type="range" min="0" max="5" step="0.01" value="0.9" />
-          <span class="small" id="dir-intensity-val">0.90</span>
-        </div>
-        <div class="row">
-          <label data-i="dirAngle">Угол</label>
-          <input id="dir-angle" class="range" type="range" min="0" max="360" step="1" value="34" />
-          <span class="small" id="dir-angle-val">34°</span>
-        </div>
-        <div class="row">
-          <label data-i="dirSoftness">Мягкость</label>
-          <input id="dir-softness" class="range" type="range" min="0" max="4" step="0.1" value="1" />
-          <span class="small" id="dir-softness-val">1.0</span>
-        </div>
-      </div>
-
-      <div class="group">
-        <label class="small" data-i="envIntensity">Окружение</label>
-        <div class="row">
-          <label data-i="envIntensity">Env intensity</label>
-          <input id="env-intensity" class="range" type="range" min="0" max="4" step="0.01" value="1" />
-          <span class="small" id="env-intensity-val">1.00</span>
-        </div>
-      </div>
-
+      <!-- Moved up: Material/Wireframe always visible -->
       <div class="row">
         <label data-i="matOverride">Материал</label>
         <select id="mat-override" class="field">
@@ -273,25 +245,139 @@
 
       <div class="split"></div>
 
-      <div class="group">
-        <label class="small" data-i="animTitle">Анимации</label>
-        <div class="row" id="anim-row">
-          <select id="anim-select" class="field" style="min-width:200px"></select>
-          <button id="anim-playpause" class="btn ok" data-i="animPlay">Пуск</button>
-          <button id="anim-stop" class="btn" data-i="animStop">Стоп</button>
-          <label class="toggle"><input type="checkbox" id="anim-loop" checked /><span data-i="animLoop">Зациклить</span></label>
-          <label class="row small">
-            <span data-i="animSpeed">Скорость</span>
-            <input id="anim-speed" class="field" type="number" step="0.25" min="0.25" max="3" value="1" style="width:70px" />
-            <span>x</span>
-          </label>
+      <!-- Collapsible: Render -->
+      <details class="section" data-sec="render">
+        <summary><span class="summary-title">Render</span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row">
+            <label>Exposure</label>
+            <input id="exposure" class="range" type="range" min="0" max="4" step="0.01" value="1" />
+            <span class="small" id="exposure-val">1.00</span>
+          </div>
+          <div class="row">
+            <label>Tone mapping</label>
+            <select id="tone-mapping" class="field">
+              <option value="ACES" selected>ACES</option>
+              <option value="Linear">Linear</option>
+              <option value="Reinhard">Reinhard</option>
+              <option value="Cineon">Cineon</option>
+              <option value="Neutral">Neutral</option>
+              <option value="None">None</option>
+            </select>
+          </div>
+          <div class="row">
+            <button id="reset-render" class="btn secondary" data-i="btnReset">Сбросить</button>
+          </div>
         </div>
-        <div class="row">
-          <input id="anim-progress" class="range" type="range" min="0" max="1" step="0.001" value="0" />
-          <span class="small" id="anim-time">0.00 / 0.00s</span>
+      </details>
+
+      <!-- Collapsible: Directional light -->
+      <details class="section" data-sec="dirlight">
+        <summary><span class="summary-title">Directional light</span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row">
+            <label>Intensity</label>
+            <input id="dir-intensity" class="range" type="range" min="0" max="5" step="0.01" value="0.9" />
+            <span class="small" id="dir-intensity-val">0.90</span>
+          </div>
+          <div class="row">
+            <label>Angle</label>
+            <input id="dir-angle" class="range" type="range" min="0" max="360" step="1" value="34" />
+            <span class="small" id="dir-angle-val">34°</span>
+          </div>
+          <div class="row">
+            <label>Softness</label>
+            <input id="dir-softness" class="range" type="range" min="0" max="4" step="0.1" value="1" />
+            <span class="small" id="dir-softness-val">1.0</span>
+          </div>
+          <div class="row">
+            <button id="reset-dir" class="btn secondary" data-i="btnReset">Сбросить</button>
+          </div>
         </div>
-        <div class="small" data-i="animHint">По умолчанию анимация не проигрывается.</div>
-      </div>
+      </details>
+
+      <!-- Collapsible: Environment -->
+      <details class="section" data-sec="environment">
+        <summary><span class="summary-title">Environment</span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row">
+            <label>Env intensity</label>
+            <input id="env-intensity" class="range" type="range" min="0" max="4" step="0.01" value="1" />
+            <span class="small" id="env-intensity-val">1.00</span>
+          </div>
+          <div class="row">
+            <button id="reset-env" class="btn secondary" data-i="btnReset">Сбросить</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Collapsible: Gizmos & measurements -->
+      <details class="section" data-sec="gizmos">
+        <summary><span class="summary-title">Gizmos & measurements</span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row">
+            <label class="toggle"><input type="checkbox" id="toggle-transform"/><span>Gizmo</span></label>
+            <select id="transform-mode" class="field">
+              <option value="translate" selected>Translate</option>
+              <option value="rotate">Rotate</option>
+              <option value="scale">Scale</option>
+            </select>
+            <label class="toggle"><input type="checkbox" id="toggle-snap"/><span>Snap</span></label>
+          </div>
+          <div class="row">
+            <label>ΔPos</label><input id="snap-pos" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
+            <label>ΔRot°</label><input id="snap-rot" class="field" type="number" step="1" value="15" style="width:80px" />
+            <label>ΔScale</label><input id="snap-scale" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
+          </div>
+          <div class="row">
+            <button id="measure-toggle" class="btn">Measure</button>
+            <button id="measure-clear" class="btn secondary">Clear</button>
+            <span class="tag" id="measure-out">—</span>
+          </div>
+          <div class="row">
+            <button id="reset-gizmos" class="btn secondary" data-i="btnReset">Сбросить</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Collapsible: Camera -->
+      <details class="section" data-sec="camera">
+        <summary><span class="summary-title">Camera</span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row" id="cam-presets">
+            <button class="btn" data-view="front">Front</button>
+            <button class="btn" data-view="back">Back</button>
+            <button class="btn" data-view="left">Left</button>
+            <button class="btn" data-view="right">Right</button>
+            <button class="btn" data-view="top">Top</button>
+            <button class="btn" data-view="bottom">Bottom</button>
+            <button class="btn" data-view="iso">Iso</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Collapsible: Animations -->
+      <details class="section" data-sec="anim">
+        <summary><span class="summary-title" data-i="animTitle">Анимации</span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row" id="anim-row">
+            <select id="anim-select" class="field" style="min-width:200px"></select>
+            <button id="anim-playpause" class="btn ok" data-i="animPlay">Пуск</button>
+            <button id="anim-stop" class="btn" data-i="animStop">Стоп</button>
+            <label class="toggle"><input type="checkbox" id="anim-loop" checked /><span data-i="animLoop">Зациклить</span></label>
+            <label class="row small">
+              <span data-i="animSpeed">Скорость</span>
+              <input id="anim-speed" class="field" type="number" step="0.25" min="0.25" max="3" value="1" style="width:70px" />
+              <span>x</span>
+            </label>
+          </div>
+          <div class="row">
+            <input id="anim-progress" class="range" type="range" min="0" max="1" step="0.001" value="0" />
+            <span class="small" id="anim-time">0.00 / 0.00s</span>
+          </div>
+          <div class="small" data-i="animHint">По умолчанию анимация не проигрывается.</div>
+        </div>
+      </details>
     </div>
 
     <div class="split"></div>
@@ -312,6 +398,7 @@
       <strong data-i="inspector">Сцена</strong>
       <div class="row">
         <span class="tag" id="poly-count">—</span>
+        <span class="tag" id="bbox-size">bbox: —</span>
         <button class="btn" id="inspector-close" data-i="btnHideInspector">Скрыть</button>
       </div>
     </header>
@@ -349,8 +436,9 @@
     import { ShaderPass } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/postprocessing/ShaderPass.js';
     import { FXAAShader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/shaders/FXAAShader.js';
     import { RGBELoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/RGBELoader.js';
+    import { TransformControls } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/TransformControls.js';
 
-    // ======= i18n =======
+    // ======= i18n (existing keys; new sections use English labels directly) =======
     const i18n = {
       ru: {
         title: '3D Viewer', btnLoad:'Загрузить модель', btnFrame:'К камере', btnClear:'Очистить',
@@ -360,8 +448,7 @@
         animHint:'По умолчанию анимация не проигрывается.', hotkeys:'Горячие клавиши',
         hkSelect:'выбор', hkFocus:'к объекту', hkReset:'сброс камеры', hkClearSel:'снять выделение',
         inspector:'Сцена', btnHideInspector:'Скрыть', btnShowInspector:'Инспектор', objects:'Объекты:',
-        renderTitle:'Рендер', exposure:'Экспозиция', toneMapping:'Тонемаппинг', envIntensity:'Окружение',
-        dirTitle:'Направленный свет', dirIntensity:'Интенсивность', dirAngle:'Угол', dirSoftness:'Мягкость'
+        btnResetAll:'Сбросить всё', btnReset:'Сбросить'
       },
       en: {
         title: '3D Viewer', btnLoad:'Load model', btnFrame:'Frame', btnClear:'Clear',
@@ -371,8 +458,7 @@
         animHint:'By default animations do not play.', hotkeys:'Hotkeys',
         hkSelect:'select', hkFocus:'focus', hkReset:'reset camera', hkClearSel:'clear selection',
         inspector:'Scene', btnHideInspector:'Hide', btnShowInspector:'Inspector', objects:'Objects:',
-        renderTitle:'Render', exposure:'Exposure', toneMapping:'Tone mapping', envIntensity:'Env intensity',
-        dirTitle:'Directional light', dirIntensity:'Intensity', dirAngle:'Angle', dirSoftness:'Softness'
+        btnResetAll:'Reset all', btnReset:'Reset'
       }
     };
     function applyLang(lang){
@@ -387,6 +473,7 @@
 
     // ======= Local storage =======
     const LS_KEY = 'viewerSettings.v1';
+    const SEC_KEY = 'viewerSections.v2';
     function loadSettings(){
       try{ return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }catch{ return {}; }
     }
@@ -435,6 +522,7 @@
     const fileInput = d.getElementById('file-input');
     const resetCameraBtn = d.getElementById('reset-camera');
     const clearSceneBtn = d.getElementById('clear-scene');
+    const resetAllBtn = d.getElementById('reset-all');
     const toggleShadows = d.getElementById('toggle-shadows');
     const toggleFXAA = d.getElementById('toggle-fxaa');
     const toggleLightOnly = d.getElementById('toggle-lightonly');
@@ -471,8 +559,26 @@
 
     const dropZone = d.getElementById('drop-zone');
 
+    // Tools & gizmos DOM
+    const toggleTransform = d.getElementById('toggle-transform');
+    const transformMode = d.getElementById('transform-mode');
+    const toggleSnap = d.getElementById('toggle-snap');
+    const snapPos = d.getElementById('snap-pos');
+    const snapRot = d.getElementById('snap-rot');
+    const snapScale = d.getElementById('snap-scale');
+    const measureToggle = d.getElementById('measure-toggle');
+    const measureClear = d.getElementById('measure-clear');
+    const measureOut = d.getElementById('measure-out');
+    const bboxSizeEl = d.getElementById('bbox-size');
+    const camPresets = d.getElementById('cam-presets');
+
+    // Section reset buttons
+    const resetRenderBtn = d.getElementById('reset-render');
+    const resetDirBtn = d.getElementById('reset-dir');
+    const resetEnvBtn = d.getElementById('reset-env');
+    const resetGizmosBtn = d.getElementById('reset-gizmos');
+
     // ======= THREE setup =======
-    // Fixed: create renderer with alpha:true so transparent background truly works
     const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:true, powerPreference:'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -481,6 +587,7 @@
     renderer.toneMappingExposure = 1.0;
     renderer.shadowMap.enabled = false;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.autoClear = false; // allow overlay
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(getComputedStyle(d.body).getPropertyValue('--canvas-default').trim());
@@ -493,6 +600,13 @@
     controls.dampingFactor = 0.08;
     controls.target.set(0, 0.8, 0);
     controls.update();
+
+    // Transform controls
+    const tControls = new TransformControls(camera, renderer.domElement);
+    scene.add(tControls);
+    tControls.enabled = false;
+    tControls.addEventListener('dragging-changed', e => { controls.enabled = !e.value; });
+    tControls.addEventListener('change', ()=>{ updateBBox(selectedObject || currentModel); });
 
     // Grid (adaptive)
     let grid = null;
@@ -524,16 +638,26 @@
     composer.addPass(renderPass);
 
     const outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
-    outlinePass.edgeStrength = 3.0;
-    outlinePass.edgeGlow = 0.0;
-    outlinePass.edgeThickness = 1.0;
-    outlinePass.visibleEdgeColor.set(0x2563eb);
+    // Increased brightness, removed pulse
+    outlinePass.edgeStrength = 12.0;     // brighter outline
+    outlinePass.edgeGlow = 1.0;          // stronger glow
+    outlinePass.edgeThickness = 3.0;     // a bit thicker
+    outlinePass.pulsePeriod = 0.0;       // disable pulsing
+    outlinePass.visibleEdgeColor.set(0xa7d3ff); // brighter tint
     outlinePass.hiddenEdgeColor.set(0x0);
     composer.addPass(outlinePass);
 
     const fxaaPass = new ShaderPass(FXAAShader);
     fxaaPass.material.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
     composer.addPass(fxaaPass);
+
+    // Camera navigator (axes overlay)
+    const axisScene = new THREE.Scene();
+    const axisCam = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
+    axisCam.position.set(0,0,2);
+    const axisHelper = new THREE.AxesHelper(1.2);
+    axisScene.add(axisHelper);
+    const NAV_SIZE = 96; const NAV_PAD = 12;
 
     // Animation
     let mixer = null;
@@ -560,15 +684,83 @@
     const fbxLoader = new FBXLoader();
     const rgbeLoader = new RGBELoader();
 
+    // ======= Measure & BBox =======
+    let bboxHelper = null;
+    const measure = { active:false, pts:[], group:new THREE.Group() };
+    scene.add(measure.group);
+
+    function updateBBox(target){
+      if (bboxHelper){ scene.remove(bboxHelper); bboxHelper.geometry.dispose?.(); bboxHelper.material.dispose?.(); bboxHelper = null; }
+      const obj = target;
+      if (!obj){ if (bboxSizeEl) bboxSizeEl.textContent = 'bbox: —'; return; }
+      const box = new THREE.Box3().setFromObject(obj);
+      if (!isFinite(box.min.x) || !isFinite(box.max.x)){ if (bboxSizeEl) bboxSizeEl.textContent = 'bbox: —'; return; }
+      bboxHelper = new THREE.Box3Helper(box, 0x93c5fd);
+      scene.add(bboxHelper);
+      const size = new THREE.Vector3(); box.getSize(size);
+      if (bboxSizeEl) bboxSizeEl.textContent = `bbox: ${size.x.toFixed(3)}×${size.y.toFixed(3)}×${size.z.toFixed(3)} m`;
+    }
+
+    let measureLine = null;
+    function clearMeasure(){
+      while(measure.group.children.length){
+        const c = measure.group.children.pop();
+        c.geometry?.dispose?.(); c.material?.dispose?.();
+      }
+      measure.pts.length = 0; measureLine = null; if (measureOut) measureOut.textContent = '—';
+    }
+    function addMeasurePoint(p){
+      measure.pts.push(p.clone());
+      const gs = (typeof gridSize!=='undefined' && gridSize) ? gridSize : 10;
+      const s = Math.max(0.01, gs*0.01);
+      const geom = new THREE.SphereGeometry(s, 16, 16);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+      const m = new THREE.Mesh(geom, mat);
+      m.position.copy(p);
+      measure.group.add(m);
+      if (measure.pts.length === 2){ drawMeasureLine(); }
+      if (measure.pts.length > 2){ clearMeasure(); addMeasurePoint(p); }
+    }
+    function drawMeasureLine(){
+      if (measureLine){ measure.group.remove(measureLine); measureLine.geometry.dispose(); measureLine.material.dispose(); measureLine=null; }
+      const pts = measure.pts.slice(0,2);
+      const g = new THREE.BufferGeometry().setFromPoints(pts);
+      const gs = (typeof gridSize!=='undefined' && gridSize) ? gridSize : 10;
+      const mat = new THREE.LineDashedMaterial({ color: 0x60a5fa, dashSize: 0.05*gs, gapSize: 0.025*gs });
+      const line = new THREE.Line(g, mat);
+      line.computeLineDistances();
+      measure.group.add(line);
+      measureLine = line;
+      const d = pts[0].distanceTo(pts[1]);
+      if (measureOut) measureOut.textContent = d.toFixed(3) + ' m';
+    }
+    function handleMeasureClick(e){
+      const rect = canvas.getBoundingClientRect();
+      const ndc = new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2 - 1, -((e.clientY-rect.top)/rect.height)*2 + 1);
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(ndc, camera);
+      const meshes = [];
+      if (currentModel){ currentModel.traverse(o=>{ if (o.isMesh) meshes.push(o); }); }
+      else { scene.traverse(o=>{ if (o.isMesh) meshes.push(o); }); }
+      let p = null;
+      const hit = ray.intersectObjects(meshes, true)[0];
+      if (hit){ p = hit.point.clone(); }
+      else {
+        const plane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+        const pt = new THREE.Vector3();
+        if (ray.ray.intersectPlane(plane, pt)) p = pt;
+      }
+      if (p) addMeasurePoint(p);
+    }
+
     // ======= Theme =======
     function isDark(){ return d.body.classList.contains('theme-dark'); }
     function setTheme(theme){
       d.body.classList.toggle('theme-dark', theme === 'dark');
       themeIcon.textContent = theme === 'dark' ? '🌙' : '🌞';
       themeLabel.textContent = (langSelect.value === 'ru') ? (theme==='dark' ? 'Ночная' : 'Светлая') : (theme==='dark' ? 'Dark' : 'Light');
-      // Update scene background to theme default if not custom selection
       if (bgSelect.value === 'white' || bgSelect.value==='lightgray' || bgSelect.value==='midgray' || bgSelect.value==='darkgray'){
-        updateBackgroundFromUI(); // will map to theme-agnostic colors
+        updateBackgroundFromUI();
       } else if (bgSelect.value === 'transparent'){
         updateBackgroundFromUI();
       } else if (bgSelect.value === 'custom'){
@@ -576,7 +768,6 @@
       } else {
         scene.background = new THREE.Color(getComputedStyle(d.body).getPropertyValue('--canvas-default').trim());
       }
-      // Rebuild grid with theme colors
       createGrid(gridSize, gridDiv);
       saveSettings();
     }
@@ -660,13 +851,16 @@
         scene.remove(currentModel);
         disposeObject(currentModel);
         currentModel = null;
+        if (bboxHelper){ scene.remove(bboxHelper); bboxHelper.geometry?.dispose?.(); bboxHelper.material?.dispose?.(); bboxHelper=null; }
+        if (bboxSizeEl) bboxSizeEl.textContent = 'bbox: —';
+        clearMeasure();
       }
       updateStats();
       buildSceneTree(null);
       resetAnimationsUI();
     }
 
-    // ======= Material enhancement (arrays-safe) & override =======
+    // ======= Material enhancement & override =======
     function enhanceMaterial(material){
       if (!material) return material;
       if (Array.isArray(material)) return material.map(m => enhanceMaterial(m));
@@ -712,12 +906,10 @@
           base.wireframe = wire;
           o.material = base;
         } else {
-          // no override -> ensure sane standard base but keep existing
           if (Array.isArray(o.material)) o.material = o.material.map(m => enhanceMaterial(m));
           else o.material = enhanceMaterial(o.material);
           o.material.wireframe = wire || o.material.wireframe;
         }
-        // keep environment response in sync
         applyEnvIntensityToMaterial(o.material, getNumber(envIntensity.value, 1));
         o.material.needsUpdate = true;
       });
@@ -799,7 +991,6 @@
       const size = new THREE.Vector3();
       box.getSize(size);
       const radius = Math.max(size.x, size.z) * 0.6;
-      // choose grid size as power-of-two-like nice value
       const nice = (v)=>{
         const p = Math.pow(2, Math.ceil(Math.log2(Math.max(1, v))));
         return Math.min(Math.max(10, p), 32768);
@@ -835,11 +1026,17 @@
     function selectObject(obj, buttonEl){
       selectedObject = obj;
       outlinePass.selectedObjects = obj ? [obj] : [];
+      if (typeof tControls !== 'undefined'){
+        if (toggleTransform && toggleTransform.checked){ obj ? tControls.attach(obj) : tControls.detach(); }
+        else { tControls.detach(); }
+      }
+      updateBBox(selectedObject || currentModel);
       document.querySelectorAll('#tree button').forEach(b=>b.classList.remove('selected'));
       if (buttonEl) buttonEl.classList.add('selected');
     }
     canvas.addEventListener('mousedown', (e)=>{
       if (e.button!==0) return;
+      if (measure.active){ handleMeasureClick(e); return; }
       const rect = canvas.getBoundingClientRect();
       const ndc = new THREE.Vector2(
         ( (e.clientX-rect.left) / rect.width ) * 2 - 1,
@@ -922,7 +1119,6 @@
           envHdrTex && envHdrTex.dispose?.();
           envHdrTex = tex;
           scene.environment = tex;
-          // keep env intensity consistent
           setEnvIntensity(getNumber(envIntensity.value, 1), currentModel || scene);
           hideOverlay();
           saveSettings();
@@ -934,7 +1130,7 @@
       const opt = bgSelect.value;
       if (opt === 'transparent'){
         scene.background = null;
-        renderer.setClearAlpha(0); // <-- real transparency
+        renderer.setClearAlpha(0);
       } else if (opt === 'lightgray'){
         scene.background = new THREE.Color(isDark()?0x1f2937:0xe5e7eb);
         renderer.setClearAlpha(1);
@@ -953,13 +1149,8 @@
       }
       saveSettings();
     }
-    bgSelect.addEventListener('change', ()=>{
-      updateBackgroundFromUI();
-    });
-    bgColor.addEventListener('input', ()=>{
-      bgSelect.value = 'custom';
-      updateBackgroundFromUI();
-    });
+    bgSelect.addEventListener('change', ()=>{ updateBackgroundFromUI(); });
+    bgColor.addEventListener('input', ()=>{ bgSelect.value = 'custom'; updateBackgroundFromUI(); });
 
     // ======= Loaders: GLTF & FBX =======
     async function postLoad(root, animations){
@@ -981,6 +1172,7 @@
       frameObject(currentModel);
       updateStats();
       resizeGridToModel(currentModel);
+      updateBBox(currentModel);
       applyMaterialOverride(currentModel);
       if (toggleLightOnly.checked) setLightOnly(currentModel, true);
 
@@ -1125,22 +1317,64 @@
       });
       saveSettings();
     });
-    toggleFXAA.addEventListener('change', ()=>{
-      fxaaPass.enabled = toggleFXAA.checked; saveSettings();
-    });
-    toggleLightOnly.addEventListener('change', ()=>{
-      setLightOnly(currentModel, toggleLightOnly.checked); saveSettings();
-    });
-    toggleGrid.addEventListener('change', ()=>{
-      grid.visible = !!toggleGrid.checked; saveSettings();
-    });
+    toggleFXAA.addEventListener('change', ()=>{ fxaaPass.enabled = toggleFXAA.checked; saveSettings(); });
+    toggleLightOnly.addEventListener('change', ()=>{ setLightOnly(currentModel, toggleLightOnly.checked); saveSettings(); });
+    toggleGrid.addEventListener('change', ()=>{ grid.visible = !!toggleGrid.checked; saveSettings(); });
 
     applyHdriBtn.addEventListener('click', ()=> applyHDRI(hdriUrlInput.value.trim()));
 
     matOverride.addEventListener('change', ()=>{ applyMaterialOverride(currentModel); saveSettings(); });
     toggleWireframe.addEventListener('change', ()=>{ applyMaterialOverride(currentModel); saveSettings(); });
 
-    // New: render/lighting listeners
+    // ======= Transform controls UI =======
+    function applySnap(){
+      if (!toggleSnap) return;
+      if (toggleSnap.checked){
+        tControls.setTranslationSnap(Number(snapPos.value)||0);
+        tControls.setRotationSnap(THREE.MathUtils.degToRad(Number(snapRot.value)||0));
+        tControls.setScaleSnap(Number(snapScale.value)||0);
+      } else {
+        tControls.setTranslationSnap(null);
+        tControls.setRotationSnap(null);
+        tControls.setScaleSnap(null);
+      }
+    }
+    toggleTransform?.addEventListener('change', ()=>{
+      const on = toggleTransform.checked; tControls.enabled = on;
+      if (on && selectedObject) tControls.attach(selectedObject); else tControls.detach();
+    });
+    transformMode?.addEventListener('change', ()=> tControls.setMode(transformMode.value));
+    toggleSnap?.addEventListener('change', applySnap);
+    ;[snapPos, snapRot, snapScale].forEach(el=> el?.addEventListener('change', applySnap));
+
+    // ======= Measure UI =======
+    measureToggle?.addEventListener('click', ()=>{ measure.active = !measure.active; measureToggle.classList.toggle('ok', measure.active); toast(measure.active ? 'Линейка: выберите 2 точки' : 'Линейка отключена'); });
+    measureClear?.addEventListener('click', clearMeasure);
+
+    // ======= Camera presets =======
+    function camPreset(view){
+      const root = currentModel || scene;
+      const box = new THREE.Box3().setFromObject(root);
+      const sphere = box.getBoundingSphere(new THREE.Sphere());
+      const center = sphere.center; const fov = THREE.MathUtils.degToRad(camera.fov);
+      const dist = sphere.radius / Math.sin(Math.min(Math.PI/4, fov/2));
+      const m = dist*1.2;
+      let dirv = new THREE.Vector3(1,1,1);
+      switch(view){
+        case 'front': dirv.set(0,0,1); break;
+        case 'back': dirv.set(0,0,-1); break;
+        case 'left': dirv.set(-1,0,0); break;
+        case 'right': dirv.set(1,0,0); break;
+        case 'top': dirv.set(0,1,0); break;
+        case 'bottom': dirv.set(0,-1,0); break;
+        case 'iso': default: dirv.set(1,1,1); break;
+      }
+      camera.position.copy(center.clone().addScaledVector(dirv.normalize(), m));
+      controls.target.copy(center); controls.update();
+    }
+    camPresets?.querySelectorAll('button')?.forEach(btn=> btn.addEventListener('click', ()=> camPreset(btn.dataset.view)));
+
+    // Render & lighting listeners
     exposure.addEventListener('input', ()=>{
       const v = getNumber(exposure.value, 1);
       renderer.toneMappingExposure = v;
@@ -1169,7 +1403,6 @@
     });
 
     function setDirFromAngle(angleDeg){
-      // keep Y and radial distance in XZ-plane
       const y = dir.position.y; // keep elevation
       const r = Math.hypot(dir.position.x, dir.position.z) || 1;
       const a = THREE.MathUtils.degToRad(angleDeg);
@@ -1197,6 +1430,61 @@
       saveSettings();
     });
 
+    // ======= Reset helpers =======
+    function resetRender(){
+      exposure.value = 1; exposure.dispatchEvent(new Event('input'));
+      toneMapping.value = 'ACES'; toneMapping.dispatchEvent(new Event('change'));
+      toast(i18n[langSelect.value].btnReset + ': Render');
+    }
+    function resetDir(){
+      dirIntensity.value = 0.9; dirIntensity.dispatchEvent(new Event('input'));
+      dirAngle.value = 34; dirAngle.dispatchEvent(new Event('input'));
+      dirSoftness.value = 1; dirSoftness.dispatchEvent(new Event('input'));
+      toast(i18n[langSelect.value].btnReset + ': Directional light');
+    }
+    function resetEnv(){
+      envIntensity.value = 1; envIntensity.dispatchEvent(new Event('input'));
+      hdriUrlInput.value = '';
+      applyHDRI('');
+      toast(i18n[langSelect.value].btnReset + ': Environment');
+    }
+    function resetGizmos(){
+      toggleTransform.checked = false; tControls.enabled = false; tControls.detach();
+      transformMode.value = 'translate';
+      toggleSnap.checked = false;
+      snapPos.value = 0.1; snapRot.value = 15; snapScale.value = 0.1; applySnap();
+      clearMeasure(); measure.active = false; measureToggle.classList.remove('ok');
+      if (measureOut) measureOut.textContent = '—';
+      toast(i18n[langSelect.value].btnReset + ': Gizmos');
+      saveSettings();
+    }
+    function resetAll(){
+      // toggles
+      toggleShadows.checked = false; toggleShadows.dispatchEvent(new Event('change'));
+      toggleFXAA.checked = true; toggleFXAA.dispatchEvent(new Event('change'));
+      toggleLightOnly.checked = false; toggleLightOnly.dispatchEvent(new Event('change'));
+      toggleGrid.checked = true; toggleGrid.dispatchEvent(new Event('change'));
+      // background & hdri
+      bgSelect.value = 'white'; bgColor.value = '#ffffff'; updateBackgroundFromUI();
+      hdriUrlInput.value = ''; applyHDRI('');
+      // materials
+      matOverride.value = 'none'; toggleWireframe.checked = false; applyMaterialOverride(currentModel);
+      // sections
+      resetRender(); resetDir(); resetEnv(); resetGizmos();
+      // camera & selection
+      selectObject(null); resetCamera();
+      // persist
+      localStorage.removeItem(LS_KEY); // clear saved UI settings
+      saveSettings();
+      toast('Настройки сброшены по умолчанию');
+    }
+
+    resetRenderBtn?.addEventListener('click', resetRender);
+    resetDirBtn?.addEventListener('click', resetDir);
+    resetEnvBtn?.addEventListener('click', resetEnv);
+    resetGizmosBtn?.addEventListener('click', resetGizmos);
+    resetAllBtn?.addEventListener('click', resetAll);
+
     // ======= Resize =======
     function onResize(){
       const w = window.innerWidth;
@@ -1210,6 +1498,23 @@
     }
     window.addEventListener('resize', onResize);
 
+    // ======= Sections (no flicker) =======
+    function initSections(){
+      const saved = JSON.parse(localStorage.getItem(SEC_KEY) || '{}');
+      const list = Array.from(document.querySelectorAll('details.section'));
+      list.forEach((el, i)=>{
+        const id = el.dataset.sec || ('sec-'+i);
+        const open = saved[id] === true; // default closed
+        if (open) el.setAttribute('open',''); else el.removeAttribute('open');
+        el.querySelector('summary')?.addEventListener('click', ()=>{
+          const isOpen = el.hasAttribute('open');
+          saved[id] = !isOpen; // will be toggled after click
+          localStorage.setItem(SEC_KEY, JSON.stringify(saved));
+        });
+      });
+      document.body.classList.remove('preload'); // reveal after state applied
+    }
+
     // ======= Render loop =======
     let lastFpsUpdate = 0;
     function animate(){
@@ -1222,16 +1527,28 @@
         updateAnimTimeUI(t, dur);
       }
       controls.update();
+      // ensure full viewport before main compose
+      renderer.setViewport(0,0,window.innerWidth, window.innerHeight);
+      renderer.setScissorTest(false);
+      renderer.clear();
       composer.render();
       const tnow = performance.now();
       if (!lastFpsUpdate) lastFpsUpdate = tnow;
+      // Render axes overlay in corner
+      renderer.setScissorTest(true);
+      const vx = window.innerWidth - NAV_SIZE - NAV_PAD;
+      const vy = NAV_PAD;
+      renderer.setViewport(vx, vy, NAV_SIZE, NAV_SIZE);
+      renderer.setScissor(vx, vy, NAV_SIZE, NAV_SIZE);
+      axisCam.quaternion.copy(camera.quaternion);
+      renderer.render(axisScene, axisCam);
+      renderer.setScissorTest(false);
       if (tnow - lastFpsUpdate >= 500){
         const fps = (1/dt).toFixed(0);
         fpsEl.textContent = fps;
         lastFpsUpdate = tnow;
       }
     }
-    animate();
 
     // ======= Init: restore settings =======
     (function initFromSettings(){
@@ -1264,12 +1581,13 @@
         animLoop.checked = !!s.anim.loop;
         animSpeed.value = s.anim.speed || 1;
       }
-      // New: restore render + light
       if (s.render){
         exposure.value = getNumber(s.render.exposure, 1);
         exposure.dispatchEvent(new Event('input'));
         toneMapping.value = s.render.tonemapping || 'ACES';
         toneMapping.dispatchEvent(new Event('change'));
+      } else {
+        exposure.dispatchEvent(new Event('input'));
       }
       if (s.light){
         envIntensity.value = getNumber(s.light.envIntensity, 1);
@@ -1281,14 +1599,14 @@
         dirSoftness.value = getNumber(s.light.dir?.softness, 1);
         dirSoftness.dispatchEvent(new Event('input'));
       } else {
-        // initialize labels
-        exposure.dispatchEvent(new Event('input'));
         envIntensity.dispatchEvent(new Event('input'));
         dirIntensity.dispatchEvent(new Event('input'));
         dirAngle.dispatchEvent(new Event('input'));
         dirSoftness.dispatchEvent(new Event('input'));
       }
-      // Grid visibility already applied in createGrid
+
+      initSections();
+      animate();
       saveSettings();
     })();
 
