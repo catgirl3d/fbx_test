@@ -96,15 +96,30 @@
             </label>
         </div>
     </div>
-    <div id="scene-inspector" class="absolute top-28 right-4 w-80 max-h-[85vh] bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg overflow-auto shadow-lg">
-        <h2 class="text-lg font-bold mb-2">Инспектор сцены</h2>
-        <div id="scene-tree" class="text-sm mb-3 max-h-[65vh] overflow-auto border border-gray-600 rounded p-1 bg-gray-900"></div>
-        <div id="object-properties" class="text-xs bg-gray-700 p-1 rounded max-h-36 overflow-auto">
-            <h3 class="font-semibold mb-1">Свойства объекта</h3>
+    <!-- Toggle button for inspector -->
+    <button id="inspector-toggle" class="fixed top-4 right-4 z-[999] p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors shadow-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5h12m-12 7h12m-12 7h12M1 5h12m-12 7h12m-12 7h12"/>
+        </svg>
+    </button>
+
+    <!-- Scene inspector panel -->
+    <div id="scene-inspector" class="fixed top-0 right-[-320px] h-full w-80 bg-gray-800 bg-opacity-95 text-white px-4 py-4 shadow-xl transition-all duration-300 ease-out overflow-y-auto z-40">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold">Инспектор сцены</h2>
+            <button id="close-inspector" class="p-1 hover:bg-gray-700 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="scene-tree" class="text-sm mb-4 max-h-[70vh] overflow-auto border border-gray-600 rounded p-2 bg-gray-900"></div>
+        <div id="object-properties" class="text-xs bg-gray-700 p-2 rounded max-h-40 overflow-auto">
+            <h3 class="font-semibold mb-2">Свойства объекта</h3>
             <div id="properties-content">Выберите объект в дереве</div>
         </div>
     </div>
-    
+
     
     <div id="progress" class="absolute top-52 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
     <div id="debug" class="absolute top-64 left-4 bg-gray-800 bg-opacity-75 text-white px-4 py-2 rounded-lg hidden"></div>
@@ -315,6 +330,129 @@
             }
         });
 
+        // Fallback textures for missing maps
+        const fallbackTextures = {
+            diffuse: null,
+            normal: null,
+            roughness: null,
+            metalness: null,
+            specular: null
+        };
+
+        // Create fallback textures
+        function createFallbackTextures() {
+            // Create a simple 1x1 white texture for diffuse
+            const whiteTexture = new THREE.DataTexture(new Uint8Array([255, 255, 255]), 1, 1, THREE.RGBFormat);
+            whiteTexture.needsUpdate = true;
+            fallbackTextures.diffuse = whiteTexture;
+
+            // Create a simple 1x1 gray texture for roughness (middle gray = 0.5)
+            const grayTexture = new THREE.DataTexture(new Uint8Array([128, 128, 128]), 1, 1, THREE.RGBFormat);
+            grayTexture.needsUpdate = true;
+            fallbackTextures.roughness = grayTexture;
+
+            // Create a simple 1x1 black texture for metalness
+            const blackTexture = new THREE.DataTexture(new Uint8Array([0, 0, 0]), 1, 1, THREE.RGBFormat);
+            blackTexture.needsUpdate = true;
+            fallbackTextures.metalness = blackTexture;
+
+            // Create a simple 1x1 neutral normal map (forward vector)
+            const neutralNormal = new THREE.DataTexture(new Uint8Array([128, 128, 255]), 1, 1, THREE.RGBFormat);
+            neutralNormal.needsUpdate = true;
+            fallbackTextures.normal = neutralNormal;
+        }
+
+        // Initialize fallback textures
+        createFallbackTextures();
+
+        // Enhanced material function with PBR support
+        function enhanceMaterial(material) {
+            // Convert to MeshStandardMaterial for PBR support if not already
+            if (!(material instanceof THREE.MeshStandardMaterial)) {
+                const newMaterial = new THREE.MeshStandardMaterial();
+                
+                // Copy basic properties
+                newMaterial.name = material.name;
+                newMaterial.color = material.color || new THREE.Color(0xcccccc);
+                newMaterial.opacity = material.opacity !== undefined ? material.opacity : 1;
+                newMaterial.transparent = material.transparent || false;
+                newMaterial.side = material.side || THREE.FrontSide;
+                newMaterial.visible = material.visible;
+                newMaterial.wireframe = material.wireframe;
+                
+                // Handle diffuse map
+                if (material.map) {
+                    newMaterial.map = material.map;
+                }
+                
+                // Try to extract PBR properties from the original material
+                // FBX materials might have these properties
+                if (material.specularMap) {
+                    // In FBX, specular maps might be used for metalness
+                    newMaterial.metalnessMap = material.specularMap;
+                    newMaterial.metalness = 1.0;
+                }
+                
+                // Set default PBR values if not specified
+                if (newMaterial.metalness === undefined) {
+                    newMaterial.metalness = 0.0;
+                }
+                
+                if (newMaterial.roughness === undefined) {
+                    newMaterial.roughness = 0.5;
+                }
+                
+                // Replace the material
+                material = newMaterial;
+            }
+            
+            // Ensure all required maps are present
+            if (!material.map) {
+                material.map = fallbackTextures.diffuse;
+            }
+            
+            // Set fallback textures for PBR maps if not present
+            if (!material.roughnessMap) {
+                // Try to derive roughness from shininess if available
+                if (material.shininess !== undefined) {
+                    material.roughness = Math.pow(1.0 - Math.min(1.0, material.shininess / 1000), 2);
+                }
+                material.roughnessMap = fallbackTextures.roughness;
+            }
+            
+            if (!material.metalnessMap) {
+                material.metalnessMap = fallbackTextures.metalness;
+            }
+            
+            if (!material.normalMap) {
+                material.normalMap = fallbackTextures.normal;
+            }
+            
+            // Handle transparency
+            if (material.opacity < 1.0 || material.transparent) {
+                material.transparent = true;
+                // For better transparency handling
+                if (material.alphaTest === undefined) {
+                    material.alphaTest = 0.01;
+                }
+            }
+            
+            // Handle double-sided materials
+            if (material.side === THREE.DoubleSide) {
+                material.side = THREE.DoubleSide;
+            } else {
+                // Check if material should be double-sided based on properties
+                // This is a heuristic - materials with transparency are often double-sided
+                if (material.opacity < 1.0) {
+                    material.side = THREE.DoubleSide;
+                }
+            }
+            
+            // Enable material updates
+            material.needsUpdate = true;
+            
+            return material;
+        }
         // Функция загрузки FBX
         function loadFBX(file, fileName) {
             if (currentModel) {
@@ -337,6 +475,9 @@
             animationControls.classList.add('hidden');
             
             const loader = new THREE.FBXLoader();
+            
+            // Configure loader to handle textures properly
+            loader.setPath('');
             loader.load(
                 file,
                 (fbx) => {
@@ -348,17 +489,13 @@
                             meshCount++;
                             if (child.material) {
                                 materialCount++;
-                                // Улучшение материалов
+                                // Улучшение материалов с поддержкой PBR
                                 if (Array.isArray(child.material)) {
                                     child.material.forEach(mat => {
-                                        if (!mat.map) {
-                                            mat.color = new THREE.Color(0xaaaaaa);
-                                        }
+                                        enhanceMaterial(mat);
                                     });
                                 } else {
-                                    if (!child.material.map) {
-                                        child.material.color = new THREE.Color(0xaaaaaa);
-                                    }
+                                    enhanceMaterial(child.material);
                                 }
                             }
                             child.castShadow = true;
@@ -467,16 +604,13 @@
                             meshCount++;
                             if (child.material) {
                                 materialCount++;
+                                // Улучшение материалов с поддержкой PBR
                                 if (Array.isArray(child.material)) {
                                     child.material.forEach(mat => {
-                                        if (!mat.map) {
-                                            mat.color = new THREE.Color(0xaaaaaa);
-                                        }
+                                        enhanceMaterial(mat);
                                     });
                                 } else {
-                                    if (!child.material.map) {
-                                        child.material.color = new THREE.Color(0xaaaaaa);
-                                    }
+                                    enhanceMaterial(child.material);
                                 }
                             }
                             child.castShadow = true;
@@ -687,6 +821,41 @@
         const sceneTreeDiv = document.getElementById('scene-tree');
         const propertiesContentDiv = document.getElementById('properties-content');
         const displayModeSelect = document.getElementById('display-mode');
+        
+        // Inspector panel elements
+        const inspector = document.getElementById('scene-inspector');
+        const toggleBtn = document.getElementById('inspector-toggle');
+        const closeBtn = document.getElementById('close-inspector');
+
+        // Debug initial state
+        console.log('Inspector element:', inspector);
+        console.log('Toggle button:', toggleBtn);
+        console.log('Close button:', closeBtn);
+
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log('Toggle clicked - current right:', inspector.style.right);
+            inspector.classList.toggle('right-0');
+            inspector.classList.toggle('right-[-320px]');
+            console.log('New right:', inspector.style.right);
+        });
+
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            inspector.classList.remove('right-0');
+            inspector.classList.add('right-[-320px]');
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!inspector.contains(event.target) && !toggleBtn.contains(event.target)) {
+                inspector.classList.remove('right-0');
+                inspector.classList.add('right-[-320px]');
+            }
+        });
+
+        inspector.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
     
         // Helper function to create tree item elements recursively
         function createTreeItem(object) {
