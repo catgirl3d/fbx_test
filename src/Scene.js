@@ -6,12 +6,15 @@ export class SceneManager {
     this.grid = null;
 
     this.hemi = new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.5);
-    this.dir = new THREE.DirectionalLight(0xffffff, 0.9);
-    this.dir.castShadow = false;
-    this.dir.shadow.radius = 1;
+    // The directional light is now managed by LightingManager.
+    // This duplicate light is removed to avoid confusion and redundant lights.
+    // this.dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    // this.dir.castShadow = false;
+    // this.dir.shadow.radius = 1;
+    // ...
 
     this.scene.add(this.hemi);
-    this.scene.add(this.dir);
+    // this.scene.add(this.dir); // Removed duplicate light
 
     this.measure = { group: new THREE.Group(), pts: [] };
     this.scene.add(this.measure.group);

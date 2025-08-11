@@ -124,6 +124,14 @@ function updateAnimTimeUI(time, dur) {
   if (animProgress) animProgress.value = d ? (t / d) : 0;
 }
 
+// Show or hide the Animations section in the left panel.
+// When visible is true -> show; false -> hide (display:none).
+function setAnimSectionVisible(visible) {
+  const animSection = document.querySelector('details[data-sec="anim"]');
+  if (!animSection) return;
+  animSection.style.display = visible ? '' : 'none';
+}
+
 // Camera framing
 function frameObject(root) {
   if (!root) return;
@@ -154,6 +162,8 @@ function clearCurrentModel() {
     const tree = document.getElementById('tree'); if (tree) tree.innerHTML = '';
   }
   const animSelect = document.getElementById('anim-select'); if (animSelect) animSelect.innerHTML = '';
+  // Hide animations section when model is cleared / no animations present
+  try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(false); } catch(e) {}
   tControls.detach();
 }
 
@@ -165,6 +175,17 @@ async function postLoad(gltf, sourceType = 'gltf') {
   const root = gltf.scene || gltf;
   sceneMgr.add(root);
   currentModel = root;
+
+  // If shadows are enabled, set cast/receive flags for new meshes
+  const shadowsEnabled = document.getElementById('toggle-shadows')?.checked;
+  if (shadowsEnabled) {
+    root.traverse(obj => {
+      if (obj.isMesh) {
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+      }
+    });
+  }
 
   // Apply material override default behavior if any UI toggles are set
   const matOverrideEl = document.getElementById('mat-override');
@@ -188,6 +209,8 @@ async function postLoad(gltf, sourceType = 'gltf') {
   animMgr.dispose();
   animMgr.init(root);
   animMgr.setClips(clips);
+  // Show or hide Animations UI depending on whether clips were found
+  try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!(clips && clips.length)); } catch(e) {}
   // populate animation UI
   const animSelect = document.getElementById('anim-select');
   const animPlayPause = document.getElementById('anim-playpause');
@@ -421,6 +444,8 @@ document.body.classList.remove('preload');
 // Apply language strings from the lang select (if UI exposes applyLang)
 const langEl = document.getElementById('lang');
 if (ui && ui.applyLang && langEl) ui.applyLang(langEl.value || 'en');
+// Hide animations section on startup if there are no clips
+try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!animMgr.hasClips && animMgr.hasClips()); } catch(e) {}
 
 // Section reset buttons bindings (were present in the original monolithic script
 // but got omitted during refactor). Wire them to the helper functions above.
@@ -571,6 +596,22 @@ function setIndeterminate() {
     const on = toggleShadows.checked;
     rendererMgr.renderer.shadowMap.enabled = on;
     lighting.enableShadows(on);
+    // Apply castShadow/receiveShadow to all meshes in scene or current model
+    const root = currentModel || sceneMgr.getScene();
+    if (root) {
+      root.traverse(obj => {
+        if (obj.isMesh) {
+          obj.castShadow = on;
+          obj.receiveShadow = on;
+        }
+      });
+    }
+    // Also ensure the scene's own directional light (if exists) has shadows enabled
+    // This addresses the duplicate light in SceneManager
+    const sceneDirLight = sceneMgr.getScene()?.children?.find?.(child => child.isDirectionalLight);
+    if (sceneDirLight) {
+      sceneDirLight.castShadow = on;
+    }
   });
   toggleFXAA?.addEventListener('change', () => { rendererMgr.enableFXAA(toggleFXAA.checked); });
   toggleLightOnly?.addEventListener('change', () => { setLightOnly(currentModel, toggleLightOnly.checked); });
