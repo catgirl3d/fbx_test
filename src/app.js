@@ -13,69 +13,15 @@ import { LightingManager } from './Lighting.js';
 import Settings from './Settings.js';
 import { RenderSettings } from './RenderSettings.js';
 import { bindUI } from './UIBindings.js';
+import DOMManager from './DOMManager.js';
 
 // Bootstrap: wire modules together and re-implement core behaviors from the original inline script.
 // This file replaces the monolithic inline script and uses modular building blocks.
 
-// Create DOM element cache
-const dom = {
-  canvas: document.getElementById('viewport'),
-  polyCount: document.getElementById('poly-count'),
-  objCount: document.getElementById('obj-count'),
-  toggleTransform: document.getElementById('toggle-transform'),
-  transformMode: document.getElementById('transform-mode'),
-  toggleSnap: document.getElementById('toggle-snap'),
-  snapPos: document.getElementById('snap-pos'),
-  snapRot: document.getElementById('snap-rot'),
-  snapScale: document.getElementById('snap-scale'),
-  toggleShadows: document.getElementById('toggle-shadows'),
-  toggleFXAA: document.getElementById('toggle-fxaa'),
-  toggleLightOnly: document.getElementById('toggle-lightonly'),
-  toggleGrid: document.getElementById('toggle-grid'),
-  bgSelect: document.getElementById('bg-select'),
-  bgColor: document.getElementById('bg-color'),
-  matOverride: document.getElementById('mat-override'),
-  toggleWireframe: document.getElementById('toggle-wireframe'),
-  animSelect: document.getElementById('anim-select'),
-  animPlayPause: document.getElementById('anim-playpause'),
-  animStop: document.getElementById('anim-stop'),
-  animLoop: document.getElementById('anim-loop'),
-  animSpeed: document.getElementById('anim-speed'),
-  animProgress: document.getElementById('anim-progress'),
-  animTime: document.getElementById('anim-time'),
-  dirIntensity: document.getElementById('dir-intensity'),
-  dirAngle: document.getElementById('dir-angle'),
-  dirSoftness: document.getElementById('dir-softness'),
-  envIntensity: document.getElementById('env-intensity'),
-  exposure: document.getElementById('exposure'),
-  toneMapping: document.getElementById('tone-mapping'),
-  fxaa: document.getElementById('toggle-fxaa'),
-  camPresets: document.getElementById('cam-presets'),
-  lang: document.getElementById('lang'),
-  dirIntensityVal: document.getElementById('dir-intensity-val'),
-  dirAngleVal: document.getElementById('dir-angle-val'),
-  dirSoftnessVal: document.getElementById('dir-softness-val'),
-  envIntensityVal: document.getElementById('env-intensity-val'),
-  exposureVal: document.getElementById('exposure-val'),
-  fps: document.getElementById('fps'),
-  overlay: document.getElementById('overlay'),
-  meter: document.getElementById('meter'),
-  progressTitle: document.getElementById('progress-title'),
-  progressSub: document.getElementById('progress-sub'),
-  toast: document.getElementById('toast'),
-  tree: document.getElementById('tree'),
-  sceneInspector: document.getElementById('scene-inspector'),
-  openInspector: document.getElementById('open-inspector'),
-  inspectorClose: document.getElementById('inspector-close'),
-  leftCol: document.querySelector('.left-col'),
-  resetRender: document.getElementById('reset-render'),
-  resetDir: document.getElementById('reset-dir'),
-  resetEnv: document.getElementById('reset-env'),
-  resetGizmos: document.getElementById('reset-gizmos')
-};
+// Initialize DOM Manager
+const dom = DOMManager;
 
-const canvas = dom.canvas;
-if (!canvas) throw new Error('Canvas #viewport not found');
+const canvas = dom.getOrThrow('viewport', 'Canvas #viewport not found');
 
 // Mark module loaded for diagnostics
 window.__app_module_loaded = true;
@@ -85,7 +31,7 @@ console.info('[app] src/app.js loaded');
 function _reportRuntimeError(msg, detail){
   console.error('[RuntimeError]', msg, detail);
   try {
-    const toastEl = document.getElementById('toast');
+    const toastEl = dom.get('toast');
     if (toastEl){
       const text = msg && msg.message ? msg.message : (typeof msg === 'string' ? msg : JSON.stringify(msg));
       toastEl.textContent = 'Error: ' + text;
@@ -165,8 +111,8 @@ rendererMgr.setSize(window.innerWidth, window.innerHeight);
 
 // Helpers: Stats UI
 function updateStatsUI() {
-  const polyCountEl = document.getElementById('poly-count');
-  const objCountEl = document.getElementById('obj-count');
+  const polyCountEl = dom.get('poly-count');
+  const objCountEl = dom.get('obj-count');
   let tris = 0, objs = 0;
   sceneMgr.getScene().traverse(o => {
     objs++;
@@ -185,8 +131,8 @@ function updateStatsUI() {
 function updateAnimTimeUI(time, dur) {
   const t = Math.max(0, Math.min(time, dur || 0));
   const d = dur || 0;
-  const animTime = document.getElementById('anim-time');
-  const animProgress = document.getElementById('anim-progress');
+  const animTime = dom.get('anim-time');
+  const animProgress = dom.get('anim-progress');
   if (animTime) animTime.textContent = `${t.toFixed(2)} / ${d.toFixed(2)}s`;
   if (animProgress) animProgress.value = d ? (t / d) : 0;
 }
@@ -194,7 +140,7 @@ function updateAnimTimeUI(time, dur) {
 // Show or hide the Animations section in the left panel.
 // When visible is true -> show; false -> hide (display:none).
 function setAnimSectionVisible(visible) {
-  const animSection = document.querySelector('details[data-sec="anim"]');
+  const animSection = dom.query('details[data-sec="anim"]');
   if (!animSection) return;
   animSection.style.display = visible ? '' : 'none';
 }
@@ -226,9 +172,9 @@ function clearCurrentModel() {
   if (inspectorApi && typeof inspectorApi.refresh === 'function') {
     try { inspectorApi.refresh(); } catch(e) { /* ignore */ }
   } else {
-    const tree = document.getElementById('tree'); if (tree) tree.innerHTML = '';
+    const tree = dom.get('tree'); if (tree) tree.innerHTML = '';
   }
-  const animSelect = document.getElementById('anim-select'); if (animSelect) animSelect.innerHTML = '';
+  const animSelect = dom.get('anim-select'); if (animSelect) animSelect.innerHTML = '';
   // Hide animations section when model is cleared / no animations present
   try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(false); } catch(e) {}
   tControls.detach();
@@ -244,7 +190,7 @@ async function postLoad(gltf, sourceType = 'gltf') {
   currentModel = root;
 
   // If shadows are enabled, set cast/receive flags for new meshes
-  const shadowsEnabled = document.getElementById('toggle-shadows')?.checked;
+  const shadowsEnabled = dom.get('toggle-shadows')?.checked;
   if (shadowsEnabled) {
     root.traverse(obj => {
       if (obj.isMesh) {
@@ -255,10 +201,10 @@ async function postLoad(gltf, sourceType = 'gltf') {
   }
 
   // Apply material override default behavior if any UI toggles are set
-  const matOverrideEl = document.getElementById('mat-override');
-  const wireframeEl = document.getElementById('toggle-wireframe');
-  const envIntensityEl = document.getElementById('env-intensity');
-  const lightOnlyEl = document.getElementById('toggle-lightonly');
+  const matOverrideEl = dom.get('mat-override');
+  const wireframeEl = dom.get('toggle-wireframe');
+  const envIntensityEl = dom.get('env-intensity');
+  const lightOnlyEl = dom.get('toggle-lightonly');
 
   const overrideType = matOverrideEl?.value || 'none';
   const wire = !!(wireframeEl && wireframeEl.checked);
@@ -279,13 +225,13 @@ async function postLoad(gltf, sourceType = 'gltf') {
   // Show or hide Animations UI depending on whether clips were found
   try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!(clips && clips.length)); } catch(e) {}
   // populate animation UI
-  const animSelect = document.getElementById('anim-select');
-  const animPlayPause = document.getElementById('anim-playpause');
-  const animStop = document.getElementById('anim-stop');
-  const animLoop = document.getElementById('anim-loop');
-  const animSpeed = document.getElementById('anim-speed');
-  const animProgress = document.getElementById('anim-progress');
-  const animTime = document.getElementById('anim-time');
+  const animSelect = dom.get('anim-select');
+  const animPlayPause = dom.get('anim-playpause');
+  const animStop = dom.get('anim-stop');
+  const animLoop = dom.get('anim-loop');
+  const animSpeed = dom.get('anim-speed');
+  const animProgress = dom.get('anim-progress');
+  const animTime = dom.get('anim-time');
 
   if (animSelect) {
     animSelect.innerHTML = '';
@@ -302,9 +248,9 @@ async function postLoad(gltf, sourceType = 'gltf') {
 
   if (animPlayPause) {
     animPlayPause.dataset.state = 'stopped';
-    animPlayPause.textContent = (document.getElementById('lang')?.value === 'ru') ? 'Пуск' : 'Play';
+    animPlayPause.textContent = (dom.get('lang')?.value === 'ru') ? 'Пуск' : 'Play';
   }
-  if (animStop) animStop.textContent = (document.getElementById('lang')?.value === 'ru') ? 'Стоп' : 'Stop';
+  if (animStop) animStop.textContent = (dom.get('lang')?.value === 'ru') ? 'Стоп' : 'Stop';
   if (animTime) animTime.textContent = `0.00 / ${ (animMgr.getCurrentDuration()||0).toFixed(2) }s`;
 
   if (inspectorApi && typeof inspectorApi.refresh === 'function') inspectorApi.refresh();
@@ -319,19 +265,19 @@ function _showToast(msg){
   try {
     if (typeof ui !== 'undefined' && ui && ui.toast) { ui.toast(msg); return; }
   } catch(e){}
-  const t = document.getElementById('toast');
+  const t = dom.get('toast');
   if (t){ t.textContent = msg; t.classList.add('show'); setTimeout(()=> t.classList.remove('show'), 2600); }
 }
 
 function resetRender(){
-  const exposureEl = document.getElementById('exposure');
+  const exposureEl = dom.get('exposure');
   if (exposureEl) {
     exposureEl.value = 1;
     try { renderSettings.applyExposure(1); } catch(e){}
-    const exposureValEl = document.getElementById('exposure-val');
+    const exposureValEl = dom.get('exposure-val');
     if (exposureValEl) exposureValEl.textContent = (1).toFixed(2);
   }
-  const toneMappingEl = document.getElementById('tone-mapping');
+  const toneMappingEl = dom.get('tone-mapping');
   if (toneMappingEl) {
     toneMappingEl.value = 'ACES';
     try { renderSettings.applyToneMapping('ACES'); } catch(e){}
@@ -340,12 +286,12 @@ function resetRender(){
 }
 
 function resetDir(){
-  const dirIntensityEl = document.getElementById('dir-intensity');
-  const dirAngleEl = document.getElementById('dir-angle');
-  const dirSoftnessEl = document.getElementById('dir-softness');
-  const dirIntensityVal = document.getElementById('dir-intensity-val');
-  const dirAngleVal = document.getElementById('dir-angle-val');
-  const dirSoftnessVal = document.getElementById('dir-softness-val');
+  const dirIntensityEl = dom.get('dir-intensity');
+  const dirAngleEl = dom.get('dir-angle');
+  const dirSoftnessEl = dom.get('dir-softness');
+  const dirIntensityVal = dom.get('dir-intensity-val');
+  const dirAngleVal = dom.get('dir-angle-val');
+  const dirSoftnessVal = dom.get('dir-softness-val');
 
   if (dirIntensityEl) { dirIntensityEl.value = 0.9; try { lighting.setDirIntensity(0.9); } catch(e){} if (dirIntensityVal) dirIntensityVal.textContent = (0.9).toFixed(2); }
   if (dirAngleEl) { dirAngleEl.value = 34; try { lighting.setDirFromAngle(34); } catch(e){} if (dirAngleVal) dirAngleVal.textContent = `${Math.round(34)}°`; }
@@ -355,9 +301,9 @@ function resetDir(){
 }
 
 function resetEnv(){
-  const envIntensityEl = document.getElementById('env-intensity');
-  const envIntensityVal = document.getElementById('env-intensity-val');
-  const hdriUrlInput = document.getElementById('hdri-url');
+  const envIntensityEl = dom.get('env-intensity');
+  const envIntensityVal = dom.get('env-intensity-val');
+  const hdriUrlInput = dom.get('hdri-url');
 
   if (envIntensityEl) { envIntensityEl.value = 1; try { sceneMgr.applyEnvIntensity(1, currentModel || sceneMgr.getScene()); } catch(e){} if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
   if (hdriUrlInput) { hdriUrlInput.value = ''; }
@@ -366,14 +312,14 @@ function resetEnv(){
 }
 
 function resetGizmos(){
-  const toggleTransformEl = document.getElementById('toggle-transform');
-  const transformModeEl = document.getElementById('transform-mode');
-  const toggleSnapEl = document.getElementById('toggle-snap');
-  const snapPosEl = document.getElementById('snap-pos');
-  const snapRotEl = document.getElementById('snap-rot');
-  const snapScaleEl = document.getElementById('snap-scale');
-  const measureToggleEl = document.getElementById('measure-toggle');
-  const measureOutEl = document.getElementById('measure-out');
+  const toggleTransformEl = dom.get('toggle-transform');
+  const transformModeEl = dom.get('transform-mode');
+  const toggleSnapEl = dom.get('toggle-snap');
+  const snapPosEl = dom.get('snap-pos');
+  const snapRotEl = dom.get('snap-rot');
+  const snapScaleEl = dom.get('snap-scale');
+  const measureToggleEl = dom.get('measure-toggle');
+  const measureOutEl = dom.get('measure-out');
 
   if (toggleTransformEl) { toggleTransformEl.checked = false; }
   try { tControls.enable(false); tControls.detach(); } catch(e){}
@@ -394,10 +340,10 @@ function resetGizmos(){
 
 function resetAll(){
   // toggles
-  const toggleShadowsEl = document.getElementById('toggle-shadows');
-  const toggleFXAAEl = document.getElementById('toggle-fxaa');
-  const toggleLightOnlyEl = document.getElementById('toggle-lightonly');
-  const toggleGridEl = document.getElementById('toggle-grid');
+  const toggleShadowsEl = dom.get('toggle-shadows');
+  const toggleFXAAEl = dom.get('toggle-fxaa');
+  const toggleLightOnlyEl = dom.get('toggle-lightonly');
+  const toggleGridEl = dom.get('toggle-grid');
 
   if (toggleShadowsEl) { toggleShadowsEl.checked = false; toggleShadowsEl.dispatchEvent(new Event('change')); }
   if (toggleFXAAEl) { toggleFXAAEl.checked = true; toggleFXAAEl.dispatchEvent(new Event('change')); }
@@ -405,9 +351,9 @@ function resetAll(){
   if (toggleGridEl) { toggleGridEl.checked = true; toggleGridEl.dispatchEvent(new Event('change')); }
 
   // background & hdri
-  const bgSelectEl = document.getElementById('bg-select');
-  const bgColorEl = document.getElementById('bg-color');
-  const hdriUrlInput = document.getElementById('hdri-url');
+  const bgSelectEl = dom.get('bg-select');
+  const bgColorEl = dom.get('bg-color');
+  const hdriUrlInput = dom.get('hdri-url');
   if (bgSelectEl) { bgSelectEl.value = 'white'; }
   if (bgColorEl) { bgColorEl.value = '#ffffff'; }
   try { sceneMgr.setBackground('#ffffff'); } catch(e){}
@@ -415,8 +361,8 @@ function resetAll(){
   try { sceneMgr.setEnvironment(null); } catch(e){}
 
   // materials
-  const matOverrideEl = document.getElementById('mat-override');
-  const toggleWireframeEl = document.getElementById('toggle-wireframe');
+  const matOverrideEl = dom.get('mat-override');
+  const toggleWireframeEl = dom.get('toggle-wireframe');
   if (matOverrideEl) matOverrideEl.value = 'none';
   if (toggleWireframeEl) toggleWireframeEl.checked = false;
   try { applyMaterialOverride(currentModel, { overrideType: (matOverrideEl?.value || 'none'), wire: !!toggleWireframeEl?.checked, envIntensity: Number(document.getElementById('env-intensity')?.value || 1) }); } catch(e){}
@@ -482,7 +428,7 @@ const ui = initUI({
     loader.load(url, (tex) => {
       tex.mapping = THREE.EquirectangularReflectionMapping;
       sceneMgr.setEnvironment(tex);
-      sceneMgr.applyEnvIntensity && sceneMgr.applyEnvIntensity( Number(document.getElementById('env-intensity')?.value || 1), currentModel || sceneMgr.getScene());
+      sceneMgr.applyEnvIntensity && sceneMgr.applyEnvIntensity( Number(dom.get('env-intensity')?.value || 1), currentModel || sceneMgr.getScene());
       hideOverlay();
       ui.toast('HDRI applied');
     }, undefined, (err) => {
@@ -507,19 +453,19 @@ const ui = initUI({
 });
 
 // Reveal UI that was hidden by the original preload guard
-document.body.classList.remove('preload');
+dom.body().classList.remove('preload');
 // Apply language strings from the lang select (if UI exposes applyLang)
-const langEl = document.getElementById('lang');
+const langEl = dom.get('lang');
 if (ui && ui.applyLang && langEl) ui.applyLang(langEl.value || 'en');
 // Hide animations section on startup if there are no clips
 try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!animMgr.hasClips && animMgr.hasClips()); } catch(e) {}
 
 // Section reset buttons bindings (were present in the original monolithic script
 // but got omitted during refactor). Wire them to the helper functions above.
-const resetRenderBtn = document.getElementById('reset-render');
-const resetDirBtn = document.getElementById('reset-dir');
-const resetEnvBtn = document.getElementById('reset-env');
-const resetGizmosBtn = document.getElementById('reset-gizmos');
+const resetRenderBtn = dom.get('reset-render');
+const resetDirBtn = dom.get('reset-dir');
+const resetEnvBtn = dom.get('reset-env');
+const resetGizmosBtn = dom.get('reset-gizmos');
 
 resetRenderBtn?.addEventListener('click', resetRender);
 resetDirBtn?.addEventListener('click', resetDir);
@@ -527,24 +473,24 @@ resetEnvBtn?.addEventListener('click', resetEnv);
 resetGizmosBtn?.addEventListener('click', resetGizmos);
 
 // initialize render settings UI state
-const tmEl = document.getElementById('tone-mapping');
+const tmEl = dom.get('tone-mapping');
 if (tmEl) tmEl.value = renderSettings.getState().tonemapping || tmEl.value;
-const exposureEl = document.getElementById('exposure');
+const exposureEl = dom.get('exposure');
 if (exposureEl) exposureEl.value = renderSettings.getState().exposure || exposureEl.value;
-const exposureValEl = document.getElementById('exposure-val');
+const exposureValEl = dom.get('exposure-val');
 if (exposureValEl) exposureValEl.textContent = (renderSettings.getState().exposure || Number(exposureEl?.value || 1)).toFixed(2);
-const fxaaToggle = document.getElementById('toggle-fxaa');
+const fxaaToggle = dom.get('toggle-fxaa');
 if (fxaaToggle) fxaaToggle.checked = renderSettings.getState().fxaa;
 
 // initialize lighting UI labels
-const dirIntensityValEl = document.getElementById('dir-intensity-val');
-const dirAngleValEl = document.getElementById('dir-angle-val');
-const dirSoftnessValEl = document.getElementById('dir-softness-val');
-const envIntensityValEl = document.getElementById('env-intensity-val');
-if (dirIntensityValEl) dirIntensityValEl.textContent = (lighting.getDirIntensity?.() || Number(document.getElementById('dir-intensity')?.value || 0.9)).toFixed(2);
-if (dirAngleValEl) dirAngleValEl.textContent = `${Math.round(Number(document.getElementById('dir-angle')?.value || 34))}°`;
-if (dirSoftnessValEl) dirSoftnessValEl.textContent = (lighting.getDirSoftness?.() || Number(document.getElementById('dir-softness')?.value || 1)).toFixed(1);
-if (envIntensityValEl) envIntensityValEl.textContent = (Number(document.getElementById('env-intensity')?.value || 1)).toFixed(2);
+const dirIntensityValEl = dom.get('dir-intensity-val');
+const dirAngleValEl = dom.get('dir-angle-val');
+const dirSoftnessValEl = dom.get('dir-softness-val');
+const envIntensityValEl = dom.get('env-intensity-val');
+if (dirIntensityValEl) dirIntensityValEl.textContent = (lighting.getDirIntensity?.() || Number(dom.get('dir-intensity')?.value || 0.9)).toFixed(2);
+if (dirAngleValEl) dirAngleValEl.textContent = `${Math.round(Number(dom.get('dir-angle')?.value || 34))}°`;
+if (dirSoftnessValEl) dirSoftnessValEl.textContent = (lighting.getDirSoftness?.() || Number(dom.get('dir-softness')?.value || 1)).toFixed(1);
+if (envIntensityValEl) envIntensityValEl.textContent = (Number(dom.get('env-intensity')?.value || 1)).toFixed(2);
 // Initialize inspector (optional)
 inspectorApi = null;
 try {
@@ -565,10 +511,10 @@ try {
 }
 
 // Inspector open/close bindings (UI buttons)
-const openInspectorBtn = document.getElementById('open-inspector');
-const inspectorEl = document.getElementById('scene-inspector');
-const inspectorCloseBtn = document.getElementById('inspector-close');
-const leftColEl = document.querySelector('.left-col');
+const openInspectorBtn = dom.get('open-inspector');
+const inspectorEl = dom.get('scene-inspector');
+const inspectorCloseBtn = dom.get('inspector-close');
+const leftColEl = dom.query('.left-col');
 
 function setInspectorOpen(open){
   if (!inspectorEl) return;
@@ -580,10 +526,10 @@ inspectorCloseBtn?.addEventListener('click', ()=> setInspectorOpen(false));
 leftColEl?.addEventListener('dblclick', ()=> setInspectorOpen(true));
 
 // Small overlay helpers (same as original)
-const overlay = document.getElementById('overlay');
-const meter = document.getElementById('meter');
-const progressTitle = document.getElementById('progress-title');
-const progressSub = document.getElementById('progress-sub');
+const overlay = dom.get('overlay');
+const meter = dom.get('meter');
+const progressTitle = dom.get('progress-title');
+const progressSub = dom.get('progress-sub');
 
 function showOverlay(title, sub) {
   if (overlay) overlay.classList.add('show');
@@ -659,57 +605,57 @@ canvas.addEventListener('mousedown', (e) => {
 
 // Resize
 function onResize() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const w = dom.windowWidth(), h = dom.windowHeight();
   rendererMgr.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
-window.addEventListener('resize', onResize);
+dom.onResize(onResize);
 
 // wire UI inputs for lighting (if present)
-const dirIntensityEl = document.getElementById('dir-intensity');
-const dirAngleEl = document.getElementById('dir-angle');
-const dirSoftnessEl = document.getElementById('dir-softness');
-const envIntensityEl = document.getElementById('env-intensity');
+const dirIntensityEl = dom.get('dir-intensity');
+const dirAngleEl = dom.get('dir-angle');
+const dirSoftnessEl = dom.get('dir-softness');
+const envIntensityEl = dom.get('env-intensity');
 if (dirIntensityEl) dirIntensityEl.addEventListener('input', () => {
   const v = Number(dirIntensityEl.value || 0);
   lighting.setDirIntensity(v);
-  const el = document.getElementById('dir-intensity-val');
+  const el = dom.get('dir-intensity-val');
   if (el) el.textContent = v.toFixed(2);
 });
 if (dirAngleEl) dirAngleEl.addEventListener('input', () => {
   const v = Number(dirAngleEl.value || 0);
   lighting.setDirFromAngle(v);
-  const el = document.getElementById('dir-angle-val');
+  const el = dom.get('dir-angle-val');
   if (el) el.textContent = `${Math.round(v)}°`;
 });
 if (dirSoftnessEl) dirSoftnessEl.addEventListener('input', () => {
   const v = Number(dirSoftnessEl.value || 0);
   lighting.setDirSoftness(v);
-  const el = document.getElementById('dir-softness-val');
+  const el = dom.get('dir-softness-val');
   if (el) el.textContent = v.toFixed(1);
 });
 if (envIntensityEl) envIntensityEl.addEventListener('input', () => {
   const v = Number(envIntensityEl.value || 1);
   sceneMgr.applyEnvIntensity(v, currentModel || sceneMgr.getScene());
-  const el = document.getElementById('env-intensity-val');
+  const el = dom.get('env-intensity-val');
   if (el) el.textContent = v.toFixed(2);
 });
 
 // Bind render settings UI to manager
-const toneMappingEl = document.getElementById('tone-mapping');
-const fxaaEl = document.getElementById('toggle-fxaa');
+const toneMappingEl = dom.get('tone-mapping');
+const fxaaEl = dom.get('toggle-fxaa');
 if (exposureEl) {
   exposureEl.addEventListener('input', ()=> {
     const v = Number(exposureEl.value || 1);
     renderSettings.applyExposure(v);
-    const exposureValEl = document.getElementById('exposure-val');
+    const exposureValEl = dom.get('exposure-val');
     if (exposureValEl) exposureValEl.textContent = v.toFixed(2);
   });
   // also update the label on change/end to be robust across browsers
   exposureEl.addEventListener('change', ()=> {
     const v = Number(exposureEl.value || 1);
-    const exposureValEl = document.getElementById('exposure-val');
+    const exposureValEl = dom.get('exposure-val');
     if (exposureValEl) exposureValEl.textContent = v.toFixed(2);
   });
 }
@@ -755,10 +701,10 @@ function camPreset(view) {
   controls.update();
 }
 
-const camPresets = document.getElementById('cam-presets');
+const camPresets = dom.get('cam-presets');
 if (camPresets) {
-  camPresets.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', () => camPreset(btn.dataset.view));
+  dom.queryAll('cam-presets button').forEach(btn => {
+    dom.on(btn, 'click', () => camPreset(btn.dataset.view));
   });
 }
 
@@ -781,12 +727,12 @@ function animate() {
   controls.update();
   rendererMgr.render(sceneMgr.getScene(), camera);
   // fps update
-  if (dom.fps) {
+  if (dom.get('fps')) {
     const now = performance.now();
     if (!lastFpsUpdate) lastFpsUpdate = now;
     if (now - lastFpsUpdate >= 500) {
       const fps = Math.round(1 / dt);
-      dom.fps.textContent = String(fps);
+      dom.get('fps').textContent = String(fps);
       lastFpsUpdate = now;
     }
   }
@@ -815,13 +761,13 @@ function dispose() {
     unbindUI = null;
   }
   // Remove global event listeners
-  window.removeEventListener('resize', onResize);
-  window.removeEventListener('error', (e) => {});
-  window.removeEventListener('unhandledrejection', (e) => {});
+  dom.offResize(onResize);
+  dom.offError((e) => {});
+  dom.offUnhandledRejection((e) => {});
 }
 
 // Hotkey handling
-document.addEventListener('keydown', (e) => {
+dom.on(document, 'keydown', (e) => {
   switch(e.key.toUpperCase()) {
     case 'F':
       if (getSelectedObject()) {
@@ -841,12 +787,12 @@ document.addEventListener('keydown', (e) => {
 start();
 
 // Expose debug helpers
-window.clearCurrentModel = clearCurrentModel;
-window.openInspector = (open) => {
-  if (!dom.sceneInspector) return;
-  dom.sceneInspector.classList.toggle('right-0', !!open);
-};
-window.disposeApp = dispose;
+dom.setGlobal('clearCurrentModel', clearCurrentModel);
+dom.setGlobal('openInspector', (open) => {
+  if (!dom.get('scene-inspector')) return;
+  dom.get('scene-inspector').classList.toggle('right-0', !!open);
+});
+dom.setGlobal('disposeApp', dispose);
 
 // Diagnostic helper: check required DOM elements and report missing ones.
 // Appends at end of bootstrap to run after initialization attempts.
@@ -860,10 +806,10 @@ window.disposeApp = dispose;
       'anim-select','anim-playpause','anim-stop','anim-loop','anim-speed','anim-progress','anim-time',
       'tree','scene-inspector','open-inspector','toast','overlay','meter','progress-title','progress-sub'
     ];
-    const missing = expected.filter(id => !document.getElementById(id));
+    const missing = expected.filter(id => !dom.get(id));
     if (missing.length) {
       console.warn('[DIAG] Missing DOM elements:', missing);
-      const toastEl = document.getElementById('toast');
+      const toastEl = dom.get('toast');
       if (toastEl) {
         toastEl.textContent = 'Diagnostic: missing DOM elements: ' + missing.slice(0,6).join(', ') + (missing.length>6 ? (' +'+(missing.length-6)+' more') : '');
         toastEl.classList.add('show');

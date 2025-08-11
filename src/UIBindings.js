@@ -35,10 +35,10 @@ export function bindUI(managers, dom, opts) {
   // Transform controls
   function applySnap() {
     if (!dom.toggleSnap) return;
-    if (dom.toggleSnap.checked) {
-      tControls.setTranslationSnap(Number(dom.snapPos.value) || 0);
-      tControls.setRotationSnap(THREE.MathUtils.degToRad(Number(dom.snapRot.value) || 0));
-      tControls.setScaleSnap(Number(dom.snapScale.value) || 0);
+    if (dom.isChecked('toggleSnap')) {
+      tControls.setTranslationSnap(Number(dom.getValue('snapPos')) || 0);
+      tControls.setRotationSnap(THREE.MathUtils.degToRad(Number(dom.getValue('snapRot')) || 0));
+      tControls.setScaleSnap(Number(dom.getValue('snapScale')) || 0);
     } else {
       tControls.setTranslationSnap(null);
       tControls.setRotationSnap(null);
@@ -46,21 +46,21 @@ export function bindUI(managers, dom, opts) {
     }
   }
 
-  dom.toggleTransform?.addEventListener('change', () => {
-    const on = dom.toggleTransform.checked;
+  dom.on(dom.get('toggleTransform'), 'change', () => {
+    const on = dom.isChecked('toggleTransform');
     tControls.enable(on);
     const cm = _getCurrentModel();
     if (on && cm) tControls.attach(cm);
     else tControls.detach();
   });
 
-  dom.transformMode?.addEventListener('change', () => tControls.setMode(dom.transformMode.value));
-  dom.toggleSnap?.addEventListener('change', applySnap);
-  [dom.snapPos, dom.snapRot, dom.snapScale].forEach(el => el?.addEventListener('change', applySnap));
+  dom.on(dom.get('transformMode'), 'change', () => tControls.setMode(dom.getValue('transformMode')));
+  dom.on(dom.get('toggleSnap'), 'change', applySnap);
+  [dom.get('snapPos'), dom.get('snapRot'), dom.get('snapScale')].forEach(el => el && dom.on(el, 'change', applySnap));
 
   // Toggles
-  dom.toggleShadows?.addEventListener('change', () => {
-    const on = dom.toggleShadows.checked;
+  dom.on(dom.get('toggleShadows'), 'change', () => {
+    const on = dom.isChecked('toggleShadows');
     rendererMgr.renderer.shadowMap.enabled = on;
     lighting.enableShadows(on);
     // Apply castShadow/receiveShadow to all meshes in scene or current model
@@ -80,15 +80,15 @@ export function bindUI(managers, dom, opts) {
     }
   });
 
-  dom.toggleFXAA?.addEventListener('change', () => { rendererMgr.enableFXAA(dom.toggleFXAA.checked); });
-  dom.toggleLightOnly?.addEventListener('change', () => { setLightOnly(_getCurrentModel(), dom.toggleLightOnly.checked); });
-  dom.toggleGrid?.addEventListener('change', () => { sceneMgr.setGridVisible(!!dom.toggleGrid.checked); });
+  dom.on(dom.get('toggleFXAA'), 'change', () => { rendererMgr.enableFXAA(dom.isChecked('toggleFXAA')); });
+  dom.on(dom.get('toggleLightOnly'), 'change', () => { setLightOnly(_getCurrentModel(), dom.isChecked('toggleLightOnly')); });
+  dom.on(dom.get('toggleGrid'), 'change', () => { sceneMgr.setGridVisible(!!dom.isChecked('toggleGrid')); });
 
   // Background selection
   function updateBackground() {
-    const bgSelectValue = dom.bgSelect?.value;
+    const bgSelectValue = dom.getValue('bgSelect');
     if (bgSelectValue === 'custom') {
-      sceneMgr.setBackground(dom.bgColor?.value || '#ffffff');
+      sceneMgr.setBackground(dom.getValue('bgColor') || '#ffffff');
     } else {
       // Map select values to colors
       const colorMap = {
@@ -102,223 +102,298 @@ export function bindUI(managers, dom, opts) {
     }
   }
 
-  dom.bgSelect?.addEventListener('change', updateBackground);
-  dom.bgColor?.addEventListener('input', updateBackground);
+  const bgSelectEl = dom.get('bgSelect');
+  const bgColorEl = dom.get('bgColor');
+  if (bgSelectEl) dom.on(bgSelectEl, 'change', updateBackground);
+  if (bgColorEl) dom.on(bgColorEl, 'input', updateBackground);
 
   // Material override
-  dom.matOverride?.addEventListener('change', () => {
-    applyMaterialOverride(_getCurrentModel(), {
-      overrideType: dom.matOverride.value,
-      wire: !!dom.toggleWireframe?.checked,
-      envIntensity: Number(dom.envIntensity?.value || 1)
+  const matOverrideEl = dom.get('matOverride');
+  const toggleWireframeEl = dom.get('toggleWireframe');
+  const envIntensityEl = dom.get('envIntensity');
+  
+  if (matOverrideEl) {
+    dom.on(matOverrideEl, 'change', () => {
+      applyMaterialOverride(_getCurrentModel(), {
+        overrideType: dom.getValue('matOverride'),
+        wire: !!dom.isChecked('toggleWireframe'),
+        envIntensity: Number(dom.getValue('envIntensity') || 1)
+      });
     });
-  });
+  }
 
-  dom.toggleWireframe?.addEventListener('change', () => {
-    applyMaterialOverride(_getCurrentModel(), {
-      overrideType: dom.matOverride?.value || 'none',
-      wire: !!dom.toggleWireframe?.checked,
-      envIntensity: Number(dom.envIntensity?.value || 1)
+  if (toggleWireframeEl) {
+    dom.on(toggleWireframeEl, 'change', () => {
+      applyMaterialOverride(_getCurrentModel(), {
+        overrideType: dom.getValue('matOverride') || 'none',
+        wire: !!dom.isChecked('toggleWireframe'),
+        envIntensity: Number(dom.getValue('envIntensity') || 1)
+      });
     });
-  });
+  }
 
   // Animations UI
-  dom.animSelect?.addEventListener('change', () => {
-    if (!animMgr.hasClips()) return;
-    animMgr.select(Number(dom.animSelect.value));
-    updateAnimTimeUI(0, animMgr.getCurrentDuration());
-  });
+  const animSelectEl = dom.get('animSelect');
+  const animPlayPauseEl = dom.get('animPlayPause');
+  const animStopEl = dom.get('animStop');
+  const animLoopEl = dom.get('animLoop');
+  const animSpeedEl = dom.get('animSpeed');
+  const animProgressEl = dom.get('animProgress');
+  const langEl = dom.get('lang');
 
-  dom.animPlayPause?.addEventListener('click', () => {
-    if (!animMgr.hasClips()) return;
-    if (dom.animPlayPause.dataset.state !== 'playing') {
-      // Check if animation has finished (for non-looped animations)
-      const currentTime = animMgr.getCurrentTime();
-      const duration = animMgr.getCurrentDuration();
-      // If animation has finished or is very close to the end, restart it
-      if (currentTime >= duration - 0.001) {
-        // Restart animation from the beginning
-        animMgr.play(animMgr.activeIndex);
+  if (animSelectEl) {
+    dom.on(animSelectEl, 'change', () => {
+      if (!animMgr.hasClips()) return;
+      animMgr.select(Number(dom.getValue('animSelect')));
+      updateAnimTimeUI(0, animMgr.getCurrentDuration());
+    });
+  }
+
+  if (animPlayPauseEl) {
+    dom.on(animPlayPauseEl, 'click', () => {
+      if (!animMgr.hasClips()) return;
+      if (animPlayPauseEl.dataset.state !== 'playing') {
+        // Check if animation has finished (for non-looped animations)
+        const currentTime = animMgr.getCurrentTime();
+        const duration = animMgr.getCurrentDuration();
+        // If animation has finished or is very close to the end, restart it
+        if (currentTime >= duration - 0.001) {
+          // Restart animation from the beginning
+          animMgr.play(animMgr.activeIndex);
+        } else {
+          // Continue playing from current position
+          animMgr.play();
+        }
+        animPlayPauseEl.dataset.state = 'playing';
+        animPlayPauseEl.textContent = (dom.getValue('lang') === 'ru') ? 'Пауза' : 'Pause';
       } else {
-        // Continue playing from current position
-        animMgr.play();
+        animMgr.pause();
+        animPlayPauseEl.dataset.state = 'paused';
+        animPlayPauseEl.textContent = (dom.getValue('lang') === 'ru') ? 'Пуск' : 'Play';
       }
-      dom.animPlayPause.dataset.state = 'playing';
-      dom.animPlayPause.textContent = (dom.lang?.value === 'ru') ? 'Пауза' : 'Pause';
-    } else {
-      animMgr.pause();
-      dom.animPlayPause.dataset.state = 'paused';
-      dom.animPlayPause.textContent = (dom.lang?.value === 'ru') ? 'Пуск' : 'Play';
-    }
-  });
+    });
+  }
 
-  dom.animStop?.addEventListener('click', () => {
-    animMgr.stop();
-    dom.animPlayPause.dataset.state = 'stopped';
-    dom.animPlayPause.textContent = (dom.lang?.value === 'ru') ? 'Пуск' : 'Play';
-    updateAnimTimeUI(0, animMgr.getCurrentDuration());
-  });
+  if (animStopEl) {
+    dom.on(animStopEl, 'click', () => {
+      animMgr.stop();
+      animPlayPauseEl.dataset.state = 'stopped';
+      animPlayPauseEl.textContent = (dom.getValue('lang') === 'ru') ? 'Пуск' : 'Play';
+      updateAnimTimeUI(0, animMgr.getCurrentDuration());
+    });
+  }
 
-  dom.animLoop?.addEventListener('change', () => { animMgr.setLoop(dom.animLoop.checked); });
-  dom.animSpeed?.addEventListener('change', () => { animMgr.setSpeed(Number(dom.animSpeed.value || 1)); });
+  if (animLoopEl) {
+    dom.on(animLoopEl, 'change', () => { animMgr.setLoop(dom.isChecked('animLoop')); });
+  }
 
-  dom.animProgress?.addEventListener('input', () => {
-    if (!animMgr.hasClips()) return;
-    const dur = animMgr.getCurrentDuration();
-    const t = parseFloat(dom.animProgress.value) * dur;
-    // set active action time directly if available
-    if (animMgr.activeAction) {
-      animMgr.activeAction.time = t;
-      animMgr.update(0);
-      updateAnimTimeUI(t, dur);
-    }
-  });
+  if (animSpeedEl) {
+    dom.on(animSpeedEl, 'change', () => { animMgr.setSpeed(Number(dom.getValue('animSpeed') || 1)); });
+  }
+
+  if (animProgressEl) {
+    dom.on(animProgressEl, 'input', () => {
+      if (!animMgr.hasClips()) return;
+      const dur = animMgr.getCurrentDuration();
+      const t = parseFloat(dom.getValue('animProgress')) * dur;
+      // set active action time directly if available
+      if (animMgr.activeAction) {
+        animMgr.activeAction.time = t;
+        animMgr.update(0);
+        updateAnimTimeUI(t, dur);
+      }
+    });
+  }
 
   // Camera presets use main app implementation
   const camPreset = opts.camPreset;
 
-  if (dom.camPresets) {
-    dom.camPresets.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', () => camPreset(btn.dataset.view));
+  const camPresetsEl = dom.get('camPresets');
+  if (camPresetsEl) {
+    const buttons = camPresetsEl.querySelectorAll('button');
+    buttons.forEach(btn => {
+      const handler = () => camPreset(btn.dataset.view);
+      btn.addEventListener('click', handler);
+      btn._camPresetHandler = handler;
     });
   }
 
   // Picking
-  dom.canvas.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return;
-    const rect = dom.canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2(
-      ((e.clientX-rect.left)/rect.width)*2 - 1,
-      -((e.clientY-rect.top)/rect.height)*2 + 1
-    );
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(ndc, camera);
-    const meshes = [];
-    const cm = _getCurrentModel();
-    if (cm) cm.traverse(o => { if (o.isMesh) meshes.push(o); });
-    else sceneMgr.getScene().traverse(o => { if (o.isMesh) meshes.push(o); });
-    const hit = ray.intersectObjects(meshes, true)[0];
-    if (hit) {
-      rendererMgr.setOutlineObjects(hit.object);
-      sceneMgr.updateBBox(hit.object);
-      if (inspectorApi && typeof inspectorApi.refresh === 'function') {
-        try { inspectorApi.refresh(); } catch(e) {}
+  const canvasEl = dom.get('canvas');
+  if (canvasEl) {
+    canvasEl.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const rect = canvasEl.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((e.clientX-rect.left)/rect.width)*2 - 1,
+        -((e.clientY-rect.top)/rect.height)*2 + 1
+      );
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(ndc, camera);
+      const meshes = [];
+      const cm = _getCurrentModel();
+      if (cm) cm.traverse(o => { if (o.isMesh) meshes.push(o); });
+      else sceneMgr.getScene().traverse(o => { if (o.isMesh) meshes.push(o); });
+      const hit = ray.intersectObjects(meshes, true)[0];
+      if (hit) {
+        rendererMgr.setOutlineObjects(hit.object);
+        sceneMgr.updateBBox(hit.object);
+        if (inspectorApi && typeof inspectorApi.refresh === 'function') {
+          try { inspectorApi.refresh(); } catch(e) {}
+        }
+        setInspectorOpen(true);
       }
-      setInspectorOpen(true);
-    }
-  });
+    });
+  }
 
   // Resize
   function onResize() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const w = dom.windowWidth(), h = dom.windowHeight();
     rendererMgr.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
-  window.addEventListener('resize', onResize);
+  dom.onResize(onResize);
 
   // Lighting UI inputs
-  if (dom.dirIntensity) dom.dirIntensity.addEventListener('input', () => {
-    const v = Number(dom.dirIntensity.value || 0);
-    lighting.setDirIntensity(v);
-    if (dom.dirIntensityVal) dom.dirIntensityVal.textContent = v.toFixed(2);
-  });
+  const dirIntensityEl = dom.get('dirIntensity');
+  const dirAngleEl = dom.get('dirAngle');
+  const dirSoftnessEl = dom.get('dirSoftness');
+  const envIntensityEl2 = dom.get('envIntensity');
 
-  if (dom.dirAngle) dom.dirAngle.addEventListener('input', () => {
-    const v = Number(dom.dirAngle.value || 0);
-    lighting.setDirFromAngle(v);
-    if (dom.dirAngleVal) dom.dirAngleVal.textContent = `${Math.round(v)}°`;
-  });
-
-  if (dom.dirSoftness) dom.dirSoftness.addEventListener('input', () => {
-    const v = Number(dom.dirSoftness.value || 0);
-    lighting.setDirSoftness(v);
-    if (dom.dirSoftnessVal) dom.dirSoftnessVal.textContent = v.toFixed(1);
-  });
-
-  if (dom.envIntensity) dom.envIntensity.addEventListener('input', () => {
-    const v = Number(dom.envIntensity.value || 1);
-    sceneMgr.applyEnvIntensity(v, _getCurrentModel() || sceneMgr.getScene());
-    if (dom.envIntensityVal) dom.envIntensityVal.textContent = v.toFixed(2);
-  });
-
-  // Render settings UI
-  if (dom.exposure) {
-    dom.exposure.addEventListener('input', ()=> {
-      const v = Number(dom.exposure.value || 1);
-      renderSettings.applyExposure(v);
-      if (dom.exposureVal) dom.exposureVal.textContent = v.toFixed(2);
-    });
-    // also update the label on change/end to be robust across browsers
-    dom.exposure.addEventListener('change', ()=> {
-      const v = Number(dom.exposure.value || 1);
-      if (dom.exposureVal) dom.exposureVal.textContent = v.toFixed(2);
+  if (dirIntensityEl) {
+    dom.on(dirIntensityEl, 'input', () => {
+      const v = Number(dom.getValue('dirIntensity') || 0);
+      lighting.setDirIntensity(v);
+      const dirIntensityValEl = dom.get('dirIntensityVal');
+      if (dirIntensityValEl) dirIntensityValEl.textContent = v.toFixed(2);
     });
   }
 
-  if (dom.toneMapping) dom.toneMapping.addEventListener('change', ()=> {
-    renderSettings.applyToneMapping(dom.toneMapping.value);
-  });
+  if (dirAngleEl) {
+    dom.on(dirAngleEl, 'input', () => {
+      const v = Number(dom.getValue('dirAngle') || 0);
+      lighting.setDirFromAngle(v);
+      const dirAngleValEl = dom.get('dirAngleVal');
+      if (dirAngleValEl) dirAngleValEl.textContent = `${Math.round(v)}°`;
+    });
+  }
 
-  if (dom.fxaa) dom.fxaa.addEventListener('change', ()=> {
-    renderSettings.enableFXAA(!!dom.fxaa.checked);
-  });
+  if (dirSoftnessEl) {
+    dom.on(dirSoftnessEl, 'input', () => {
+      const v = Number(dom.getValue('dirSoftness') || 0);
+      lighting.setDirSoftness(v);
+      const dirSoftnessValEl = dom.get('dirSoftnessVal');
+      if (dirSoftnessValEl) dirSoftnessValEl.textContent = v.toFixed(1);
+    });
+  }
+
+  if (envIntensityEl2) {
+    dom.on(envIntensityEl, 'input', () => {
+      const v = Number(dom.getValue('envIntensity') || 1);
+      sceneMgr.applyEnvIntensity(v, _getCurrentModel() || sceneMgr.getScene());
+      const envIntensityValEl = dom.get('envIntensityVal');
+      if (envIntensityValEl) envIntensityValEl.textContent = v.toFixed(2);
+    });
+  }
+
+  // Render settings UI
+  const exposureEl = dom.get('exposure');
+  const toneMappingEl = dom.get('toneMapping');
+  const fxaaEl = dom.get('fxaa');
+
+  if (exposureEl) {
+    dom.on(exposureEl, 'input', ()=> {
+      const v = Number(dom.getValue('exposure') || 1);
+      renderSettings.applyExposure(v);
+      const exposureValEl = dom.get('exposureVal');
+      if (exposureValEl) exposureValEl.textContent = v.toFixed(2);
+    });
+    // also update the label on change/end to be robust across browsers
+    dom.on(exposureEl, 'change', ()=> {
+      const v = Number(dom.getValue('exposure') || 1);
+      const exposureValEl = dom.get('exposureVal');
+      if (exposureValEl) exposureValEl.textContent = v.toFixed(2);
+    });
+  }
+
+  if (toneMappingEl) {
+    dom.on(toneMappingEl, 'change', ()=> {
+      renderSettings.applyToneMapping(dom.getValue('toneMapping'));
+    });
+  }
+
+  if (fxaaEl) {
+    dom.on(fxaaEl, 'change', ()=> {
+      renderSettings.enableFXAA(!!dom.isChecked('fxaa'));
+    });
+  }
 
   // Return unbind function to clean up event listeners
   return function unbind() {
     // Remove transform controls listeners
-    dom.toggleTransform?.removeEventListener('change', () => {});
-    dom.transformMode?.removeEventListener('change', () => {});
-    dom.toggleSnap?.removeEventListener('change', applySnap);
-    [dom.snapPos, dom.snapRot, dom.snapScale].forEach(el => el?.removeEventListener('change', applySnap));
+    dom.off(dom.get('toggleTransform'), 'change');
+    dom.off(dom.get('transformMode'), 'change');
+    dom.off(dom.get('toggleSnap'), 'change', applySnap);
+    [dom.get('snapPos'), dom.get('snapRot'), dom.get('snapScale')].forEach(el => el && dom.off(el, 'change', applySnap));
 
     // Remove toggles listeners
-    dom.toggleShadows?.removeEventListener('change', () => {});
-    dom.toggleFXAA?.removeEventListener('change', () => {});
-    dom.toggleLightOnly?.removeEventListener('change', () => {});
-    dom.toggleGrid?.removeEventListener('change', () => {});
+    dom.off(dom.get('toggleShadows'), 'change');
+    dom.off(dom.get('toggleFXAA'), 'change');
+    dom.off(dom.get('toggleLightOnly'), 'change');
+    dom.off(dom.get('toggleGrid'), 'change');
 
     // Remove background listeners
-    dom.bgSelect?.removeEventListener('change', updateBackground);
-    dom.bgColor?.removeEventListener('input', updateBackground);
+    const bgSelectEl = dom.get('bgSelect');
+    const bgColorEl = dom.get('bgColor');
+    if (bgSelectEl) dom.off(bgSelectEl, 'change', updateBackground);
+    if (bgColorEl) dom.off(bgColorEl, 'input', updateBackground);
 
     // Remove material override listeners
-    dom.matOverride?.removeEventListener('change', () => {});
-    dom.toggleWireframe?.removeEventListener('change', () => {});
+    dom.off(dom.get('matOverride'), 'change');
+    dom.off(dom.get('toggleWireframe'), 'change');
 
     // Remove animations UI listeners
-    dom.animSelect?.removeEventListener('change', () => {});
-    dom.animPlayPause?.removeEventListener('click', () => {});
-    dom.animStop?.removeEventListener('click', () => {});
-    dom.animLoop?.removeEventListener('change', () => {});
-    dom.animSpeed?.removeEventListener('change', () => {});
-    dom.animProgress?.removeEventListener('input', () => {});
+    dom.off(dom.get('animSelect'), 'change');
+    dom.off(dom.get('animPlayPause'), 'click');
+    dom.off(dom.get('animStop'), 'click');
+    dom.off(dom.get('animLoop'), 'change');
+    dom.off(dom.get('animSpeed'), 'change');
+    dom.off(dom.get('animProgress'), 'input');
 
     // Remove camera presets listeners
-    if (dom.camPresets) {
-      dom.camPresets.querySelectorAll('button').forEach(btn => {
-        btn.removeEventListener('click', () => {});
+    const camPresetsEl = dom.get('camPresets');
+    if (camPresetsEl) {
+      const buttons = camPresetsEl.querySelectorAll('button');
+      buttons.forEach(btn => {
+        if (btn._camPresetHandler) {
+          btn.removeEventListener('click', btn._camPresetHandler);
+          delete btn._camPresetHandler;
+        } else {
+          // Fallback: replace node with clone to remove all listeners
+          const clone = btn.cloneNode(true);
+          btn.parentNode.replaceChild(clone, btn);
+        }
       });
     }
 
     // Remove picking listener
-    dom.canvas.removeEventListener('mousedown', () => {});
+    const canvasEl = dom.get('canvas');
+    if (canvasEl) canvasEl.removeEventListener('mousedown', () => {});
 
     // Remove resize listener
-    window.removeEventListener('resize', onResize);
+    dom.offResize(onResize);
 
     // Remove lighting UI listeners
-    if (dom.dirIntensity) dom.dirIntensity.removeEventListener('input', () => {});
-    if (dom.dirAngle) dom.dirAngle.removeEventListener('input', () => {});
-    if (dom.dirSoftness) dom.dirSoftness.removeEventListener('input', () => {});
-    if (dom.envIntensity) dom.envIntensity.removeEventListener('input', () => {});
+    dom.off(dom.get('dirIntensity'), 'input');
+    dom.off(dom.get('dirAngle'), 'input');
+    dom.off(dom.get('dirSoftness'), 'input');
+    dom.off(envIntensityEl2, 'input');
 
     // Remove render settings UI listeners
-    if (dom.exposure) {
-      dom.exposure.removeEventListener('input', () => {});
-      dom.exposure.removeEventListener('change', () => {});
-    }
-    if (dom.toneMapping) dom.toneMapping.removeEventListener('change', () => {});
-    if (dom.fxaa) dom.fxaa.removeEventListener('change', () => {});
+    dom.off(dom.get('exposure'), 'input');
+    dom.off(dom.get('exposure'), 'change');
+    dom.off(dom.get('toneMapping'), 'change');
+    dom.off(dom.get('fxaa'), 'change');
   };
 }
