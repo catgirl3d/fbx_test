@@ -3,7 +3,10 @@ import * as THREE from 'three';
 // Material utilities
 const savedOriginal = new WeakMap();
 <<<<<<< HEAD
+<<<<<<< HEAD
 const savedOverride = new WeakMap();
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 =======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 
@@ -18,7 +21,11 @@ export function enhanceMaterial(material) {
       transparent: !!material.transparent,
       side: material.side ?? THREE.FrontSide,
 <<<<<<< HEAD
+<<<<<<< HEAD
       wireframe: false
+=======
+      wireframe: !!material.wireframe
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 =======
       wireframe: !!material.wireframe
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
@@ -56,6 +63,7 @@ export function applyMaterialOverride(root, options = {}) {
   if (!root) return;
   const { overrideType = 'none', wire = false, envIntensity = 1 } = options;
   const overrideMat = makeOverride(overrideType);
+<<<<<<< HEAD
 <<<<<<< HEAD
 
   // helper: dispose a material or array of materials (textures + material)
@@ -113,6 +121,8 @@ export function applyMaterialOverride(root, options = {}) {
       o.material.needsUpdate = true;
     }
 =======
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   root.traverse(o=>{
     if (!o.isMesh) return;
     if (overrideMat){
@@ -126,12 +136,16 @@ export function applyMaterialOverride(root, options = {}) {
     }
     applyEnvIntensityToMaterial(o.material, envIntensity);
     o.material.needsUpdate = true;
+<<<<<<< HEAD
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
+=======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   });
 }
 
 export function setLightOnly(root, on) {
   if (!root) return;
+<<<<<<< HEAD
 <<<<<<< HEAD
 
   // We save/restore material state per-mesh (not per-material) so restoration
@@ -182,6 +196,8 @@ export function setLightOnly(root, on) {
         if ('displacementMap' in m) m.displacementMap = null;
         if ('alphaMap' in m) m.alphaMap = null;
 =======
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   root.traverse(o=>{
     if (!o.isMesh) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -200,11 +216,15 @@ export function setLightOnly(root, on) {
         }
         m.map = null;
         m.emissiveMap = null;
+<<<<<<< HEAD
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
+=======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
         m.color?.set?.(0xffffff);
         if ('roughness' in m) m.roughness = 0.6;
         if ('metalness' in m) m.metalness = 0.0;
         m.needsUpdate = true;
+<<<<<<< HEAD
 <<<<<<< HEAD
       });
 
@@ -251,6 +271,8 @@ export function setLightOnly(root, on) {
       }
     }
 =======
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
       } else {
         const saved = savedOriginal.get(m);
         if (saved){
@@ -266,6 +288,9 @@ export function setLightOnly(root, on) {
         }
       }
     });
+<<<<<<< HEAD
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
+=======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   });
 }

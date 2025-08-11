@@ -125,6 +125,7 @@ function updateAnimTimeUI(time, dur) {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 // Show or hide the Animations section in the left panel.
 // When visible is true -> show; false -> hide (display:none).
 function setAnimSectionVisible(visible) {
@@ -133,6 +134,8 @@ function setAnimSectionVisible(visible) {
   animSection.style.display = visible ? '' : 'none';
 }
 
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 =======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 // Camera framing
@@ -166,8 +169,11 @@ function clearCurrentModel() {
   }
   const animSelect = document.getElementById('anim-select'); if (animSelect) animSelect.innerHTML = '';
 <<<<<<< HEAD
+<<<<<<< HEAD
   // Hide animations section when model is cleared / no animations present
   try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(false); } catch(e) {}
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 =======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   tControls.detach();
@@ -183,6 +189,7 @@ async function postLoad(gltf, sourceType = 'gltf') {
   currentModel = root;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   // If shadows are enabled, set cast/receive flags for new meshes
   const shadowsEnabled = document.getElementById('toggle-shadows')?.checked;
   if (shadowsEnabled) {
@@ -194,6 +201,8 @@ async function postLoad(gltf, sourceType = 'gltf') {
     });
   }
 
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 =======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   // Apply material override default behavior if any UI toggles are set
@@ -219,8 +228,11 @@ async function postLoad(gltf, sourceType = 'gltf') {
   animMgr.init(root);
   animMgr.setClips(clips);
 <<<<<<< HEAD
+<<<<<<< HEAD
   // Show or hide Animations UI depending on whether clips were found
   try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!(clips && clips.length)); } catch(e) {}
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 =======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   // populate animation UI
@@ -457,8 +469,11 @@ document.body.classList.remove('preload');
 const langEl = document.getElementById('lang');
 if (ui && ui.applyLang && langEl) ui.applyLang(langEl.value || 'en');
 <<<<<<< HEAD
+<<<<<<< HEAD
 // Hide animations section on startup if there are no clips
 try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!animMgr.hasClips && animMgr.hasClips()); } catch(e) {}
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 =======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 
@@ -612,6 +627,7 @@ function setIndeterminate() {
     rendererMgr.renderer.shadowMap.enabled = on;
     lighting.enableShadows(on);
 <<<<<<< HEAD
+<<<<<<< HEAD
     // Apply castShadow/receiveShadow to all meshes in scene or current model
     const root = currentModel || sceneMgr.getScene();
     if (root) {
@@ -628,6 +644,8 @@ function setIndeterminate() {
     if (sceneDirLight) {
       sceneDirLight.castShadow = on;
     }
+=======
+>>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 =======
 >>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   });
