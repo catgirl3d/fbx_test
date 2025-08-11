@@ -174,44 +174,8 @@ export function bindUI(managers, dom, opts) {
     }
   });
 
-  // Camera presets
-  function camPreset(view) {
-    const root = _getCurrentModel() || sceneMgr.getScene();
-    const box = new THREE.Box3().setFromObject(root);
-    const sphere = box.getBoundingSphere(new THREE.Sphere());
-    const center = sphere.center;
-    const fov = THREE.MathUtils.degToRad(camera.fov);
-    const dist = sphere.radius / Math.sin(Math.min(Math.PI / 4, fov / 2));
-    const m = dist * 1.2;
-    let dirv = new THREE.Vector3(1, 1, 1);
-    switch (view) {
-      case 'front':
-        dirv.set(0, 0, 1);
-        break;
-      case 'back':
-        dirv.set(0, 0, -1);
-        break;
-      case 'left':
-        dirv.set(-1, 0, 0);
-        break;
-      case 'right':
-        dirv.set(1, 0, 0);
-        break;
-      case 'top':
-        dirv.set(0, 1, 0);
-        break;
-      case 'bottom':
-        dirv.set(0, -1, 0);
-        break;
-      case 'iso':
-      default:
-        dirv.set(1, 1, 1);
-        break;
-    }
-    camera.position.copy(center.clone().addScaledVector(dirv.normalize(), m));
-    controls.target.copy(center);
-    controls.update();
-  }
+  // Camera presets use main app implementation
+  const camPreset = opts.camPreset;
 
   if (dom.camPresets) {
     dom.camPresets.querySelectorAll('button').forEach(btn => {

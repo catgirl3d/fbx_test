@@ -124,6 +124,15 @@ controls.update();
 
 let clock = new THREE.Clock();
 let currentModel = null;
+let selectedObject = null; // Track selected object globally
+
+function getSelectedObject() { return selectedObject; }
+function clearSelection() {
+  selectedObject = null;
+  rendererMgr.setOutlineObjects([]);
+  sceneMgr.updateBBox(null);
+  if(inspectorApi?.refresh) inspectorApi.refresh();
+}
 
 // Loaders
 const gltfLoaderWrapper = new GLTFLoaderWrapper();
@@ -617,7 +626,8 @@ function initUIBindings() {
     inspectorApi,
     setInspectorOpen,
     updateAnimTimeUI,
-    setAnimSectionVisible
+    setAnimSectionVisible,
+    camPreset: (view) => camPreset(view)
   };
 
   unbindUI = bindUI(managers, dom, opts);
@@ -809,6 +819,23 @@ function dispose() {
   window.removeEventListener('error', (e) => {});
   window.removeEventListener('unhandledrejection', (e) => {});
 }
+
+// Hotkey handling
+document.addEventListener('keydown', (e) => {
+  switch(e.key.toUpperCase()) {
+    case 'F':
+      if (getSelectedObject()) {
+        frameObject(getSelectedObject());
+      }
+      break;
+    case 'R':
+      frameObject(currentModel || sceneMgr.getScene());
+      break;
+    case 'DELETE':
+      clearSelection();
+      break;
+  }
+});
 
 // Start the animation loop
 start();
