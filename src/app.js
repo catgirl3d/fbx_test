@@ -46,6 +46,7 @@ window.addEventListener('unhandledrejection', (e) => {
 
 const rendererMgr = new RendererManager({ canvas, antialias: false, alpha: true });
 const sceneMgr = new SceneManager();
+let inspectorApi = null;
 
 // Diagnostic: print renderer/composer initial state
 try {
@@ -113,6 +114,16 @@ function updateStatsUI() {
   if (objCountEl) objCountEl.textContent = objs;
 }
 
+// Animation UI helper
+function updateAnimTimeUI(time, dur) {
+  const t = Math.max(0, Math.min(time, dur || 0));
+  const d = dur || 0;
+  const animTime = document.getElementById('anim-time');
+  const animProgress = document.getElementById('anim-progress');
+  if (animTime) animTime.textContent = `${t.toFixed(2)} / ${d.toFixed(2)}s`;
+  if (animProgress) animProgress.value = d ? (t / d) : 0;
+}
+
 // Camera framing
 function frameObject(root) {
   if (!root) return;
@@ -137,38 +148,16 @@ function clearCurrentModel() {
   }
   updateStatsUI();
   animMgr.dispose();
-  const tree = document.getElementById('tree'); if (tree) tree.innerHTML = '';
+  if (inspectorApi && typeof inspectorApi.refresh === 'function') {
+    try { inspectorApi.refresh(); } catch(e) { /* ignore */ }
+  } else {
+    const tree = document.getElementById('tree'); if (tree) tree.innerHTML = '';
+  }
   const animSelect = document.getElementById('anim-select'); if (animSelect) animSelect.innerHTML = '';
   tControls.detach();
 }
 
-// Scene tree builder
-function buildSceneTree(root) {
-  const treeRoot = document.getElementById('tree');
-  if (!treeRoot) return;
-  treeRoot.innerHTML = '';
-  const ul = document.createElement('ul');
-  treeRoot.appendChild(ul);
-  function addNode(o, parent) {
-    const li = document.createElement('li');
-    const btn = document.createElement('button');
-    btn.textContent = o.name || o.type;
-    btn.addEventListener('click', () => {
-      rendererMgr.setOutlineObjects(o);
-      sceneMgr.updateBBox(o);
-      const inspector = document.getElementById('scene-inspector');
-      if (inspector) inspector.classList.add('right-0');
-    });
-    li.appendChild(btn);
-    parent.appendChild(li);
-    if (o.children?.length) {
-      const ul2 = document.createElement('ul');
-      li.appendChild(ul2);
-      o.children.forEach(c => addNode(c, ul2));
-    }
-  }
-  (root || sceneMgr.getScene()).children.forEach(o => addNode(o, ul));
-}
+// Scene tree is handled by Inspector module (src/Inspector.js). Use inspectorApi.refresh() to update the tree when available.
 
 // Post-load common operations
 async function postLoad(gltf, sourceType = 'gltf') {
@@ -228,10 +217,136 @@ async function postLoad(gltf, sourceType = 'gltf') {
   if (animStop) animStop.textContent = (document.getElementById('lang')?.value === 'ru') ? 'Стоп' : 'Stop';
   if (animTime) animTime.textContent = `0.00 / ${ (animMgr.getCurrentDuration()||0).toFixed(2) }s`;
 
-  buildSceneTree(currentModel);
+  if (inspectorApi && typeof inspectorApi.refresh === 'function') inspectorApi.refresh();
 }
 
 // UI bindings via initUI
+/* ===== Reset helpers for UI sections =====
+   These mimic the original inline behaviors and call into
+   the modular managers (renderSettings, lighting, sceneMgr, tControls).
+*/
+function _showToast(msg){
+  try {
+    if (typeof ui !== 'undefined' && ui && ui.toast) { ui.toast(msg); return; }
+  } catch(e){}
+  const t = document.getElementById('toast');
+  if (t){ t.textContent = msg; t.classList.add('show'); setTimeout(()=> t.classList.remove('show'), 2600); }
+}
+
+function resetRender(){
+  const exposureEl = document.getElementById('exposure');
+  if (exposureEl) {
+    exposureEl.value = 1;
+    try { renderSettings.applyExposure(1); } catch(e){}
+    const exposureValEl = document.getElementById('exposure-val');
+    if (exposureValEl) exposureValEl.textContent = (1).toFixed(2);
+  }
+  const toneMappingEl = document.getElementById('tone-mapping');
+  if (toneMappingEl) {
+    toneMappingEl.value = 'ACES';
+    try { renderSettings.applyToneMapping('ACES'); } catch(e){}
+  }
+  _showToast('Reset: Render');
+}
+
+function resetDir(){
+  const dirIntensityEl = document.getElementById('dir-intensity');
+  const dirAngleEl = document.getElementById('dir-angle');
+  const dirSoftnessEl = document.getElementById('dir-softness');
+  const dirIntensityVal = document.getElementById('dir-intensity-val');
+  const dirAngleVal = document.getElementById('dir-angle-val');
+  const dirSoftnessVal = document.getElementById('dir-softness-val');
+
+  if (dirIntensityEl) { dirIntensityEl.value = 0.9; try { lighting.setDirIntensity(0.9); } catch(e){} if (dirIntensityVal) dirIntensityVal.textContent = (0.9).toFixed(2); }
+  if (dirAngleEl) { dirAngleEl.value = 34; try { lighting.setDirFromAngle(34); } catch(e){} if (dirAngleVal) dirAngleVal.textContent = `${Math.round(34)}°`; }
+  if (dirSoftnessEl) { dirSoftnessEl.value = 1; try { lighting.setDirSoftness(1); } catch(e){} if (dirSoftnessVal) dirSoftnessVal.textContent = (1).toFixed(1); }
+
+  _showToast('Reset: Directional light');
+}
+
+function resetEnv(){
+  const envIntensityEl = document.getElementById('env-intensity');
+  const envIntensityVal = document.getElementById('env-intensity-val');
+  const hdriUrlInput = document.getElementById('hdri-url');
+
+  if (envIntensityEl) { envIntensityEl.value = 1; try { sceneMgr.applyEnvIntensity(1, currentModel || sceneMgr.getScene()); } catch(e){} if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
+  if (hdriUrlInput) { hdriUrlInput.value = ''; }
+  try { sceneMgr.setEnvironment(null); } catch(e){}
+  _showToast('Reset: Environment');
+}
+
+function resetGizmos(){
+  const toggleTransformEl = document.getElementById('toggle-transform');
+  const transformModeEl = document.getElementById('transform-mode');
+  const toggleSnapEl = document.getElementById('toggle-snap');
+  const snapPosEl = document.getElementById('snap-pos');
+  const snapRotEl = document.getElementById('snap-rot');
+  const snapScaleEl = document.getElementById('snap-scale');
+  const measureToggleEl = document.getElementById('measure-toggle');
+  const measureOutEl = document.getElementById('measure-out');
+
+  if (toggleTransformEl) { toggleTransformEl.checked = false; }
+  try { tControls.enable(false); tControls.detach(); } catch(e){}
+  if (transformModeEl) transformModeEl.value = 'translate';
+  if (toggleSnapEl) toggleSnapEl.checked = false;
+  try { tControls.setTranslationSnap(null); tControls.setRotationSnap(null); tControls.setScaleSnap(null); } catch(e){}
+
+  if (snapPosEl) snapPosEl.value = 0.1;
+  if (snapRotEl) snapRotEl.value = 15;
+  if (snapScaleEl) snapScaleEl.value = 0.1;
+
+  try { sceneMgr.clearMeasure(); } catch(e){}
+  if (measureToggleEl) measureToggleEl.classList.remove('ok');
+  if (measureOutEl) measureOutEl.textContent = '—';
+
+  _showToast('Reset: Gizmos');
+}
+
+function resetAll(){
+  // toggles
+  const toggleShadowsEl = document.getElementById('toggle-shadows');
+  const toggleFXAAEl = document.getElementById('toggle-fxaa');
+  const toggleLightOnlyEl = document.getElementById('toggle-lightonly');
+  const toggleGridEl = document.getElementById('toggle-grid');
+
+  if (toggleShadowsEl) { toggleShadowsEl.checked = false; toggleShadowsEl.dispatchEvent(new Event('change')); }
+  if (toggleFXAAEl) { toggleFXAAEl.checked = true; toggleFXAAEl.dispatchEvent(new Event('change')); }
+  if (toggleLightOnlyEl) { toggleLightOnlyEl.checked = false; toggleLightOnlyEl.dispatchEvent(new Event('change')); }
+  if (toggleGridEl) { toggleGridEl.checked = true; toggleGridEl.dispatchEvent(new Event('change')); }
+
+  // background & hdri
+  const bgSelectEl = document.getElementById('bg-select');
+  const bgColorEl = document.getElementById('bg-color');
+  const hdriUrlInput = document.getElementById('hdri-url');
+  if (bgSelectEl) { bgSelectEl.value = 'white'; }
+  if (bgColorEl) { bgColorEl.value = '#ffffff'; }
+  try { sceneMgr.setBackground('#ffffff'); } catch(e){}
+  if (hdriUrlInput) hdriUrlInput.value = '';
+  try { sceneMgr.setEnvironment(null); } catch(e){}
+
+  // materials
+  const matOverrideEl = document.getElementById('mat-override');
+  const toggleWireframeEl = document.getElementById('toggle-wireframe');
+  if (matOverrideEl) matOverrideEl.value = 'none';
+  if (toggleWireframeEl) toggleWireframeEl.checked = false;
+  try { applyMaterialOverride(currentModel, { overrideType: (matOverrideEl?.value || 'none'), wire: !!toggleWireframeEl?.checked, envIntensity: Number(document.getElementById('env-intensity')?.value || 1) }); } catch(e){}
+
+  // sections / helpers
+  resetRender();
+  resetDir();
+  resetEnv();
+  resetGizmos();
+
+  // camera & selection (clear outlines, detach gizmos)
+  try { rendererMgr.setOutlineObjects([]); } catch(e){}
+  try { frameObject(currentModel || sceneMgr.getScene()); } catch(e){}
+
+  // persist defaults by clearing settings store
+  try { settings.clear(); } catch(e){}
+  _showToast('Settings reset to defaults');
+}
+
+/* initialize UI */
 const ui = initUI({
   onLoadFile: (file) => {
     const name = file.name.toLowerCase();
@@ -286,14 +401,19 @@ const ui = initUI({
     });
   },
 
-  onResetAll: () => {
-    clearCurrentModel();
-    ui.toast('Settings reset');
-  },
+  onResetAll: resetAll,
 
   onFrame: () => { frameObject(currentModel || sceneMgr.getScene()); },
 
-  onClearScene: () => { clearCurrentModel(); ui.toast('Scene cleared'); }
+  onClearScene: () => { clearCurrentModel(); ui.toast('Scene cleared'); },
+  
+  getSettings: () => settings.get(),
+  setSettings: (s) => {
+    // Update the settings store with new values
+    Object.keys(s).forEach(key => {
+      settings.set(key, s[key]);
+    });
+  }
 });
 
 // Reveal UI that was hidden by the original preload guard
@@ -302,30 +422,55 @@ document.body.classList.remove('preload');
 const langEl = document.getElementById('lang');
 if (ui && ui.applyLang && langEl) ui.applyLang(langEl.value || 'en');
 
+// Section reset buttons bindings (were present in the original monolithic script
+// but got omitted during refactor). Wire them to the helper functions above.
+const resetRenderBtn = document.getElementById('reset-render');
+const resetDirBtn = document.getElementById('reset-dir');
+const resetEnvBtn = document.getElementById('reset-env');
+const resetGizmosBtn = document.getElementById('reset-gizmos');
+
+resetRenderBtn?.addEventListener('click', resetRender);
+resetDirBtn?.addEventListener('click', resetDir);
+resetEnvBtn?.addEventListener('click', resetEnv);
+resetGizmosBtn?.addEventListener('click', resetGizmos);
+
 // initialize render settings UI state
 const tmEl = document.getElementById('tone-mapping');
 if (tmEl) tmEl.value = renderSettings.getState().tonemapping || tmEl.value;
-const exEl = document.getElementById('exposure');
-if (exEl) exEl.value = renderSettings.getState().exposure || exEl.value;
+const exposureEl = document.getElementById('exposure');
+if (exposureEl) exposureEl.value = renderSettings.getState().exposure || exposureEl.value;
+const exposureValEl = document.getElementById('exposure-val');
+if (exposureValEl) exposureValEl.textContent = (renderSettings.getState().exposure || Number(exposureEl?.value || 1)).toFixed(2);
 const fxaaToggle = document.getElementById('toggle-fxaa');
 if (fxaaToggle) fxaaToggle.checked = renderSettings.getState().fxaa;
+
+// initialize lighting UI labels
+const dirIntensityValEl = document.getElementById('dir-intensity-val');
+const dirAngleValEl = document.getElementById('dir-angle-val');
+const dirSoftnessValEl = document.getElementById('dir-softness-val');
+const envIntensityValEl = document.getElementById('env-intensity-val');
+if (dirIntensityValEl) dirIntensityValEl.textContent = (lighting.getDirIntensity?.() || Number(document.getElementById('dir-intensity')?.value || 0.9)).toFixed(2);
+if (dirAngleValEl) dirAngleValEl.textContent = `${Math.round(Number(document.getElementById('dir-angle')?.value || 34))}°`;
+if (dirSoftnessValEl) dirSoftnessValEl.textContent = (lighting.getDirSoftness?.() || Number(document.getElementById('dir-softness')?.value || 1)).toFixed(1);
+if (envIntensityValEl) envIntensityValEl.textContent = (Number(document.getElementById('env-intensity')?.value || 1)).toFixed(2);
 // Initialize inspector (optional)
-import('./Inspector.js').then(mod => {
-  const initInspectorFn = mod.initInspector || mod.default;
-  if (initInspectorFn) {
-    try {
-      initInspectorFn({
-        sceneManager: sceneMgr,
-        onSelect: (obj) => {
-          rendererMgr.setOutlineObjects(obj);
-          sceneMgr.updateBBox(obj);
-        }
-      });
-    } catch (e) {
-      console.warn('Inspector init error', e);
-    }
+inspectorApi = null;
+try {
+  if (typeof initInspector === 'function') {
+    inspectorApi = initInspector({
+      sceneManager: sceneMgr,
+      onSelect: (obj) => {
+        rendererMgr.setOutlineObjects(obj);
+        sceneMgr.updateBBox(obj);
+        // Open inspector panel on selection
+        try { setInspectorOpen(true); } catch(e) {}
+      }
+    });
   }
-}).catch(err => { /* inspector optional */ console.debug('Inspector not loaded', err); });
+} catch (e) {
+  console.warn('Inspector init error', e);
+  inspectorApi = null;
+}
 
 // Inspector open/close bindings (UI buttons)
 const openInspectorBtn = document.getElementById('open-inspector');
@@ -384,6 +529,9 @@ function setIndeterminate() {
   const toggleLightOnly = document.getElementById('toggle-lightonly');
   const toggleGrid = document.getElementById('toggle-grid');
 
+  const bgSelect = document.getElementById('bg-select');
+  const bgColor = document.getElementById('bg-color');
+
   const matOverride = document.getElementById('mat-override');
   const toggleWireframe = document.getElementById('toggle-wireframe');
 
@@ -428,6 +576,27 @@ function setIndeterminate() {
   toggleLightOnly?.addEventListener('change', () => { setLightOnly(currentModel, toggleLightOnly.checked); });
   toggleGrid?.addEventListener('change', () => { sceneMgr.setGridVisible(!!toggleGrid.checked); });
 
+  // Background selection
+  function updateBackground() {
+    const bgSelectValue = bgSelect?.value;
+    if (bgSelectValue === 'custom') {
+      sceneMgr.setBackground(bgColor?.value || '#ffffff');
+    } else {
+      // Map select values to colors
+      const colorMap = {
+        'white': '#ffffff',
+        'lightgray': '#d3d3d3',
+        'midgray': '#808080',
+        'darkgray': '#404040',
+        'transparent': null
+      };
+      sceneMgr.setBackground(colorMap[bgSelectValue] || '#ffffff');
+    }
+  }
+  
+  bgSelect?.addEventListener('change', updateBackground);
+  bgColor?.addEventListener('input', updateBackground);
+
   // Material override
   matOverride?.addEventListener('change', () => {
     applyMaterialOverride(currentModel, { overrideType: matOverride.value, wire: !!toggleWireframe?.checked, envIntensity: Number(document.getElementById('env-intensity')?.value || 1) });
@@ -437,12 +606,6 @@ function setIndeterminate() {
   });
 
   // Animations UI
-  function updateAnimTimeUI(time, dur) {
-    const t = Math.max(0, Math.min(time, dur || 0));
-    const d = dur || 0;
-    if (animTime) animTime.textContent = `${t.toFixed(2)} / ${d.toFixed(2)}s`;
-    if (animProgress) animProgress.value = d ? (t / d) : 0;
-  }
 
   animSelect?.addEventListener('change', () => {
     if (!animMgr.hasClips()) return;
@@ -453,7 +616,17 @@ function setIndeterminate() {
   animPlayPause?.addEventListener('click', () => {
     if (!animMgr.hasClips()) return;
     if (animPlayPause.dataset.state !== 'playing') {
-      animMgr.play();
+      // Check if animation has finished (for non-looped animations)
+      const currentTime = animMgr.getCurrentTime();
+      const duration = animMgr.getCurrentDuration();
+      // If animation has finished or is very close to the end, restart it
+      if (currentTime >= duration - 0.001) {
+        // Restart animation from the beginning
+        animMgr.play(animMgr.activeIndex);
+      } else {
+        // Continue playing from current position
+        animMgr.play();
+      }
       animPlayPause.dataset.state = 'playing';
       animPlayPause.textContent = (document.getElementById('lang')?.value === 'ru') ? 'Пауза' : 'Pause';
     } else {
@@ -500,7 +673,10 @@ canvas.addEventListener('mousedown', (e) => {
   if (hit) {
     rendererMgr.setOutlineObjects(hit.object);
     sceneMgr.updateBBox(hit.object);
-    buildSceneTree(currentModel || sceneMgr.getScene());
+    if (inspectorApi && typeof inspectorApi.refresh === 'function') {
+      try { inspectorApi.refresh(); } catch(e) {}
+    }
+    setInspectorOpen(true);
   }
 });
 
@@ -518,22 +694,97 @@ const dirIntensityEl = document.getElementById('dir-intensity');
 const dirAngleEl = document.getElementById('dir-angle');
 const dirSoftnessEl = document.getElementById('dir-softness');
 const envIntensityEl = document.getElementById('env-intensity');
-if (dirIntensityEl) dirIntensityEl.addEventListener('input', () => { lighting.setDirIntensity(Number(dirIntensityEl.value || 0)); });
-if (dirAngleEl) dirAngleEl.addEventListener('input', () => { lighting.setDirFromAngle(Number(dirAngleEl.value || 0)); });
-if (dirSoftnessEl) dirSoftnessEl.addEventListener('input', () => { lighting.setDirSoftness(Number(dirSoftnessEl.value || 0)); });
-if (envIntensityEl) envIntensityEl.addEventListener('input', () => { sceneMgr.applyEnvIntensity(Number(envIntensityEl.value || 1), currentModel || sceneMgr.getScene()); });
+if (dirIntensityEl) dirIntensityEl.addEventListener('input', () => {
+  const v = Number(dirIntensityEl.value || 0);
+  lighting.setDirIntensity(v);
+  const el = document.getElementById('dir-intensity-val');
+  if (el) el.textContent = v.toFixed(2);
+});
+if (dirAngleEl) dirAngleEl.addEventListener('input', () => {
+  const v = Number(dirAngleEl.value || 0);
+  lighting.setDirFromAngle(v);
+  const el = document.getElementById('dir-angle-val');
+  if (el) el.textContent = `${Math.round(v)}°`;
+});
+if (dirSoftnessEl) dirSoftnessEl.addEventListener('input', () => {
+  const v = Number(dirSoftnessEl.value || 0);
+  lighting.setDirSoftness(v);
+  const el = document.getElementById('dir-softness-val');
+  if (el) el.textContent = v.toFixed(1);
+});
+if (envIntensityEl) envIntensityEl.addEventListener('input', () => {
+  const v = Number(envIntensityEl.value || 1);
+  sceneMgr.applyEnvIntensity(v, currentModel || sceneMgr.getScene());
+  const el = document.getElementById('env-intensity-val');
+  if (el) el.textContent = v.toFixed(2);
+});
 
 // Bind render settings UI to manager
-const exposureEl = document.getElementById('exposure');
 const toneMappingEl = document.getElementById('tone-mapping');
 const fxaaEl = document.getElementById('toggle-fxaa');
-if (exposureEl) exposureEl.addEventListener('input', ()=> { renderSettings.applyExposure(Number(exposureEl.value || 1)); });
+if (exposureEl) {
+  exposureEl.addEventListener('input', ()=> {
+    const v = Number(exposureEl.value || 1);
+    renderSettings.applyExposure(v);
+    const exposureValEl = document.getElementById('exposure-val');
+    if (exposureValEl) exposureValEl.textContent = v.toFixed(2);
+  });
+  // also update the label on change/end to be robust across browsers
+  exposureEl.addEventListener('change', ()=> {
+    const v = Number(exposureEl.value || 1);
+    const exposureValEl = document.getElementById('exposure-val');
+    if (exposureValEl) exposureValEl.textContent = v.toFixed(2);
+  });
+}
 if (toneMappingEl) toneMappingEl.addEventListener('change', ()=> { renderSettings.applyToneMapping(toneMappingEl.value); });
 if (fxaaEl) fxaaEl.addEventListener('change', ()=> { renderSettings.enableFXAA(!!fxaaEl.checked); });
 
-// Ensure exposure value display matches saved render settings
-const exposureValEl = document.getElementById('exposure-val');
-if (exposureValEl) exposureValEl.textContent = (renderSettings.getState().exposure || 1).toFixed(2);
+// ======= Camera presets =======
+function camPreset(view) {
+  const root = currentModel || sceneMgr.getScene();
+  const box = new THREE.Box3().setFromObject(root);
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const center = sphere.center;
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const dist = sphere.radius / Math.sin(Math.min(Math.PI / 4, fov / 2));
+  const m = dist * 1.2;
+  let dirv = new THREE.Vector3(1, 1, 1);
+  switch (view) {
+    case 'front':
+      dirv.set(0, 0, 1);
+      break;
+    case 'back':
+      dirv.set(0, 0, -1);
+      break;
+    case 'left':
+      dirv.set(-1, 0, 0);
+      break;
+    case 'right':
+      dirv.set(1, 0, 0);
+      break;
+    case 'top':
+      dirv.set(0, 1, 0);
+      break;
+    case 'bottom':
+      dirv.set(0, -1, 0);
+      break;
+    case 'iso':
+    default:
+      dirv.set(1, 1, 1);
+      break;
+  }
+  camera.position.copy(center.clone().addScaledVector(dirv.normalize(), m));
+  controls.target.copy(center);
+  controls.update();
+}
+
+const camPresets = document.getElementById('cam-presets');
+if (camPresets) {
+  camPresets.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => camPreset(btn.dataset.view));
+  });
+}
+
 
 // Render loop
 let lastFpsUpdate = 0;
@@ -541,6 +792,12 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = clock.getDelta();
   animMgr.update(dt);
+  
+  // Update animation UI if an animation is playing
+  if (animMgr.activeAction && !animMgr.activeAction.paused) {
+    updateAnimTimeUI(animMgr.getCurrentTime(), animMgr.getCurrentDuration());
+  }
+  
   controls.update();
   rendererMgr.render(sceneMgr.getScene(), camera);
   // fps update
