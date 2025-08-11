@@ -28,8 +28,6 @@ export class LightingManager {
     this.dir.position.set(3, 5, 2);
     this.dir.castShadow = false;
     this.dir.shadow.radius = 1;
-<<<<<<< HEAD
-<<<<<<< HEAD
     // Configure shadow map for better quality and visibility of softness
     this.dir.shadow.mapSize.width = 2048;
     this.dir.shadow.mapSize.height = 2048;
@@ -40,10 +38,6 @@ export class LightingManager {
     this.dir.shadow.camera.near = 0.5;
     this.dir.shadow.camera.far = 20;
     this.dir.shadow.bias = -0.0005;
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
     this.scene.add(this.dir);
 
     // store defaults so reset() can restore

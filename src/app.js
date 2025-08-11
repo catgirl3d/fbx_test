@@ -124,8 +124,6 @@ function updateAnimTimeUI(time, dur) {
   if (animProgress) animProgress.value = d ? (t / d) : 0;
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 // Show or hide the Animations section in the left panel.
 // When visible is true -> show; false -> hide (display:none).
 function setAnimSectionVisible(visible) {
@@ -134,10 +132,6 @@ function setAnimSectionVisible(visible) {
   animSection.style.display = visible ? '' : 'none';
 }
 
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 // Camera framing
 function frameObject(root) {
   if (!root) return;
@@ -168,14 +162,8 @@ function clearCurrentModel() {
     const tree = document.getElementById('tree'); if (tree) tree.innerHTML = '';
   }
   const animSelect = document.getElementById('anim-select'); if (animSelect) animSelect.innerHTML = '';
-<<<<<<< HEAD
-<<<<<<< HEAD
   // Hide animations section when model is cleared / no animations present
   try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(false); } catch(e) {}
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   tControls.detach();
 }
 
@@ -188,8 +176,6 @@ async function postLoad(gltf, sourceType = 'gltf') {
   sceneMgr.add(root);
   currentModel = root;
 
-<<<<<<< HEAD
-<<<<<<< HEAD
   // If shadows are enabled, set cast/receive flags for new meshes
   const shadowsEnabled = document.getElementById('toggle-shadows')?.checked;
   if (shadowsEnabled) {
@@ -201,10 +187,6 @@ async function postLoad(gltf, sourceType = 'gltf') {
     });
   }
 
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   // Apply material override default behavior if any UI toggles are set
   const matOverrideEl = document.getElementById('mat-override');
   const wireframeEl = document.getElementById('toggle-wireframe');
@@ -227,14 +209,8 @@ async function postLoad(gltf, sourceType = 'gltf') {
   animMgr.dispose();
   animMgr.init(root);
   animMgr.setClips(clips);
-<<<<<<< HEAD
-<<<<<<< HEAD
   // Show or hide Animations UI depending on whether clips were found
   try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!(clips && clips.length)); } catch(e) {}
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   // populate animation UI
   const animSelect = document.getElementById('anim-select');
   const animPlayPause = document.getElementById('anim-playpause');
@@ -468,14 +444,8 @@ document.body.classList.remove('preload');
 // Apply language strings from the lang select (if UI exposes applyLang)
 const langEl = document.getElementById('lang');
 if (ui && ui.applyLang && langEl) ui.applyLang(langEl.value || 'en');
-<<<<<<< HEAD
-<<<<<<< HEAD
 // Hide animations section on startup if there are no clips
 try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!animMgr.hasClips && animMgr.hasClips()); } catch(e) {}
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 
 // Section reset buttons bindings (were present in the original monolithic script
 // but got omitted during refactor). Wire them to the helper functions above.
@@ -626,8 +596,6 @@ function setIndeterminate() {
     const on = toggleShadows.checked;
     rendererMgr.renderer.shadowMap.enabled = on;
     lighting.enableShadows(on);
-<<<<<<< HEAD
-<<<<<<< HEAD
     // Apply castShadow/receiveShadow to all meshes in scene or current model
     const root = currentModel || sceneMgr.getScene();
     if (root) {
@@ -644,10 +612,6 @@ function setIndeterminate() {
     if (sceneDirLight) {
       sceneDirLight.castShadow = on;
     }
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   });
   toggleFXAA?.addEventListener('change', () => { rendererMgr.enableFXAA(toggleFXAA.checked); });
   toggleLightOnly?.addEventListener('change', () => { setLightOnly(currentModel, toggleLightOnly.checked); });

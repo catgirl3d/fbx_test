@@ -2,13 +2,7 @@ import * as THREE from 'three';
 
 // Material utilities
 const savedOriginal = new WeakMap();
-<<<<<<< HEAD
-<<<<<<< HEAD
 const savedOverride = new WeakMap();
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
 
 export function enhanceMaterial(material) {
   if (!material) return material;
@@ -20,15 +14,7 @@ export function enhanceMaterial(material) {
       opacity: material.opacity ?? 1,
       transparent: !!material.transparent,
       side: material.side ?? THREE.FrontSide,
-<<<<<<< HEAD
-<<<<<<< HEAD
       wireframe: false
-=======
-      wireframe: !!material.wireframe
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
-      wireframe: !!material.wireframe
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
     });
     if (material.map) { m.map = material.map; if (m.map) m.map.encoding = THREE.sRGBEncoding; }
     m.metalness = material.metalness ?? 0.0;
@@ -63,8 +49,6 @@ export function applyMaterialOverride(root, options = {}) {
   if (!root) return;
   const { overrideType = 'none', wire = false, envIntensity = 1 } = options;
   const overrideMat = makeOverride(overrideType);
-<<<<<<< HEAD
-<<<<<<< HEAD
 
   // helper: dispose a material or array of materials (textures + material)
   function _disposeMaterial(mat){
@@ -120,33 +104,11 @@ export function applyMaterialOverride(root, options = {}) {
     } else if (o.material){
       o.material.needsUpdate = true;
     }
-=======
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-  root.traverse(o=>{
-    if (!o.isMesh) return;
-    if (overrideMat){
-      const base = overrideMat.clone();
-      base.wireframe = !!wire;
-      o.material = base;
-    } else {
-      if (Array.isArray(o.material)) o.material = o.material.map(m => enhanceMaterial(m));
-      else o.material = enhanceMaterial(o.material);
-      o.material.wireframe = !!wire || o.material.wireframe;
-    }
-    applyEnvIntensityToMaterial(o.material, envIntensity);
-    o.material.needsUpdate = true;
-<<<<<<< HEAD
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   });
 }
 
 export function setLightOnly(root, on) {
   if (!root) return;
-<<<<<<< HEAD
-<<<<<<< HEAD
 
   // We save/restore material state per-mesh (not per-material) so restoration
   // works even if the mesh's material object is swapped while "light-only" is active.
@@ -195,37 +157,10 @@ export function setLightOnly(root, on) {
         if ('bumpMap' in m) m.bumpMap = null;
         if ('displacementMap' in m) m.displacementMap = null;
         if ('alphaMap' in m) m.alphaMap = null;
-=======
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-  root.traverse(o=>{
-    if (!o.isMesh) return;
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
-    mats.forEach(m=>{
-      if (!m) return;
-      if (on){
-        if (!savedOriginal.has(m)){
-          savedOriginal.set(m, {
-            color: m.color?.clone?.(),
-            emissive: m.emissive?.clone?.(),
-            map: m.map || null,
-            emissiveMap: m.emissiveMap || null,
-            roughness: m.roughness,
-            metalness: m.metalness
-          });
-        }
-        m.map = null;
-        m.emissiveMap = null;
-<<<<<<< HEAD
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
         m.color?.set?.(0xffffff);
         if ('roughness' in m) m.roughness = 0.6;
         if ('metalness' in m) m.metalness = 0.0;
         m.needsUpdate = true;
-<<<<<<< HEAD
-<<<<<<< HEAD
       });
 
     } else {
@@ -270,28 +205,6 @@ export function setLightOnly(root, on) {
         savedOriginal.delete(o);
       }
     }
-=======
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-      } else {
-        const saved = savedOriginal.get(m);
-        if (saved){
-          try {
-            m.map = saved.map;
-            m.emissiveMap = saved.emissiveMap;
-            saved.color && m.color?.copy?.(saved.color);
-            saved.emissive && m.emissive?.copy?.(saved.emissive);
-            if ('roughness' in m && saved.roughness !== undefined) m.roughness = saved.roughness;
-            if ('metalness' in m && saved.metalness !== undefined) m.metalness = saved.metalness;
-            m.needsUpdate = true;
-          } catch(e){}
-        }
-      }
-    });
-<<<<<<< HEAD
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
-=======
->>>>>>> d4f436b6ce7bed0f1284659aa88a051c6b23e3ad
   });
 }
 
