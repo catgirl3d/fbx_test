@@ -9,16 +9,19 @@ import * as THREE from 'three';
  *   setLoop(loopBool) / setSpeed(speed)
  *   update(dt) - called from render loop
  *   getTime() / getDuration()
+ * @param {Object} opts - Options
+ * @param {THREE.Object3D} [opts.root] - Optional root object
+ * @param {THREE.AnimationMixer} [opts.mixer] - Optional mixer instance
  */
 export class AnimationManager {
-  constructor() {
-    this.mixer = null;
+  constructor({ root = null, mixer = null } = {}) {
+    this.mixer = mixer;
     this.clips = [];
     this.activeAction = null;
     this.activeIndex = -1;
     this.loop = false;
     this.speed = 1;
-    this.root = null;
+    this.root = root;
   }
 
   init(root) {
@@ -31,13 +34,16 @@ export class AnimationManager {
     if (this.mixer) {
       try {
         this.mixer.stopAllAction();
-        this.mixer.uncacheRoot(this.mixer.getRoot());
+        if (this.root) {
+          this.mixer.uncacheRoot(this.root);
+        }
       } catch (e) {}
       this.mixer = null;
     }
     this.clips = [];
     this.activeAction = null;
     this.activeIndex = -1;
+    this.root = null;
   }
 
   setClips(clips) {

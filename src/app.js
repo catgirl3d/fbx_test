@@ -12,11 +12,69 @@ import { initInspector } from './Inspector.js';
 import { LightingManager } from './Lighting.js';
 import Settings from './Settings.js';
 import { RenderSettings } from './RenderSettings.js';
+import { bindUI } from './UIBindings.js';
 
 // Bootstrap: wire modules together and re-implement core behaviors from the original inline script.
 // This file replaces the monolithic inline script and uses modular building blocks.
 
-const canvas = document.getElementById('viewport');
+// Create DOM element cache
+const dom = {
+  canvas: document.getElementById('viewport'),
+  polyCount: document.getElementById('poly-count'),
+  objCount: document.getElementById('obj-count'),
+  toggleTransform: document.getElementById('toggle-transform'),
+  transformMode: document.getElementById('transform-mode'),
+  toggleSnap: document.getElementById('toggle-snap'),
+  snapPos: document.getElementById('snap-pos'),
+  snapRot: document.getElementById('snap-rot'),
+  snapScale: document.getElementById('snap-scale'),
+  toggleShadows: document.getElementById('toggle-shadows'),
+  toggleFXAA: document.getElementById('toggle-fxaa'),
+  toggleLightOnly: document.getElementById('toggle-lightonly'),
+  toggleGrid: document.getElementById('toggle-grid'),
+  bgSelect: document.getElementById('bg-select'),
+  bgColor: document.getElementById('bg-color'),
+  matOverride: document.getElementById('mat-override'),
+  toggleWireframe: document.getElementById('toggle-wireframe'),
+  animSelect: document.getElementById('anim-select'),
+  animPlayPause: document.getElementById('anim-playpause'),
+  animStop: document.getElementById('anim-stop'),
+  animLoop: document.getElementById('anim-loop'),
+  animSpeed: document.getElementById('anim-speed'),
+  animProgress: document.getElementById('anim-progress'),
+  animTime: document.getElementById('anim-time'),
+  dirIntensity: document.getElementById('dir-intensity'),
+  dirAngle: document.getElementById('dir-angle'),
+  dirSoftness: document.getElementById('dir-softness'),
+  envIntensity: document.getElementById('env-intensity'),
+  exposure: document.getElementById('exposure'),
+  toneMapping: document.getElementById('tone-mapping'),
+  fxaa: document.getElementById('toggle-fxaa'),
+  camPresets: document.getElementById('cam-presets'),
+  lang: document.getElementById('lang'),
+  dirIntensityVal: document.getElementById('dir-intensity-val'),
+  dirAngleVal: document.getElementById('dir-angle-val'),
+  dirSoftnessVal: document.getElementById('dir-softness-val'),
+  envIntensityVal: document.getElementById('env-intensity-val'),
+  exposureVal: document.getElementById('exposure-val'),
+  fps: document.getElementById('fps'),
+  overlay: document.getElementById('overlay'),
+  meter: document.getElementById('meter'),
+  progressTitle: document.getElementById('progress-title'),
+  progressSub: document.getElementById('progress-sub'),
+  toast: document.getElementById('toast'),
+  tree: document.getElementById('tree'),
+  sceneInspector: document.getElementById('scene-inspector'),
+  openInspector: document.getElementById('open-inspector'),
+  inspectorClose: document.getElementById('inspector-close'),
+  leftCol: document.querySelector('.left-col'),
+  resetRender: document.getElementById('reset-render'),
+  resetDir: document.getElementById('reset-dir'),
+  resetEnv: document.getElementById('reset-env'),
+  resetGizmos: document.getElementById('reset-gizmos')
+};
+
+const canvas = dom.canvas;
 if (!canvas) throw new Error('Canvas #viewport not found');
 
 // Mark module loaded for diagnostics
@@ -83,10 +141,10 @@ sceneMgr.getScene().add(tControls.controls);
 
 // Settings & RenderSettings
 const settings = new Settings();
-const renderSettings = new RenderSettings(rendererMgr, settings);
+const renderSettings = new RenderSettings({ rendererMgr, settings });
 
 // Lighting manager (replaces direct scene lights)
-const lighting = new LightingManager(sceneMgr.getScene());
+const lighting = new LightingManager({ scene: sceneMgr.getScene() });
 
 // Wire transform dragging to OrbitControls enable/disable
 tControls.on('dragging-changed', (isDragging) => {
@@ -540,165 +598,33 @@ function setIndeterminate() {
   if (progressSub) progressSub.textContent = 'Ожидаем данные…';
 }
 
-// Wire UI controls that were previously in index.html (transform controls, materials, toggles, animations)
-(function bindExtraUI() {
-  const toggleTransform = document.getElementById('toggle-transform');
-  const transformMode = document.getElementById('transform-mode');
-  const toggleSnap = document.getElementById('toggle-snap');
-  const snapPos = document.getElementById('snap-pos');
-  const snapRot = document.getElementById('snap-rot');
-  const snapScale = document.getElementById('snap-scale');
+// Initialize UI bindings
+let unbindUI = null;
+function initUIBindings() {
+  const managers = {
+    rendererMgr,
+    sceneMgr,
+    animMgr,
+    tControls,
+    lighting,
+    renderSettings
+  };
 
-  const toggleShadows = document.getElementById('toggle-shadows');
-  const toggleFXAA = document.getElementById('toggle-fxaa');
-  const toggleLightOnly = document.getElementById('toggle-lightonly');
-  const toggleGrid = document.getElementById('toggle-grid');
+  const opts = {
+    getCurrentModel: () => currentModel,
+    camera,
+    controls,
+    inspectorApi,
+    setInspectorOpen,
+    updateAnimTimeUI,
+    setAnimSectionVisible
+  };
 
-  const bgSelect = document.getElementById('bg-select');
-  const bgColor = document.getElementById('bg-color');
-
-  const matOverride = document.getElementById('mat-override');
-  const toggleWireframe = document.getElementById('toggle-wireframe');
-
-  const animSelect = document.getElementById('anim-select');
-  const animPlayPause = document.getElementById('anim-playpause');
-  const animStop = document.getElementById('anim-stop');
-  const animLoop = document.getElementById('anim-loop');
-  const animSpeed = document.getElementById('anim-speed');
-  const animProgress = document.getElementById('anim-progress');
-  const animTime = document.getElementById('anim-time');
-
-  // Transform controls
-  function applySnap() {
-    if (!toggleSnap) return;
-    if (toggleSnap.checked) {
-      tControls.setTranslationSnap(Number(snapPos.value) || 0);
-      tControls.setRotationSnap(THREE.MathUtils.degToRad(Number(snapRot.value) || 0));
-      tControls.setScaleSnap(Number(snapScale.value) || 0);
-    } else {
-      tControls.setTranslationSnap(null);
-      tControls.setRotationSnap(null);
-      tControls.setScaleSnap(null);
-    }
-  }
-  toggleTransform?.addEventListener('change', () => {
-    const on = toggleTransform.checked;
-    tControls.enable(on);
-    if (on && currentModel) tControls.attach(currentModel);
-    else tControls.detach();
-  });
-  transformMode?.addEventListener('change', () => tControls.setMode(transformMode.value));
-  toggleSnap?.addEventListener('change', applySnap);
-  [snapPos, snapRot, snapScale].forEach(el => el?.addEventListener('change', applySnap));
-
-  // Toggles
-  toggleShadows?.addEventListener('change', () => {
-    const on = toggleShadows.checked;
-    rendererMgr.renderer.shadowMap.enabled = on;
-    lighting.enableShadows(on);
-    // Apply castShadow/receiveShadow to all meshes in scene or current model
-    const root = currentModel || sceneMgr.getScene();
-    if (root) {
-      root.traverse(obj => {
-        if (obj.isMesh) {
-          obj.castShadow = on;
-          obj.receiveShadow = on;
-        }
-      });
-    }
-    // Also ensure the scene's own directional light (if exists) has shadows enabled
-    // This addresses the duplicate light in SceneManager
-    const sceneDirLight = sceneMgr.getScene()?.children?.find?.(child => child.isDirectionalLight);
-    if (sceneDirLight) {
-      sceneDirLight.castShadow = on;
-    }
-  });
-  toggleFXAA?.addEventListener('change', () => { rendererMgr.enableFXAA(toggleFXAA.checked); });
-  toggleLightOnly?.addEventListener('change', () => { setLightOnly(currentModel, toggleLightOnly.checked); });
-  toggleGrid?.addEventListener('change', () => { sceneMgr.setGridVisible(!!toggleGrid.checked); });
-
-  // Background selection
-  function updateBackground() {
-    const bgSelectValue = bgSelect?.value;
-    if (bgSelectValue === 'custom') {
-      sceneMgr.setBackground(bgColor?.value || '#ffffff');
-    } else {
-      // Map select values to colors
-      const colorMap = {
-        'white': '#ffffff',
-        'lightgray': '#d3d3d3',
-        'midgray': '#808080',
-        'darkgray': '#404040',
-        'transparent': null
-      };
-      sceneMgr.setBackground(colorMap[bgSelectValue] || '#ffffff');
-    }
-  }
-  
-  bgSelect?.addEventListener('change', updateBackground);
-  bgColor?.addEventListener('input', updateBackground);
-
-  // Material override
-  matOverride?.addEventListener('change', () => {
-    applyMaterialOverride(currentModel, { overrideType: matOverride.value, wire: !!toggleWireframe?.checked, envIntensity: Number(document.getElementById('env-intensity')?.value || 1) });
-  });
-  toggleWireframe?.addEventListener('change', () => {
-    applyMaterialOverride(currentModel, { overrideType: matOverride?.value || 'none', wire: !!toggleWireframe?.checked, envIntensity: Number(document.getElementById('env-intensity')?.value || 1) });
-  });
-
-  // Animations UI
-
-  animSelect?.addEventListener('change', () => {
-    if (!animMgr.hasClips()) return;
-    animMgr.select(Number(animSelect.value));
-    updateAnimTimeUI(0, animMgr.getCurrentDuration());
-  });
-
-  animPlayPause?.addEventListener('click', () => {
-    if (!animMgr.hasClips()) return;
-    if (animPlayPause.dataset.state !== 'playing') {
-      // Check if animation has finished (for non-looped animations)
-      const currentTime = animMgr.getCurrentTime();
-      const duration = animMgr.getCurrentDuration();
-      // If animation has finished or is very close to the end, restart it
-      if (currentTime >= duration - 0.001) {
-        // Restart animation from the beginning
-        animMgr.play(animMgr.activeIndex);
-      } else {
-        // Continue playing from current position
-        animMgr.play();
-      }
-      animPlayPause.dataset.state = 'playing';
-      animPlayPause.textContent = (document.getElementById('lang')?.value === 'ru') ? 'Пауза' : 'Pause';
-    } else {
-      animMgr.pause();
-      animPlayPause.dataset.state = 'paused';
-      animPlayPause.textContent = (document.getElementById('lang')?.value === 'ru') ? 'Пуск' : 'Play';
-    }
-  });
-
-  animStop?.addEventListener('click', () => {
-    animMgr.stop();
-    animPlayPause.dataset.state = 'stopped';
-    animPlayPause.textContent = (document.getElementById('lang')?.value === 'ru') ? 'Пуск' : 'Play';
-    updateAnimTimeUI(0, animMgr.getCurrentDuration());
-  });
-
-  animLoop?.addEventListener('change', () => { animMgr.setLoop(animLoop.checked); });
-  animSpeed?.addEventListener('change', () => { animMgr.setSpeed(Number(animSpeed.value || 1)); });
-
-  animProgress?.addEventListener('input', () => {
-    if (!animMgr.hasClips()) return;
-    const dur = animMgr.getCurrentDuration();
-    const t = parseFloat(animProgress.value) * dur;
-    // set active action time directly if available
-    if (animMgr.activeAction) {
-      animMgr.activeAction.time = t;
-      animMgr.update(0);
-      updateAnimTimeUI(t, dur);
-    }
-  });
-})();
+  unbindUI = bindUI(managers, dom, opts);
+}
+ 
+// Call initUIBindings after UI initialization
+initUIBindings();
 
 // Picking
 canvas.addEventListener('mousedown', (e) => {
@@ -827,41 +753,73 @@ if (camPresets) {
 }
 
 
+// Store RAF id for later cancellation
+let rafId = null;
+
 // Render loop
 let lastFpsUpdate = 0;
 function animate() {
-  requestAnimationFrame(animate);
+  rafId = requestAnimationFrame(animate);
   const dt = clock.getDelta();
   animMgr.update(dt);
-  
+
   // Update animation UI if an animation is playing
   if (animMgr.activeAction && !animMgr.activeAction.paused) {
     updateAnimTimeUI(animMgr.getCurrentTime(), animMgr.getCurrentDuration());
   }
-  
+
   controls.update();
   rendererMgr.render(sceneMgr.getScene(), camera);
   // fps update
-  const fpsEl = document.getElementById('fps');
-  if (fpsEl) {
+  if (dom.fps) {
     const now = performance.now();
     if (!lastFpsUpdate) lastFpsUpdate = now;
     if (now - lastFpsUpdate >= 500) {
       const fps = Math.round(1 / dt);
-      fpsEl.textContent = String(fps);
+      dom.fps.textContent = String(fps);
       lastFpsUpdate = now;
     }
   }
 }
-animate();
+
+// Start animation loop
+function start() {
+  if (!rafId) {
+    animate();
+  }
+}
+
+// Stop animation loop
+function stop() {
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
+
+// Dispose function to clean up resources
+function dispose() {
+  stop();
+  if (unbindUI) {
+    unbindUI();
+    unbindUI = null;
+  }
+  // Remove global event listeners
+  window.removeEventListener('resize', onResize);
+  window.removeEventListener('error', (e) => {});
+  window.removeEventListener('unhandledrejection', (e) => {});
+}
+
+// Start the animation loop
+start();
 
 // Expose debug helpers
 window.clearCurrentModel = clearCurrentModel;
 window.openInspector = (open) => {
-  const inspector = document.getElementById('scene-inspector');
-  if (!inspector) return;
-  inspector.classList.toggle('right-0', !!open);
+  if (!dom.sceneInspector) return;
+  dom.sceneInspector.classList.toggle('right-0', !!open);
 };
+window.disposeApp = dispose;
 
 // Diagnostic helper: check required DOM elements and report missing ones.
 // Appends at end of bootstrap to run after initialization attempts.

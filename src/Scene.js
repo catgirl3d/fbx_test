@@ -1,11 +1,17 @@
 import * as THREE from 'three';
 
+/**
+ * SceneManager
+ * @param {Object} opts - Options
+ * @param {THREE.Scene} [opts.scene] - Optional scene instance
+ * @param {THREE.HemisphereLight} [opts.hemi] - Optional hemisphere light
+ */
 export class SceneManager {
-  constructor() {
-    this.scene = new THREE.Scene();
+  constructor({ scene = null, hemi = null } = {}) {
+    this.scene = scene || new THREE.Scene();
     this.grid = null;
 
-    this.hemi = new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.5);
+    this.hemi = hemi || new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.5);
     // The directional light is now managed by LightingManager.
     // This duplicate light is removed to avoid confusion and redundant lights.
     // this.dir = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -158,5 +164,51 @@ export class SceneManager {
     this.measureLine = line;
     const d = pts[0].distanceTo(pts[1]);
     return d;
+  }
+  
+  dispose() {
+    // Remove and dispose all objects in the scene
+    this.scene.traverse(obj => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(m => m.dispose());
+        } else {
+          obj.material.dispose();
+        }
+      }
+    });
+
+    // Dispose grid
+    if (this.grid) {
+      this.grid.geometry.dispose();
+      this.grid.material.dispose();
+    }
+
+    // Dispose bboxHelper
+    if (this.bboxHelper) {
+      this.bboxHelper.geometry.dispose();
+      this.bboxHelper.material.dispose();
+    }
+
+    // Dispose measure group
+    this.measure.group.children.forEach(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    });
+
+    // Dispose environment texture
+    if (this.env && this.env.dispose) {
+      this.env.dispose();
+    }
+
+    // Clear references
+    this.scene = null;
+    this.grid = null;
+    this.hemi = null;
+    this.measure = null;
+    this.bboxHelper = null;
+    this.env = null;
+    this.measureLine = null;
   }
 }

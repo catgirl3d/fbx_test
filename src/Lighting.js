@@ -13,18 +13,22 @@ import * as THREE from 'three';
  *   lm.setHemiIntensity(0.5);
  *   lm.resetDirectional();
  *   lm.dispose();
+ * @param {Object} opts - Options
+ * @param {THREE.Scene} opts.scene - Scene instance
+ * @param {THREE.HemisphereLight} [opts.hemi] - Optional hemisphere light
+ * @param {THREE.DirectionalLight} [opts.dir] - Optional directional light
  */
 export class LightingManager {
-  constructor(scene) {
+  constructor({ scene, hemi = null, dir = null } = {}) {
     if (!scene) throw new Error('LightingManager requires a THREE.Scene instance');
     this.scene = scene;
 
     // Hemisphere light (sky/dirt)
-    this.hemi = new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.5);
+    this.hemi = hemi || new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.5);
     this.scene.add(this.hemi);
 
     // Directional light (main light)
-    this.dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    this.dir = dir || new THREE.DirectionalLight(0xffffff, 0.9);
     this.dir.position.set(3, 5, 2);
     this.dir.castShadow = false;
     this.dir.shadow.radius = 1;
@@ -107,15 +111,16 @@ export class LightingManager {
   getLights() {
     return { hemi: this.hemi, dir: this.dir };
   }
-
-  dispose() {
-    try { this.scene.remove(this.hemi); } catch(e){}
-    try { this.scene.remove(this.dir); } catch(e){}
-    // Note: three lights do not have many disposable resources, but remove references
-    this.hemi = null;
-    this.dir = null;
-    this.scene = null;
-  }
+dispose() {
+  try { this.scene.remove(this.hemi); } catch(e){}
+  try { this.scene.remove(this.dir); } catch(e){}
+  // Note: three lights do not have many disposable resources, but remove references
+  this.hemi = null;
+  this.dir = null;
+  this.scene = null;
+  this._defaults = null;
 }
+}
+
 
 export default LightingManager;

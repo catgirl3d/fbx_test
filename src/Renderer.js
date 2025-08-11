@@ -13,7 +13,23 @@ import { FXAAShader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/
  *   rm.render(scene, camera);
  */
 export class RendererManager {
-  constructor({ canvas, antialias = false, alpha = true, powerPreference = 'high-performance' } = {}) {
+  /**
+   * @param {Object} opts - Options
+   * @param {HTMLCanvasElement} opts.canvas - Canvas element
+   * @param {boolean} [opts.antialias=false] - Enable antialiasing
+   * @param {boolean} [opts.alpha=true] - Enable alpha
+   * @param {string} [opts.powerPreference='high-performance'] - Power preference
+   * @param {THREE.Scene} [opts.axisScene] - Optional axis scene
+   * @param {THREE.PerspectiveCamera} [opts.axisCam] - Optional axis camera
+   */
+  constructor({
+    canvas,
+    antialias = false,
+    alpha = true,
+    powerPreference = 'high-performance',
+    axisScene = null,
+    axisCam = null
+  } = {}) {
     this.canvas = canvas;
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias, alpha, powerPreference });
     // updated: use outputColorSpace (three r152+), outputEncoding removed
@@ -46,8 +62,8 @@ export class RendererManager {
     this._fxaaEnabled = true;
 
     // axis overlay scene & camera
-    this.axisScene = new THREE.Scene();
-    this.axisCam = new THREE.PerspectiveCamera(50, 1, 0.1, 10);
+    this.axisScene = axisScene || new THREE.Scene();
+    this.axisCam = axisCam || new THREE.PerspectiveCamera(50, 1, 0.1, 10);
     this.axisCam.position.set(0,0,2);
     this.axisHelper = new THREE.AxesHelper(1.2);
     this.axisScene.add(this.axisHelper);
@@ -148,5 +164,19 @@ export class RendererManager {
       });
     } catch (e) {}
     this.renderer.dispose();
+
+    // dispose axis scene resources
+    if (this.axisScene) {
+      this.axisScene.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(m => m.dispose());
+          } else {
+            obj.material.dispose();
+          }
+        }
+      });
+    }
   }
 }

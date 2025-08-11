@@ -26,10 +26,11 @@ const TM_MAP = {
 
 export class RenderSettings {
   /**
-   * @param {RendererManager} rendererMgr - instance of RendererManager (has renderer and composer)
-   * @param {Settings} settings - optional Settings instance for persistence
+   * @param {Object} opts - Options
+   * @param {RendererManager} opts.rendererMgr - instance of RendererManager (has renderer and composer)
+   * @param {Settings} [opts.settings] - optional Settings instance for persistence
    */
-  constructor(rendererMgr, settings = null) {
+  constructor({ rendererMgr, settings = null } = {}) {
     this.rendererMgr = rendererMgr;
     this.settings = settings;
     this._exposure = rendererMgr.renderer?.toneMappingExposure ?? 1.0;
@@ -99,6 +100,11 @@ export class RenderSettings {
     cur.tonemapping = this._tone;
     cur.fxaa = this._fxaa;
     this.settings.set('render', cur);
+  }
+  dispose() {
+    // Clear references
+    this.rendererMgr = null;
+    this.settings = null;
   }
 }
 
