@@ -50,6 +50,20 @@ export class Settings {
     return v === undefined ? fallback : v;
   }
 
+  // Getter for movement sensitivity
+  getMovementSensitivity() {
+    return this.get('movementSensitivity', 5.0);
+  }
+
+  // Setter for movement sensitivity
+  setMovementSensitivity(value) {
+    if (typeof value !== 'number' || isNaN(value)) {
+      console.warn('[Settings] Invalid movementSensitivity value:', value);
+      return;
+    }
+    this.set('movementSensitivity', Math.max(0.1, Math.min(50, value)));
+  }
+
   set(key, value) {
     this.store[key] = value;
     this.save();

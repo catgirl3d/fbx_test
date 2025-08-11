@@ -72,6 +72,9 @@ let clock = new THREE.Clock();
 let currentModel = null;
 let selectedObject = null; // Track selected object globally
 
+// Track pressed keys for WASDQE camera movement
+const pressedKeys = new Set();
+
 function getSelectedObject() { return selectedObject; }
 function clearSelection() {
   selectedObject = null;
@@ -573,7 +576,11 @@ function initUIBindings() {
     setInspectorOpen,
     updateAnimTimeUI,
     setAnimSectionVisible,
-    camPreset: (view) => camPreset(view)
+    camPreset: (view) => camPreset(view),
+    selectedObject: () => selectedObject,
+    setSelectedObject: (obj) => {
+      selectedObject = obj;
+    }
   };
 
   unbindUI = bindUI(managers, dom, opts);
@@ -582,26 +589,6 @@ function initUIBindings() {
 // Call initUIBindings after UI initialization
 initUIBindings();
 
-// Picking
-canvas.addEventListener('mousedown', (e) => {
-  if (e.button !== 0) return;
-  const rect = canvas.getBoundingClientRect();
-  const ndc = new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2 - 1, -((e.clientY-rect.top)/rect.height)*2 + 1);
-  const ray = new THREE.Raycaster();
-  ray.setFromCamera(ndc, camera);
-  const meshes = [];
-  if (currentModel) currentModel.traverse(o => { if (o.isMesh) meshes.push(o); });
-  else sceneMgr.getScene().traverse(o => { if (o.isMesh) meshes.push(o); });
-  const hit = ray.intersectObjects(meshes, true)[0];
-  if (hit) {
-    rendererMgr.setOutlineObjects(hit.object);
-    sceneMgr.updateBBox(hit.object);
-    if (inspectorApi && typeof inspectorApi.refresh === 'function') {
-      try { inspectorApi.refresh(); } catch(e) {}
-    }
-    setInspectorOpen(true);
-  }
-});
 
 // Resize
 function onResize() {
@@ -724,6 +711,9 @@ function animate() {
     updateAnimTimeUI(animMgr.getCurrentTime(), animMgr.getCurrentDuration());
   }
 
+  // Handle WASDQE camera movement
+  handleCameraMovement(dt);
+
   controls.update();
   rendererMgr.render(sceneMgr.getScene(), camera);
   // fps update
@@ -735,6 +725,44 @@ function animate() {
       dom.get('fps').textContent = String(fps);
       lastFpsUpdate = now;
     }
+  }
+}
+
+// Handle WASDQE camera movement
+function handleCameraMovement(dt) {
+  // Get movement sensitivity from settings
+  const moveSpeed = settings.getMovementSensitivity(); // Units per second
+  const moveDistance = moveSpeed * dt;
+  
+  // Get camera's forward, right, and up vectors in world space
+  const forward = new THREE.Vector3(0, 0, -1);
+  const right = new THREE.Vector3(1, 0, 0);
+  const up = new THREE.Vector3(0, 1, 0);
+  
+  // Transform vectors by camera's rotation
+  forward.applyQuaternion(camera.quaternion);
+  right.applyQuaternion(camera.quaternion);
+  up.applyQuaternion(camera.quaternion);
+  
+  // Normalize vectors to ensure consistent movement speed
+  forward.normalize();
+  right.normalize();
+  up.normalize();
+  
+  // Calculate movement direction
+  let moveDirection = new THREE.Vector3();
+  
+  if (pressedKeys.has('KeyW')) moveDirection.add(forward);
+  if (pressedKeys.has('KeyS')) moveDirection.sub(forward);
+  if (pressedKeys.has('KeyA')) moveDirection.sub(right);
+  if (pressedKeys.has('KeyD')) moveDirection.add(right);
+  if (pressedKeys.has('KeyQ')) moveDirection.sub(up);
+  if (pressedKeys.has('KeyE')) moveDirection.add(up);
+  
+  // Apply movement if any key is pressed
+  if (moveDirection.length() > 0) {
+    moveDirection.normalize();
+    camera.position.add(moveDirection.multiplyScalar(moveDistance));
   }
 }
 
@@ -767,32 +795,63 @@ function dispose() {
 }
 
 // Hotkey handling
-dom.on(document, 'keydown', (e) => {
-  switch(e.key.toUpperCase()) {
-    case 'F':
+// Use window so DOMManager can resolve the global event target
+// Use event.code to be layout-independent (works with RU/EN layouts)
+dom.on(window, 'keydown', (e) => {
+  switch(e.code) {
+    case 'KeyF':
       if (getSelectedObject()) {
         frameObject(getSelectedObject());
       }
       break;
-    case 'R':
-      frameObject(currentModel || sceneMgr.getScene());
+    case 'KeyR':
+      // Reset camera to initial transform
+      camera.position.set(2, 1.2, 3);
+      controls.target.set(0, 0.8, 0);
+      controls.update();
       break;
-    case 'DELETE':
+    case 'Delete':
       clearSelection();
       break;
+  }
+});
+
+
+// Keydown handler for WASDQE movement
+// Use window so DOMManager can resolve the global event target
+// Use event.code to be layout-independent (works with RU/EN layouts)
+dom.on(window, 'keydown', (e) => {
+  const code = e.code;
+  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(code)) {
+    pressedKeys.add(code);
+    e.preventDefault(); // Prevent default browser behavior for these keys
+  }
+});
+
+// Keyup handler for WASDQE movement
+// Use window so DOMManager can resolve the global event target
+// Use event.code to be layout-independent (works with RU/EN layouts)
+dom.on(window, 'keyup', (e) => {
+  const code = e.code;
+  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(code)) {
+    pressedKeys.delete(code);
+    e.preventDefault();
   }
 });
 
 // Start the animation loop
 start();
 
-// Expose debug helpers
+// Expose debug helpers and globals for UI access
 dom.setGlobal('clearCurrentModel', clearCurrentModel);
 dom.setGlobal('openInspector', (open) => {
   if (!dom.get('scene-inspector')) return;
   dom.get('scene-inspector').classList.toggle('right-0', !!open);
 });
 dom.setGlobal('disposeApp', dispose);
+dom.setGlobal('camera', camera);
+dom.setGlobal('controls', controls);
+dom.setGlobal('clearSelection', clearSelection);
 
 // Diagnostic helper: check required DOM elements and report missing ones.
 // Appends at end of bootstrap to run after initialization attempts.

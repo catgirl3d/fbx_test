@@ -23,7 +23,7 @@ export function bindUI(managers, dom, opts) {
   } = managers;
 
   const {
-    getCurrentModel, camera, controls, inspectorApi, setInspectorOpen, updateAnimTimeUI, setAnimSectionVisible
+    getCurrentModel, camera, controls, inspectorApi, setInspectorOpen, updateAnimTimeUI, setAnimSectionVisible, selectedObject, setSelectedObject
   } = opts;
 
   // helper to obtain the live current model (supports older callers that passed `currentModel` directly on opts)
@@ -236,6 +236,13 @@ export function bindUI(managers, dom, opts) {
       else sceneMgr.getScene().traverse(o => { if (o.isMesh) meshes.push(o); });
       const hit = ray.intersectObjects(meshes, true)[0];
       if (hit) {
+        // Set the selected object globally
+        if (setSelectedObject) {
+          setSelectedObject(hit.object);
+        } else {
+          // Fallback: directly set the selected object
+          opts.selectedObject = hit.object;
+        }
         rendererMgr.setOutlineObjects(hit.object);
         sceneMgr.updateBBox(hit.object);
         if (inspectorApi && typeof inspectorApi.refresh === 'function') {
