@@ -669,7 +669,13 @@ try {
       getCurrentModel: () => currentModel,
       onSelect: (obj) => {
         rendererMgr.setOutlineObjects(obj);
-        sceneMgr.updateBBox(obj);
+        // Handle both single object and array of objects
+        const objectToUpdate = Array.isArray(obj) ? (obj.length > 0 ? obj[0] : null) : obj;
+        sceneMgr.updateBBox(objectToUpdate);
+        // Update the global selected object for transform controls
+        if (objectToUpdate) {
+          selectedObject = objectToUpdate;
+        }
         // Open inspector panel on selection
         try { setInspectorOpen(true); } catch(e) {}
       }
@@ -881,8 +887,10 @@ function animate() {
   // Handle WASDQE camera movement
   handleCameraMovement(dt);
 
+
   controls.update();
   rendererMgr.render(sceneMgr.getScene(), camera);
+  
   // fps update
   if (dom.get('fps')) {
     const now = performance.now();

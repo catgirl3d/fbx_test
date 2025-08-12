@@ -48,10 +48,73 @@ export function bindUI(managers, dom, opts) {
 
   dom.on(dom.get('toggleTransform'), 'change', () => {
     const on = dom.isChecked('toggleTransform');
+    console.log('Transform controls toggle:', on);
+    
     tControls.enable(on);
-    const cm = _getCurrentModel();
-    if (on && cm) tControls.attach(cm);
-    else tControls.detach();
+    
+    // Get the actual selected object (not the function)
+    let selectedObj = null;
+    try {
+      selectedObj = selectedObject();
+      if (typeof selectedObj === 'function') {
+        selectedObj = selectedObj(); // If it's a function, call it
+      }
+    } catch (e) {
+      console.warn('Error getting selected object:', e);
+    }
+    
+    console.log('Selected object for transform:', selectedObj);
+    
+    if (on && selectedObj) {
+      let transformTarget = selectedObj;
+
+      // For SkinnedMesh, we must transform the root bone, not the mesh itself.
+      let rootBone = null;
+      selectedObj.traverse(child => {
+        if (child.isBone && child.name === 'root') {
+          rootBone = child;
+        }
+        // Fallback for skinned mesh without a 'root' bone, find the first bone
+        if (!rootBone && child.isSkinnedMesh && child.skeleton && child.skeleton.bones && child.skeleton.bones.length > 0) {
+            // Find the top-level bone in the skeleton hierarchy
+            let topBone = child.skeleton.bones[0];
+            while(topBone.parent && topBone.parent.isBone) {
+                topBone = topBone.parent;
+            }
+            rootBone = topBone;
+        }
+      });
+
+      if (rootBone) {
+        console.log('Found root bone for transform:', rootBone.name);
+        transformTarget = rootBone;
+      } else if (selectedObj.isSkinnedMesh) {
+        console.warn('Could not find a root bone for the selected SkinnedMesh.');
+        tControls.detach();
+        return;
+      }
+      
+      // Validate that the object is a proper Three.js object with required methods
+      if (transformTarget && typeof transformTarget.updateMatrixWorld === 'function' &&
+          transformTarget.type && (transformTarget.parent || transformTarget.isBone)) {
+        console.log('Attaching transform controls to:', transformTarget.name || transformTarget.type);
+        tControls.attach(transformTarget);
+        console.log('Transform controls attached, current object:', tControls.controls.object);
+      } else {
+        console.warn('Invalid object selected for transform controls:', transformTarget);
+        tControls.detach();
+        // Optionally show error to user
+        const toastEl = dom.get('toast');
+        if (toastEl) {
+          toastEl.textContent = 'Cannot transform this object type';
+          toastEl.classList.add('show');
+          setTimeout(() => toastEl.classList.remove('show'), 3000);
+        }
+      }
+    } else {
+      console.log('Detaching transform controls');
+      tControls.detach();
+    }
   });
 
   dom.on(dom.get('transformMode'), 'change', () => tControls.setMode(dom.getValue('transformMode')));

@@ -17,6 +17,7 @@ export class TransformControlsWrapper {
     this.controls = new TransformControls(camera, domElement);
     this.enabled = false;
     this._listeners = new Map();
+    
     // expose events
     this.controls.addEventListener('dragging-changed', (e) => {
       this.enabled = true;
@@ -24,11 +25,97 @@ export class TransformControlsWrapper {
     });
     this.controls.addEventListener('change', (e) => {
       this._emit('change', e);
+      
+      // Ensure object transformation is updated during transformation
+      if (this.controls.object) {
+        const obj = this.controls.object;
+        
+        // Update matrix
+        obj.updateMatrix();
+        obj.updateMatrixWorld();
+        
+        // Special handling for SkinnedMesh
+        if (obj.isSkinnedMesh) {
+          // Update skeleton if it exists
+          if (obj.skeleton) {
+            obj.skeleton.update();
+          }
+          
+          // Force matrix world update for the mesh
+          obj.matrixWorldNeedsUpdate = true;
+        }
+        
+        // Force a render update
+        if (obj.parent) {
+          obj.parent.updateMatrixWorld();
+        }
+      }
     });
   }
 
-  attach(obj) { try { this.controls.attach(obj); } catch(e){} }
-  detach() { try { this.controls.detach(); } catch(e){} }
+  attach(obj) {
+    try {
+      // Validate object before attaching
+      if (!obj || typeof obj.updateMatrixWorld !== 'function' || !obj.type || !obj.parent) {
+        console.warn('Invalid object for TransformControls attach:', obj);
+        return;
+      }
+      
+      console.log('TransformControls attaching to:', obj.name || obj.type, obj);
+      
+      // Special handling for SkinnedMesh objects
+      if (obj.isSkinnedMesh) {
+        console.log('SkinnedMesh detected, ensuring proper matrix updates');
+        
+        // For SkinnedMesh, we need to ensure the skeleton is also updated
+        if (obj.skeleton && obj.skeleton.bones) {
+          console.log('SkinnedMesh has', obj.skeleton.bones.length, 'bones');
+        }
+        
+        // Ensure the mesh is not bound to a skeleton that would override transformations
+        obj.matrixAutoUpdate = true;
+        obj.matrixWorldNeedsUpdate = true;
+        
+        // Force immediate update
+        obj.updateMatrix();
+        obj.updateMatrixWorld();
+      } else {
+        // Regular mesh handling
+        obj.matrixAutoUpdate = true;
+      }
+      
+      // Let transform controls handle the transformation naturally
+      this.controls.attach(obj);
+      
+      // Force immediate update of the object's transformation
+      if (this.controls.object) {
+        this.controls.object.updateMatrix();
+        this.controls.object.updateMatrixWorld();
+        
+        // For SkinnedMesh, also update the skeleton
+        if (this.controls.object.isSkinnedMesh && this.controls.object.skeleton) {
+          this.controls.object.skeleton.update();
+        }
+        
+        // Force a render update
+        if (this.controls.object.parent) {
+          this.controls.object.parent.updateMatrixWorld();
+        }
+      }
+      
+      console.log('TransformControls attached successfully');
+      
+    } catch(e) {
+      console.warn('Failed to attach TransformControls:', e);
+    }
+  }
+  detach() {
+    try {
+      this.controls.detach();
+    } catch(e) {
+      console.warn('Failed to detach TransformControls:', e);
+    }
+  }
   setMode(mode = 'translate') { try { this.controls.setMode(mode); } catch(e){} }
   enable(v) { this.controls.enabled = !!v; }
 

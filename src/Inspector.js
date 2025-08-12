@@ -74,6 +74,65 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
     return false;
   }
 
+  const SkeletonUtils = ( function () {
+
+    return {
+
+      clone: function ( source ) {
+
+        const sourceLookup = new Map();
+        const cloneLookup = new Map();
+
+        const clone = source.clone();
+
+        parallelTraverse( source, clone, function ( sourceNode, clonedNode ) {
+
+          sourceLookup.set( clonedNode, sourceNode );
+          cloneLookup.set( sourceNode, clonedNode );
+
+        } );
+
+        clone.traverse( function ( node ) {
+
+          if ( ! node.isSkinnedMesh ) return;
+
+          const clonedMesh = node;
+          const sourceMesh = sourceLookup.get( node );
+          const sourceBones = sourceMesh.skeleton.bones;
+
+          clonedMesh.skeleton = sourceMesh.skeleton.clone();
+          clonedMesh.bindMatrix.copy( sourceMesh.bindMatrix );
+
+          clonedMesh.skeleton.bones = sourceBones.map( function ( bone ) {
+
+            return cloneLookup.get( bone );
+
+          } );
+
+          clonedMesh.bind( clonedMesh.skeleton, clonedMesh.bindMatrix );
+
+        } );
+
+        return clone;
+
+      },
+
+    };
+
+    function parallelTraverse( a, b, callback ) {
+
+      callback( a, b );
+
+      for ( let i = 0; i < a.children.length; i ++ ) {
+
+        parallelTraverse( a.children[ i ], b.children[ i ], callback );
+
+      }
+
+    }
+
+  } )();
+
   // --- Core Rendering ---
 
   function renderTree() {
@@ -84,26 +143,15 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
     listContainer.appendChild(mainContainer);
 
     const rootScene = sceneManager.getScene();
-    const currentModel = (typeof getCurrentModel === 'function') ? getCurrentModel() : null;
+    const rootObjects = rootScene.children.filter(child => {
+        // Basic filtering for system objects you might not want to see by default
+        const isSystemHelper = child.type.includes('Helper');
+        return showSystemObjects || !isSystemHelper;
+    });
 
-    const modelRoots = currentModel ? [currentModel] : [];
-    const systemRoots = [];
-    if (showSystemObjects) {
-        rootScene.children.forEach(child => {
-            if (child !== currentModel) {
-                systemRoots.push(child);
-            }
-        });
-    }
-
-    if (modelRoots.length > 0) {
-      const modelCategory = createCategory('Model', modelRoots);
-      mainContainer.appendChild(modelCategory);
-    }
-
-    if (systemRoots.length > 0) {
-      const systemCategory = createCategory('System', systemRoots);
-      mainContainer.appendChild(systemCategory);
+    if (rootObjects.length > 0) {
+        const allObjectsCategory = createCategory('Scene Objects', rootObjects);
+        mainContainer.appendChild(allObjectsCategory);
     }
 
     // After rendering, re-apply selection styles
@@ -345,8 +393,22 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
         break;
       case 'duplicate':
         selectedObjects.forEach(obj => {
-            const clone = obj.clone();
-            obj.parent.add(clone);
+          const clone = SkeletonUtils.clone(obj);
+          
+          // Ensure the clone has a unique name
+          const baseName = (clone.name || 'copy').replace(/_copy\d*$/g, '');
+          let copyNumber = 1;
+          let newName = `${baseName}_copy${copyNumber}`;
+          
+          // Find a unique name
+          while (obj.parent.children.some(child => child.name === newName)) {
+            copyNumber++;
+            newName = `${baseName}_copy${copyNumber}`;
+          }
+          clone.name = newName;
+          
+          // Add the clone to the parent
+          obj.parent.add(clone);
         });
         renderTree();
         break;
@@ -396,6 +458,27 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
           selectedObjects = [obj];
       }
       
+      // For transform controls, if a Group is selected, try to find the first mesh
+      let transformTarget = obj;
+      if (obj.isGroup || obj.type === 'Group') {
+          // Look for the first mesh in the group hierarchy
+          let firstMesh = null;
+          obj.traverse(child => {
+              if (child.isMesh && !firstMesh) {
+                  firstMesh = child;
+              }
+          });
+          if (firstMesh) {
+              transformTarget = firstMesh;
+              console.log('Group selected, using first mesh for transform:', firstMesh.name);
+          }
+      }
+      
+      // Update the global selected object for transform controls
+      if (window.selectedObject) {
+          window.selectedObject = transformTarget;
+      }
+      
       if (onSelect) onSelect(selectedObjects);
       updateSelectionHighlights();
   }
@@ -441,9 +524,12 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
 
           selectedObjects.forEach(sel => {
               sel.visible = true;
-              sel.traverseAncestors(ancestor => {
-                  ancestor.visible = true;
-              });
+              // Manually traverse up the parent chain to make ancestors visible
+              let parent = sel.parent;
+              while (parent) {
+                  parent.visible = true;
+                  parent = parent.parent;
+              }
           });
 
       } else {
