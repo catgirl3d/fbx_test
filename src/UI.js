@@ -56,128 +56,71 @@ export function initUI({
 } = {}) {
   const d = document;
   const fileInput = d.getElementById('file-input');
-  const resetCameraBtn = d.getElementById('reset-camera');
-  const clearSceneBtn = d.getElementById('clear-scene');
-  const resetAllBtn = d.getElementById('reset-all');
-  const applyHdriBtn = d.getElementById('apply-hdri');
-  const hdriUrlInput = d.getElementById('hdri-url');
-  const applyTexturesBtn = d.getElementById('apply-textures');
-  const textureInput = d.getElementById('texture-input');
   const langSelect = d.getElementById('lang');
   const themeToggle = d.getElementById('theme-toggle');
   const themeIcon = d.getElementById('theme-icon');
   const themeLabel = d.getElementById('theme-label');
-  
-  // Movement sensitivity control
   const movementSensitivityInput = d.getElementById('movement-sensitivity');
   const movementSensitivityValue = d.getElementById('movement-sensitivity-val');
 
-  // helper: apply language strings to elements using [data-i]
   function applyLang(lang) {
-    document.querySelectorAll('[data-i]').forEach(el => {
+    d.querySelectorAll('[data-i]').forEach(el => {
       const key = el.getAttribute('data-i');
-      if (i18n[lang] && i18n[lang][key] !== undefined) el.textContent = i18n[lang][key];
+      if (i18n[lang]?.[key]) el.textContent = i18n[lang][key];
     });
-    const openInspectorBtn = d.getElementById('open-inspector');
-    if (openInspectorBtn) openInspectorBtn.title = (i18n[lang] && i18n[lang].btnShowInspector) || '';
+    d.getElementById('open-inspector').title = i18n[lang]?.btnShowInspector || '';
     if (themeLabel) themeLabel.textContent = (lang === 'ru' ? (isDark() ? 'Ночная' : 'Светлая') : (isDark() ? 'Dark' : 'Light'));
   }
 
   function isDark() { return d.body.classList.contains('theme-dark'); }
+
   function setTheme(theme) {
     d.body.classList.toggle('theme-dark', theme === 'dark');
     if (themeIcon) themeIcon.textContent = theme === 'dark' ? '🌙' : '🌞';
-    if (themeLabel) themeLabel.textContent = (langSelect.value === 'ru') ? (theme==='dark' ? 'Ночная' : 'Светлая') : (theme==='dark' ? 'Dark' : 'Light');
+    if (themeLabel) themeLabel.textContent = (langSelect.value === 'ru' ? (theme === 'dark' ? 'Ночная' : 'Светлая') : (theme === 'dark' ? 'Dark' : 'Light'));
     persist();
   }
 
   function persist() {
     const s = getSettings ? getSettings() : loadSettings();
-    // try to store some UI fields (lang, theme)
     s.lang = langSelect?.value || s.lang;
     s.theme = isDark() ? 'dark' : 'light';
+    s.movementSensitivity = parseFloat(movementSensitivityInput?.value) || 5.0;
     saveSettings(s);
     if (setSettings) setSettings(s);
   }
 
-  // restore saved settings
   (function restore() {
     const s = getSettings ? getSettings() : loadSettings();
-    if (s.theme) setTheme(s.theme); else setTheme('light');
+    setTheme(s.theme || 'light');
     if (s.lang) langSelect.value = s.lang;
+    if (s.movementSensitivity) {
+      movementSensitivityInput.value = s.movementSensitivity;
+      if (movementSensitivityValue) movementSensitivityValue.textContent = s.movementSensitivity.toFixed(1);
+    }
     applyLang(langSelect.value);
   })();
 
-  // Bind file input
   fileInput?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     if (file && onLoadFile) onLoadFile(file);
-    fileInput.value = '';
+    e.target.value = '';
   });
 
-  // Reset / clear buttons
-  resetCameraBtn?.addEventListener('click', () => {
-    onFrame && onFrame();
-    // Also trigger the same logic as the R hotkey - reset camera to initial transform
-    if (typeof window !== 'undefined' && window.camera && window.controls) {
-      window.camera.position.set(2, 1.2, 3);
-      window.controls.target.set(0, 0.8, 0);
-      window.controls.update();
-    }
-  });
-  clearSceneBtn?.addEventListener('click', () => {
-    onClearScene && onClearScene();
-    persistedToast('Сцена очищена');
-    persist();
-    // Also trigger the same logic as the Delete hotkey - clear selection
-    if (typeof window !== 'undefined' && window.clearSelection) {
-      window.clearSelection();
-    }
-  });
-
-  resetAllBtn?.addEventListener('click', () => {
-    if (onResetAll) onResetAll();
-    persistedToast((langSelect.value === 'ru') ? 'Настройки сброшены по умолчанию' : 'Settings reset to defaults');
-  });
-
-  // HDRI apply
-  applyHdriBtn?.addEventListener('click', () => {
-    if (onApplyHDRI) onApplyHDRI(hdriUrlInput.value.trim());
-  });
-
-  // Apply textures button
-  applyTexturesBtn?.addEventListener('click', () => {
-    if (onApplyTextures) {
-      const file = textureInput.files?.[0];
-      if (file) {
-        onApplyTextures(file);
-      } else {
-        toast('Выберите ZIP файл с текстурами');
-      }
-    }
-  });
-
-  // Texture input change
-  textureInput?.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file && file.name.toLowerCase().endsWith('.zip')) {
-      toast(`Выбран файл: ${file.name}`);
-    } else if (file) {
-      toast('Выберите ZIP файл');
-      textureInput.value = '';
-    }
-  });
-
-  // Theme toggle
   themeToggle?.addEventListener('click', () => setTheme(isDark() ? 'light' : 'dark'));
-
-  // Language select
   langSelect?.addEventListener('change', () => {
     applyLang(langSelect.value);
     persist();
   });
 
-  // Small toast helper (non-blocking)
+  movementSensitivityInput?.addEventListener('input', (e) => {
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+      if (movementSensitivityValue) movementSensitivityValue.textContent = value.toFixed(1);
+      persist();
+    }
+  });
+
   const toastEl = d.getElementById('toast');
   function persistedToast(msg) {
     if (!toastEl) return;
@@ -185,39 +128,6 @@ export function initUI({
     toastEl.classList.add('show');
     setTimeout(() => toastEl.classList.remove('show'), 2600);
   }
-
-  // Expose toast for app use
-  const toast = persistedToast;
-
-  // Initialize movement sensitivity control
-  // Fixed: Guard against undefined getSettings and missing movementSensitivity property
-  function initMovementSensitivityControl() {
-    if (movementSensitivityInput) {
-      // Set initial value from settings with fallback
-      const settings = getSettings ? getSettings() : {};
-      const currentSensitivity = settings.movementSensitivity || 5.0;
-      movementSensitivityInput.value = currentSensitivity;
-      if (movementSensitivityValue) {
-        movementSensitivityValue.textContent = currentSensitivity.toFixed(1);
-      }
-      
-      // Add event listener for live updates
-      movementSensitivityInput.addEventListener('input', (e) => {
-        const value = parseFloat(e.target.value);
-        if (!isNaN(value) && value >= 0.1 && value <= 50) {
-          const newSettings = getSettings ? getSettings() : {};
-          newSettings.movementSensitivity = value;
-          if (setSettings) setSettings(newSettings);
-          if (movementSensitivityValue) {
-            movementSensitivityValue.textContent = value.toFixed(1);
-          }
-        }
-      });
-    }
-  }
-  
-  // Initialize the control after settings are restored
-  setTimeout(initMovementSensitivityControl, 100);
 
   return {
     applyLang,

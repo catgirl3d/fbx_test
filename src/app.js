@@ -484,25 +484,21 @@ function resetAll(){
 
 /* initialize UI */
 const ui = initUI({
-  toast: toast, // Pass toast function to app
+  toast: _showToast,
   onLoadFile: async (file) => {
     const name = file.name.toLowerCase();
-    
-    // Handle ZIP file (texture pack)
     if (name.endsWith('.zip')) {
       try {
         showOverlay('Загрузка текстур', file.name);
         await loadTexturesFromZIPFile(file);
         hideOverlay();
-        dom.showToast('Текстуры загружены из ZIP. Теперь можно загружать FBX модель.');
+        _showToast('Текстуры загружены из ZIP. Теперь можно загружать FBX модель.');
       } catch (err) {
         hideOverlay();
-        dom.showToast('Ошибка загрузки ZIP: ' + (err.message || err));
+        _showToast('Ошибка загрузки ZIP: ' + (err.message || err));
       }
       return;
     }
-    
-    // Handle 3D model files
     if (name.endsWith('.gltf') || name.endsWith('.glb')) {
       showOverlay('Загрузка glTF/GLB', file.name);
       gltfLoaderWrapper.loadFromFile(file, (evt) => {
@@ -513,41 +509,33 @@ const ui = initUI({
         postLoad(gltf, 'gltf');
       }).catch(err => {
         hideOverlay();
-        dom.showToast('Ошибка загрузки: ' + (err.message || err));
+        _showToast('Ошибка загрузки: ' + (err.message || err));
       });
     } else if (name.endsWith('.fbx')) {
       showOverlay('Загрузка FBX', file.name);
-      
-      // Create texture resolver if ZIP textures are available
       let textureResolver = null;
       if (zipTextures.size > 0) {
         textureResolver = createTextureResolver();
-        console.log(`[app] Created texture resolver with ${zipTextures.size} textures`);
       }
-      
-      // Create FBX loader with texture resolver
       const fbxLoader = new FBXLoaderWrapper(textureResolver);
-      
       fbxLoader.loadFromFile(file, (evt) => {
         if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
         else setIndeterminate();
       }).then(obj => {
         hideOverlay();
-        // FBX returns Object3D — wrap in a simple shape consistent with GLTF handling
         postLoad(obj, 'fbx');
       }).catch(err => {
         hideOverlay();
-        dom.showToast('Ошибка FBX: ' + (err.message || err));
+        _showToast('Ошибка FBX: ' + (err.message || err));
       });
     } else {
-      dom.showToast('Поддерживаются: glTF/GLB/FBX и ZIP с текстурами');
+      _showToast('Поддерживаются: glTF/GLB/FBX и ZIP с текстурами');
     }
   },
-
   onApplyHDRI: async (url) => {
     if (!url) {
       sceneMgr.setEnvironment(null);
-      dom.showToast('HDRI cleared');
+      _showToast('HDRI cleared');
       return;
     }
     showOverlay('HDRI', 'Загружаем окружение…');
@@ -556,68 +544,42 @@ const ui = initUI({
     loader.load(url, (tex) => {
       tex.mapping = THREE.EquirectangularReflectionMapping;
       sceneMgr.setEnvironment(tex);
-      sceneMgr.applyEnvIntensity && sceneMgr.applyEnvIntensity( Number(dom.get('env-intensity')?.value || 1), currentModel || sceneMgr.getScene());
+      sceneMgr.applyEnvIntensity(Number(dom.get('env-intensity')?.value || 1), currentModel || sceneMgr.getScene());
       hideOverlay();
-      dom.showToast('HDRI applied');
+      _showToast('HDRI applied');
     }, undefined, (err) => {
       hideOverlay();
-      dom.showToast('Не удалось загрузить HDRI');
+      _showToast('Не удалось загрузить HDRI');
     });
   },
-
   onApplyTextures: async (file) => {
-    if (!file) {
-      dom.showToast('Выберите ZIP файл с текстурами');
+    if (!file || !file.name.toLowerCase().endsWith('.zip')) {
+      _showToast('Выберите ZIP файл с текстурами');
       return;
     }
-    
-    if (!file.name.toLowerCase().endsWith('.zip')) {
-      dom.showToast('Выберите ZIP файл');
-      return;
-    }
-    
     try {
       showOverlay('Загрузка текстур', file.name);
-      
-      // Load textures from the ZIP file
       await loadTexturesFromZIPFile(file);
-      
-      // Apply textures to current model if available
       if (currentModel && zipTextures.size > 0) {
-        try {
-          console.log(`[app] Applying ${zipTextures.size} ZIP textures to current model...`);
-          applyTexturesFromMap(currentModel, zipTextures);
-          dom.showToast(`Применено ${zipTextures.size} текстур из ZIP`);
-        } catch (error) {
-          console.warn('[app] Failed to apply ZIP textures:', error);
-          dom.showToast('Ошибка применения текстур: ' + error.message);
-        }
+        applyTexturesFromMap(currentModel, zipTextures);
+        _showToast(`Применено ${zipTextures.size} текстур из ZIP`);
       } else if (!currentModel) {
-        dom.showToast('Загрузите модель FBX перед применением текстур');
+        _showToast('Загрузите модель FBX перед применением текстур');
       } else {
-        dom.showToast('В ZIP не найдены текстуры');
+        _showToast('В ZIP не найдены текстуры');
       }
-      
       hideOverlay();
     } catch (error) {
       hideOverlay();
-      console.error('[app] Failed to load textures from file:', error);
-      dom.showToast('Ошибка загрузки текстур: ' + error.message);
+      _showToast('Ошибка загрузки текстур: ' + error.message);
     }
   },
-
   onResetAll: resetAll,
-
-  onFrame: () => { frameObject(currentModel || sceneMgr.getScene()); },
-
-  onClearScene: () => { clearScene(); },
-  
+  onFrame: () => frameObject(currentModel || sceneMgr.getScene()),
+  onClearScene: clearScene,
   getSettings: () => settings.get(),
   setSettings: (s) => {
-    // Update the settings store with new values
-    Object.keys(s).forEach(key => {
-      settings.set(key, s[key]);
-    });
+    Object.keys(s).forEach(key => settings.set(key, s[key]));
   }
 });
 

@@ -31,228 +31,229 @@
 
   <aside class="left-col" aria-label="Controls">
     <header>
-      <span class="logo-dot" aria-hidden="true"></span>
-      <h1 data-i="title">3D Viewer</h1>
-      <button id="theme-toggle" class="theme-switch" title="Theme">
-        <span class="icon" id="theme-icon">🌞</span>
-        <span id="theme-label">Light</span>
-      </button>
-      <select id="lang" class="field lang-select">
-        <option value="ru">Русский</option>
-        <option value="en">English</option>
-      </select>
+      <div class="logo">
+        <span class="logo-dot" aria-hidden="true"></span>
+        <h1 data-i="title">3D Viewer</h1>
+      </div>
+      <div class="toolbar">
+        <button id="theme-toggle" class="theme-switch" title="Theme">
+          <span class="icon" id="theme-icon">🌞</span>
+          <span id="theme-label">Light</span>
+        </button>
+        <select id="lang" class="field lang-select">
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+        </select>
+      </div>
     </header>
 
-    <div class="group">
-      <div class="toolbar">
-        <label class="btn">
-          <input id="file-input" type="file" accept=".gltf,.glb,.fbx,.obj,.bin,.dae,.vrm,.zip" hidden />
-          <span data-i="btnLoad">Загрузить модель</span>
-        </label>
-        <button id="reset-camera" class="btn secondary" data-i="btnFrame">К камере</button>
-        <button id="clear-scene" class="btn danger" data-i="btnClear">Очистить</button>
-        <button id="reset-all" class="btn secondary" data-i="btnResetAll">Сбросить всё</button>
-      </div>
+    <div class="content">
+      <div class="group">
+        <details class="section" open>
+          <summary><span class="summary-title">Файл</span><span class="chev">▾</span></summary>
+          <div class="section-body">
+            <div class="toolbar">
+              <label class="btn">
+                <input id="file-input" type="file" accept=".gltf,.glb,.fbx,.obj,.bin,.dae,.vrm,.zip" hidden />
+                <span data-i="btnLoad">Загрузить модель</span>
+              </label>
+              <button id="clear-scene" class="btn danger" data-i="btnClear">Очистить</button>
+            </div>
+          </div>
+        </details>
 
-      <div class="row">
-        <label class="toggle"><input type="checkbox" id="toggle-shadows" /><span data-i="toggleShadows">Тени</span></label>
-        <label class="toggle"><input type="checkbox" id="toggle-fxaa" checked /><span>FXAA</span></label>
-        <label class="toggle"><input type="checkbox" id="toggle-lightonly" /><span data-i="toggleLight">Только освещение</span></label>
-        <label class="toggle"><input type="checkbox" id="toggle-grid" checked /><span data-i="toggleGrid">Сетка</span></label>
-      </div>
+        <details class="section">
+          <summary><span class="summary-title">Настройки</span><span class="chev">▾</span></summary>
+          <div class="section-body">
+            <div class="row">
+              <label class="toggle"><input type="checkbox" id="toggle-shadows" /><span data-i="toggleShadows">Тени</span></label>
+              <label class="toggle"><input type="checkbox" id="toggle-fxaa" checked /><span>FXAA</span></label>
+              <label class="toggle"><input type="checkbox" id="toggle-lightonly" /><span data-i="toggleLight">Только освещение</span></label>
+              <label class="toggle"><input type="checkbox" id="toggle-grid" checked /><span data-i="toggleGrid">Сетка</span></label>
+            </div>
+            <div class="row">
+              <label data-i="bgLabel">Фон</label>
+              <select id="bg-select" class="field">
+                <option value="white" selected>Белый</option>
+                <option value="lightgray">Светло-серый</option>
+                <option value="midgray">Средне-серый</option>
+                <option value="darkgray">Тёмный</option>
+                <option value="transparent">Прозрачный</option>
+                <option value="custom">Произвольный</option>
+              </select>
+              <input id="bg-color" class="field" type="color" value="#ffffff" title="Custom" />
+            </div>
+            <div class="row">
+              <label>HDRI</label>
+              <input class="field" type="text" id="hdri-url" placeholder="URL .hdr" />
+              <button id="apply-hdri" class="btn" data-i="btnApply">Применить</button>
+            </div>
+            <div class="row">
+              <label>Текстуры</label>
+              <input id="texture-input" type="file" accept=".zip" hidden />
+              <label for="texture-input" class="btn" data-i="btnLoad">Загрузить текстуры</label>
+              <button id="apply-textures" class="btn" data-i="btnApply">Применить текстуры</button>
+            </div>
+            <div class="row">
+              <label data-i="matOverride">Материал</label>
+              <select id="mat-override" class="field">
+                <option value="none" selected>Оригинал</option>
+                <option value="standard">Standard</option>
+                <option value="phong">Phong</option>
+                <option value="basic">Basic</option>
+                <option value="normal">Normal</option>
+                <option value="toon">Toon</option>
+              </select>
+              <label class="toggle"><input type="checkbox" id="toggle-wireframe" /><span data-i="wireframe">Каркас</span></label>
+            </div>
+          </div>
+        </details>
 
-      <div class="row">
-        <label data-i="bgLabel">Фон</label>
-        <select id="bg-select" class="field">
-          <option value="white" selected>Белый</option>
-          <option value="lightgray">Светло-серый</option>
-          <option value="midgray">Средне-серый</option>
-          <option value="darkgray">Тёмный</option>
-          <option value="transparent">Прозрачный</option>
-          <option value="custom">Произвольный</option>
-        </select>
-        <input id="bg-color" class="field" type="color" value="#ffffff" title="Custom" />
-      </div>
+        <details class="section" data-sec="render">
+          <summary><span class="summary-title">Render</span><span class="chev">▾</span></summary>
+          <div class="section-body">
+            <div class="row">
+              <label>Exposure</label>
+              <input id="exposure" class="range" type="range" min="0" max="4" step="0.01" value="1" />
+              <span class="small" id="exposure-val">1.00</span>
+            </div>
+            <div class="row">
+              <label>Tone mapping</label>
+              <select id="tone-mapping" class="field">
+                <option value="ACES" selected>ACES</option>
+                <option value="Linear">Linear</option>
+                <option value="Reinhard">Reinhard</option>
+                <option value="Cineon">Cineon</option>
+                <option value="Neutral">Neutral</option>
+                <option value="None">None</option>
+              </select>
+            </div>
+            <div class="row">
+              <button id="reset-render" class="btn secondary" data-i="btnReset">Сбросить</button>
+            </div>
+          </div>
+        </details>
 
-      <div class="row">
-        <label>HDRI</label>
-        <input class="field" type="text" id="hdri-url" placeholder="URL .hdr" />
-        <button id="apply-hdri" class="btn" data-i="btnApply">Применить</button>
-      </div>
+        <details class="section" data-sec="dirlight">
+          <summary><span class="summary-title">Directional light</span><span class="chev">▾</span></summary>
+          <div class="section-body">
+            <div class="row">
+              <label>Intensity</label>
+              <input id="dir-intensity" class="range" type="range" min="0" max="5" step="0.01" value="0.9" />
+              <span class="small" id="dir-intensity-val">0.90</span>
+            </div>
+            <div class="row">
+              <label>Angle</label>
+              <input id="dir-angle" class="range" type="range" min="0" max="360" step="1" value="34" />
+              <span class="small" id="dir-angle-val">34°</span>
+            </div>
+            <div class="row">
+              <label>Softness</label>
+              <input id="dir-softness" class="range" type="range" min="0" max="4" step="0.1" value="1" />
+              <span class="small" id="dir-softness-val">1.0</span>
+            </div>
+            <div class="row">
+              <button id="reset-dir" class="btn secondary" data-i="btnReset">Сбросить</button>
+            </div>
+          </div>
+        </details>
 
-      <div class="row">
-        <label>Текстуры</label>
-        <input id="texture-input" type="file" accept=".zip" hidden />
-        <label for="texture-input" class="btn" data-i="btnLoad">Загрузить текстуры</label>
-        <button id="apply-textures" class="btn" data-i="btnApply">Применить текстуры</button>
-      </div>
+        <details class="section" data-sec="environment">
+          <summary><span class="summary-title">Environment</span><span class="chev">▾</span></summary>
+          <div class="section-body">
+            <div class="row">
+              <label>Env intensity</label>
+              <input id="env-intensity" class="range" type="range" min="0" max="4" step="0.01" value="1" />
+              <span class="small" id="env-intensity-val">1.00</span>
+            </div>
+            <div class="row">
+              <button id="reset-env" class="btn secondary" data-i="btnReset">Сбросить</button>
+            </div>
+          </div>
+        </details>
 
-      <!-- Moved up: Material/Wireframe always visible -->
-      <div class="row">
-        <label data-i="matOverride">Материал</label>
-        <select id="mat-override" class="field">
-          <option value="none" selected>Оригинал</option>
-          <option value="standard">Standard</option>
-          <option value="phong">Phong</option>
-          <option value="basic">Basic</option>
-          <option value="normal">Normal</option>
-          <option value="toon">Toon</option>
-        </select>
-        <label class="toggle"><input type="checkbox" id="toggle-wireframe" /><span data-i="wireframe">Каркас</span></label>
+        <details class="section" data-sec="gizmos">
+          <summary><span class="summary-title">Gizmos & measurements</span><span class="chev">▾</span></summary>
+          <div class="section-body">
+            <div class="row">
+              <label class="toggle"><input type="checkbox" id="toggle-transform"/><span>Gizmo</span></label>
+              <select id="transform-mode" class="field">
+                <option value="translate" selected>Translate</option>
+                <option value="rotate">Rotate</option>
+                <option value="scale">Scale</option>
+              </select>
+              <label class="toggle"><input type="checkbox" id="toggle-snap"/><span>Snap</span></label>
+            </div>
+            <div class="row">
+              <label>ΔPos</label><input id="snap-pos" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
+              <label>ΔRot°</label><input id="snap-rot" class="field" type="number" step="1" value="15" style="width:80px" />
+              <label>ΔScale</label><input id="snap-scale" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
+            </div>
+            <div class="row">
+              <button id="measure-toggle" class="btn">Measure</button>
+              <button id="measure-clear" class="btn secondary">Clear</button>
+              <span class="tag" id="measure-out">—</span>
+            </div>
+            <div class="row">
+              <button id="reset-gizmos" class="btn secondary" data-i="btnReset">Сбросить</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="section" data-sec="camera">
+          <summary><span class="summary-title">Camera</span><span class="chev">▾</span></summary>
+          <div class="section-body">
+            <div class="row" id="cam-presets">
+              <button class="btn" data-view="front">Front</button>
+              <button class="btn" data-view="back">Back</button>
+              <button class="btn" data-view="left">Left</button>
+              <button class="btn" data-view="right">Right</button>
+              <button class="btn" data-view="top">Top</button>
+              <button class="btn" data-view="bottom">Bottom</button>
+              <button class="btn" data-view="iso">Iso</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="section" data-sec="anim">
+          <summary><span class="summary-title" data-i="animTitle">Анимации</span><span class="chev">▾</span></summary>
+          <div class="section-body">
+            <div class="row" id="anim-row">
+              <select id="anim-select" class="field" style="min-width:200px"></select>
+              <button id="anim-playpause" class="btn ok" data-i="animPlay">Пуск</button>
+              <button id="anim-stop" class="btn" data-i="animStop">Стоп</button>
+              <label class="toggle"><input type="checkbox" id="anim-loop" checked /><span data-i="animLoop">Зациклить</span></label>
+              <label class="row small">
+                <span data-i="animSpeed">Скорость</span>
+                <input id="anim-speed" class="field" type="number" step="0.25" min="0.25" max="3" value="1" style="width:70px" />
+                <span>x</span>
+              </label>
+            </div>
+            <div class="row">
+              <input id="anim-progress" class="range" type="range" min="0" max="1" step="0.001" value="0" />
+              <span class="small" id="anim-time">0.00 / 0.00s</span>
+            </div>
+            <div class="small" data-i="animHint">По умолчанию анимация не проигрывается.</div>
+          </div>
+        </details>
       </div>
 
       <div class="split"></div>
 
-      <!-- Collapsible: Render -->
-      <details class="section" data-sec="render">
-        <summary><span class="summary-title">Render</span><span class="chev">▾</span></summary>
-        <div class="section-body">
-          <div class="row">
-            <label>Exposure</label>
-            <input id="exposure" class="range" type="range" min="0" max="4" step="0.01" value="1" />
-            <span class="small" id="exposure-val">1.00</span>
-          </div>
-          <div class="row">
-            <label>Tone mapping</label>
-            <select id="tone-mapping" class="field">
-              <option value="ACES" selected>ACES</option>
-              <option value="Linear">Linear</option>
-              <option value="Reinhard">Reinhard</option>
-              <option value="Cineon">Cineon</option>
-              <option value="Neutral">Neutral</option>
-              <option value="None">None</option>
-            </select>
-          </div>
-          <div class="row">
-            <button id="reset-render" class="btn secondary" data-i="btnReset">Сбросить</button>
-          </div>
+      <div class="group scroll" style="min-height: 0">
+        <label class="small" data-i="hotkeys">Горячие клавиши</label>
+        <div class="row small">
+          <span class="kbd">LMB</span> <span data-i="hkSelect">выбор</span>
+          <span class="kbd">F</span> <span data-i="hkFocus">к объекту</span>
+          <span class="kbd">R</span> <span data-i="hkReset">сброс камеры</span>
+          <span class="kbd">Del</span> <span data-i="hkClearSel">снять выделение</span>
         </div>
-      </details>
-
-      <!-- Collapsible: Directional light -->
-      <details class="section" data-sec="dirlight">
-        <summary><span class="summary-title">Directional light</span><span class="chev">▾</span></summary>
-        <div class="section-body">
-          <div class="row">
-            <label>Intensity</label>
-            <input id="dir-intensity" class="range" type="range" min="0" max="5" step="0.01" value="0.9" />
-            <span class="small" id="dir-intensity-val">0.90</span>
-          </div>
-          <div class="row">
-            <label>Angle</label>
-            <input id="dir-angle" class="range" type="range" min="0" max="360" step="1" value="34" />
-            <span class="small" id="dir-angle-val">34°</span>
-          </div>
-          <div class="row">
-            <label>Softness</label>
-            <input id="dir-softness" class="range" type="range" min="0" max="4" step="0.1" value="1" />
-            <span class="small" id="dir-softness-val">1.0</span>
-          </div>
-          <div class="row">
-            <button id="reset-dir" class="btn secondary" data-i="btnReset">Сбросить</button>
-          </div>
+        <div class="row small">
+          <label data-i="movementSensitivity">Чувствительность движения</label>
+          <input id="movement-sensitivity" class="range" type="range" min="0.1" max="50" step="0.1" value="5.0" style="width:120px" />
+          <span class="small" id="movement-sensitivity-val">5.0</span>
+          <span class="small" data-i="movementSensitivityHint" title="Работает со всеми раскладками клавиатуры">🌐</span>
         </div>
-      </details>
-
-      <!-- Collapsible: Environment -->
-      <details class="section" data-sec="environment">
-        <summary><span class="summary-title">Environment</span><span class="chev">▾</span></summary>
-        <div class="section-body">
-          <div class="row">
-            <label>Env intensity</label>
-            <input id="env-intensity" class="range" type="range" min="0" max="4" step="0.01" value="1" />
-            <span class="small" id="env-intensity-val">1.00</span>
-          </div>
-          <div class="row">
-            <button id="reset-env" class="btn secondary" data-i="btnReset">Сбросить</button>
-          </div>
-        </div>
-      </details>
-
-      <!-- Collapsible: Gizmos & measurements -->
-      <details class="section" data-sec="gizmos">
-        <summary><span class="summary-title">Gizmos & measurements</span><span class="chev">▾</span></summary>
-        <div class="section-body">
-          <div class="row">
-            <label class="toggle"><input type="checkbox" id="toggle-transform"/><span>Gizmo</span></label>
-            <select id="transform-mode" class="field">
-              <option value="translate" selected>Translate</option>
-              <option value="rotate">Rotate</option>
-              <option value="scale">Scale</option>
-            </select>
-            <label class="toggle"><input type="checkbox" id="toggle-snap"/><span>Snap</span></label>
-          </div>
-          <div class="row">
-            <label>ΔPos</label><input id="snap-pos" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
-            <label>ΔRot°</label><input id="snap-rot" class="field" type="number" step="1" value="15" style="width:80px" />
-            <label>ΔScale</label><input id="snap-scale" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
-          </div>
-          <div class="row">
-            <button id="measure-toggle" class="btn">Measure</button>
-            <button id="measure-clear" class="btn secondary">Clear</button>
-            <span class="tag" id="measure-out">—</span>
-          </div>
-          <div class="row">
-            <button id="reset-gizmos" class="btn secondary" data-i="btnReset">Сбросить</button>
-          </div>
-        </div>
-      </details>
-
-      <!-- Collapsible: Camera -->
-      <details class="section" data-sec="camera">
-        <summary><span class="summary-title">Camera</span><span class="chev">▾</span></summary>
-        <div class="section-body">
-          <div class="row" id="cam-presets">
-            <button class="btn" data-view="front">Front</button>
-            <button class="btn" data-view="back">Back</button>
-            <button class="btn" data-view="left">Left</button>
-            <button class="btn" data-view="right">Right</button>
-            <button class="btn" data-view="top">Top</button>
-            <button class="btn" data-view="bottom">Bottom</button>
-            <button class="btn" data-view="iso">Iso</button>
-          </div>
-        </div>
-      </details>
-
-      <!-- Collapsible: Animations -->
-      <details class="section" data-sec="anim">
-        <summary><span class="summary-title" data-i="animTitle">Анимации</span><span class="chev">▾</span></summary>
-        <div class="section-body">
-          <div class="row" id="anim-row">
-            <select id="anim-select" class="field" style="min-width:200px"></select>
-            <button id="anim-playpause" class="btn ok" data-i="animPlay">Пуск</button>
-            <button id="anim-stop" class="btn" data-i="animStop">Стоп</button>
-            <label class="toggle"><input type="checkbox" id="anim-loop" checked /><span data-i="animLoop">Зациклить</span></label>
-            <label class="row small">
-              <span data-i="animSpeed">Скорость</span>
-              <input id="anim-speed" class="field" type="number" step="0.25" min="0.25" max="3" value="1" style="width:70px" />
-              <span>x</span>
-            </label>
-          </div>
-          <div class="row">
-            <input id="anim-progress" class="range" type="range" min="0" max="1" step="0.001" value="0" />
-            <span class="small" id="anim-time">0.00 / 0.00s</span>
-          </div>
-          <div class="small" data-i="animHint">По умолчанию анимация не проигрывается.</div>
-        </div>
-      </details>
-    </div>
-
-    <div class="split"></div>
-
-    <div class="group scroll" style="min-height: 0">
-      <label class="small" data-i="hotkeys">Горячие клавиши</label>
-      <div class="row small">
-        <span class="kbd">LMB</span> <span data-i="hkSelect">выбор</span>
-        <span class="kbd">F</span> <span data-i="hkFocus">к объекту</span>
-        <span class="kbd">R</span> <span data-i="hkReset">сброс камеры</span>
-        <span class="kbd">Del</span> <span data-i="hkClearSel">снять выделение</span>
-      </div>
-      <div class="row small">
-        <label data-i="movementSensitivity">Чувствительность движения</label>
-        <input id="movement-sensitivity" class="range" type="range" min="0.1" max="50" step="0.1" value="5.0" style="width:120px" />
-        <span class="small" id="movement-sensitivity-val">5.0</span>
-        <span class="small" data-i="movementSensitivityHint" title="Работает со всеми раскладками клавиатуры">🌐</span>
       </div>
     </div>
   </aside>
