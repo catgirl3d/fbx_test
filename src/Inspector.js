@@ -26,10 +26,12 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
   const listContainer = createListContainer();
   const systemToggle = createSystemToggle();
   const contextMenu = createContextMenu();
-
+  const propertiesPanel = createPropertiesPanel();
+ 
   treeRoot.appendChild(header);
   treeRoot.appendChild(systemToggle);
   treeRoot.appendChild(listContainer);
+  treeRoot.appendChild(propertiesPanel);
   document.body.appendChild(contextMenu);
 
 
@@ -493,6 +495,8 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
               node.classList.add('selected');
           }
       });
+      // Update the properties panel
+      updatePropertiesPanel();
   }
   
   function clearSelection() {
@@ -545,9 +549,52 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
       }
   }
 
+  function createPropertiesPanel() {
+    const panel = document.createElement('div');
+    panel.id = 'properties-panel';
+    panel.className = 'properties-panel';
+    panel.style.display = 'none'; // Initially hidden
+    return panel;
+  }
+
+  function updatePropertiesPanel() {
+    const panel = document.getElementById('properties-panel');
+    if (selectedObjects.length > 0) {
+      const obj = selectedObjects[0]; // For now, show info for the first selected object
+      
+      let vertexCount = 'N/A';
+      let triangleCount = 'N/A';
+      if (obj.isMesh && obj.geometry) {
+        vertexCount = obj.geometry.attributes.position.count.toLocaleString();
+        if (obj.geometry.index) {
+          triangleCount = (obj.geometry.index.count / 3).toLocaleString();
+        } else {
+          triangleCount = (obj.geometry.attributes.position.count / 3).toLocaleString();
+        }
+      }
+
+      panel.style.display = 'block';
+      panel.innerHTML = `
+        <div class="properties-header">Properties</div>
+        <div class="properties-content">
+          <div><strong>Name:</strong> ${obj.name || 'N/A'}</div>
+          <div><strong>Type:</strong> ${obj.type}</div>
+          <div><strong>Visible:</strong> ${obj.visible}</div>
+          <div class="properties-divider"></div>
+          <div><strong>Vertices:</strong> ${vertexCount}</div>
+          <div><strong>Triangles:</strong> ${triangleCount}</div>
+          <div class="properties-divider"></div>
+          <div><strong>UUID:</strong> <span class="uuid-text">${obj.uuid}</span></div>
+        </div>
+      `;
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+
   // --- Initial Setup ---
   renderTree();
-
+ 
   // --- Exposed API ---
   return {
     refresh: renderTree,

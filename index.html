@@ -347,6 +347,48 @@
         border-top: 1px solid var(--border);
         margin: 4px 0;
     }
+
+    #tree {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .tree-list-container {
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+    .properties-panel {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      background-color: var(--bg-color-dark);
+      color: var(--text-color);
+      font-size: 13px;
+    }
+    .properties-header {
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border-color-light);
+      padding-bottom: 6px;
+    }
+    .properties-content div {
+      margin-bottom: 5px;
+    }
+    .properties-content strong {
+      color: var(--text-color-light);
+      width: 80px;
+      display: inline-block;
+    }
+    .properties-divider {
+      height: 1px;
+      background-color: var(--border);
+      margin: 8px 0;
+    }
+    .uuid-text {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body class="preload">
