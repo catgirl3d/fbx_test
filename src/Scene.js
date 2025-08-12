@@ -7,20 +7,13 @@ import * as THREE from 'three';
  * @param {THREE.HemisphereLight} [opts.hemi] - Optional hemisphere light
  */
 export class SceneManager {
-  constructor({ scene = null, hemi = null } = {}) {
+  constructor({ scene = null } = {}) { // Removed hemi parameter
     this.scene = scene || new THREE.Scene();
     this.grid = null;
 
-    this.hemi = hemi || new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.5);
-    // The directional light is now managed by LightingManager.
-    // This duplicate light is removed to avoid confusion and redundant lights.
-    // this.dir = new THREE.DirectionalLight(0xffffff, 0.9);
-    // this.dir.castShadow = false;
-    // this.dir.shadow.radius = 1;
-    // ...
-
-    this.scene.add(this.hemi);
-    // this.scene.add(this.dir); // Removed duplicate light
+    // Removed HemisphereLight creation and addition, as it's handled by LightingManager
+    // this.hemi = hemi || new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.5);
+    // this.scene.add(this.hemi);
 
     this.measure = { group: new THREE.Group(), pts: [] };
     this.scene.add(this.measure.group);
@@ -205,7 +198,7 @@ export class SceneManager {
     // Clear references
     this.scene = null;
     this.grid = null;
-    this.hemi = null;
+    // this.hemi = null; // Removed reference cleanup for removed hemi
     this.measure = null;
     this.bboxHelper = null;
     this.env = null;

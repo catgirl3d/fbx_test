@@ -72,6 +72,7 @@ controls.update();
 let clock = new THREE.Clock();
 let currentModel = null;
 let selectedObject = null; // Track selected object globally
+let originalUVs = new Map(); // Store original UVs for flipping
 
 // ZIP texture handling
 let zipTextures = new Map(); // Map of loaded textures from ZIP
@@ -131,6 +132,7 @@ function updateStatsUI() {
       else if (pos) tris += pos.count / 3;
     }
   });
+  console.log('[updateStatsUI] tris:', tris, 'polyCountEl:', polyCountEl);
   if (polyCountEl) polyCountEl.textContent = new Intl.NumberFormat('ru-RU').format(tris) + ' трис.';
   if (objCountEl) objCountEl.textContent = objs;
 }
@@ -174,6 +176,8 @@ function clearCurrentModel() {
     currentModel = null;
     sceneMgr.clearMeasure();
     sceneMgr.updateBBox(null);
+    // Clear original UVs when model is cleared
+    originalUVs.clear();
   }
   updateStatsUI();
   animMgr.dispose();
@@ -186,6 +190,9 @@ function clearCurrentModel() {
   // Hide animations section when model is cleared / no animations present
   try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(false); } catch(e) {}
   tControls.detach();
+  // Reset flip UV toggle
+  const flipUVToggle = dom.get('toggle-flipuv');
+  if (flipUVToggle) flipUVToggle.checked = false;
 }
 
 // Clear scene including ZIP textures
@@ -361,6 +368,39 @@ async function postLoad(gltf, sourceType = 'gltf') {
    These mimic the original inline behaviors and call into
    the modular managers (renderSettings, lighting, sceneMgr, tControls).
 */
+// UV flipping logic
+function flipUVs(flip) {
+  if (!currentModel) return;
+
+  currentModel.traverse(obj => {
+    if (obj.isMesh && obj.geometry && obj.geometry.attributes.uv) {
+      const uvAttribute = obj.geometry.attributes.uv;
+      const uuid = obj.uuid;
+
+      if (flip) {
+        // Store original UVs if not already stored
+        if (!originalUVs.has(uuid)) {
+          originalUVs.set(uuid, uvAttribute.array.slice()); // Create a copy
+        }
+        // Apply flip: u = 1 - u
+        for (let i = 0; i < uvAttribute.array.length; i += 2) {
+          uvAttribute.array[i] = 1 - uvAttribute.array[i];
+        }
+      } else {
+        // Restore original UVs if stored
+        if (originalUVs.has(uuid)) {
+          const original = originalUVs.get(uuid);
+          for (let i = 0; i < uvAttribute.array.length; i++) {
+            uvAttribute.array[i] = original[i];
+          }
+        }
+      }
+      uvAttribute.needsUpdate = true;
+    }
+  });
+  dom.showToast(`UVs ${flip ? 'flipped' : 'restored'}`);
+}
+
 function _showToast(msg){
   try {
     if (typeof dom !== 'undefined' && dom && dom.showToast) { dom.showToast(msg); return; }
@@ -444,11 +484,13 @@ function resetAll(){
   const toggleFXAAEl = dom.get('toggle-fxaa');
   const toggleLightOnlyEl = dom.get('toggle-lightonly');
   const toggleGridEl = dom.get('toggle-grid');
+  const toggleFlipUVEl = dom.get('toggle-flipuv');
 
   if (toggleShadowsEl) { toggleShadowsEl.checked = false; toggleShadowsEl.dispatchEvent(new Event('change')); }
   if (toggleFXAAEl) { toggleFXAAEl.checked = true; toggleFXAAEl.dispatchEvent(new Event('change')); }
   if (toggleLightOnlyEl) { toggleLightOnlyEl.checked = false; toggleLightOnlyEl.dispatchEvent(new Event('change')); }
   if (toggleGridEl) { toggleGridEl.checked = true; toggleGridEl.dispatchEvent(new Event('change')); }
+  if (toggleFlipUVEl) { toggleFlipUVEl.checked = false; toggleFlipUVEl.dispatchEvent(new Event('change')); }
 
   // background & hdri
   const bgSelectEl = dom.get('bg-select');
@@ -666,6 +708,7 @@ try {
   if (typeof initInspector === 'function') {
     inspectorApi = initInspector({
       sceneManager: sceneMgr,
+      lighting: lighting,
       getCurrentModel: () => currentModel,
       onSelect: (obj) => {
         rendererMgr.setOutlineObjects(obj);
@@ -821,6 +864,14 @@ if (exposureEl) {
 }
 if (toneMappingEl) toneMappingEl.addEventListener('change', ()=> { renderSettings.applyToneMapping(toneMappingEl.value); });
 if (fxaaEl) fxaaEl.addEventListener('change', ()=> { renderSettings.enableFXAA(!!fxaaEl.checked); });
+
+// Bind flip UV toggle
+const flipUVToggle = dom.get('toggle-flipuv');
+if (flipUVToggle) {
+  flipUVToggle.addEventListener('change', () => {
+    flipUVs(!!flipUVToggle.checked);
+  });
+}
 
 // ======= Camera presets =======
 function camPreset(view) {
@@ -1036,7 +1087,7 @@ dom.setGlobal('clearSelection', clearSelection);
   try {
     const expected = [
       'viewport','file-input','reset-camera','clear-scene','reset-all',
-      'toggle-shadows','toggle-fxaa','toggle-lightonly','toggle-grid',
+      'toggle-shadows','toggle-fxaa','toggle-lightonly','toggle-grid','toggle-flipuv',
       'bg-select','bg-color','hdri-url','apply-hdri',
       'mat-override','toggle-wireframe',
       'anim-select','anim-playpause','anim-stop','anim-loop','anim-speed','anim-progress','anim-time',

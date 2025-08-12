@@ -7,7 +7,7 @@
  */
 import * as THREE from 'three';
 
-export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel, tControls } = {}) {
+export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel, tControls, lighting } = {}) {
   const treeRoot = document.getElementById('tree');
   if (!treeRoot) throw new Error('Inspector: #tree element not found');
 
@@ -147,7 +147,12 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
     const rootScene = sceneManager.getScene();
     const rootObjects = rootScene.children.filter(child => {
         // Basic filtering for system objects you might not want to see by default
-        const isSystemHelper = child.type.includes('Helper');
+        const isSystemHelper = child.type.includes('Helper') ||
+                               (tControls && child === tControls) ||
+                               (sceneManager.measure && child === sceneManager.measure.group) ||
+                               (lighting && (child === lighting.hemi || child === lighting.dir)) ||
+                               (!showSystemObjects && child.isObject3D && !child.isMesh && !child.isLight && !child.isCamera && child !== getCurrentModel());
+
         return showSystemObjects || !isSystemHelper;
     });
 
