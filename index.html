@@ -45,67 +45,115 @@
 
     <div class="group">
       <div class="toolbar">
-        <label class="btn">
+        <label class="btn btn-primary">
           <input id="file-input" type="file" accept=".gltf,.glb,.fbx,.obj,.bin,.dae,.vrm,.zip" hidden />
+          <i class="fas fa-upload"></i>
           <span data-i="btnLoad">Загрузить модель</span>
         </label>
-        <button id="reset-camera" class="btn secondary" data-i="btnFrame">К камере</button>
-        <button id="clear-scene" class="btn danger" data-i="btnClear">Очистить</button>
-        <button id="reset-all" class="btn secondary" data-i="btnResetAll">Сбросить всё</button>
+        <button id="clear-scene" class="btn danger btn-primary" data-i="btnClear">
+          <i class="fas fa-trash"></i>
+          <span>Очистить</span>
+        </button>
       </div>
 
-      <div class="row">
-        <label class="toggle"><input type="checkbox" id="toggle-shadows" /><span data-i="toggleShadows">Тени</span></label>
-        <label class="toggle"><input type="checkbox" id="toggle-fxaa" checked /><span>FXAA</span></label>
-        <label class="toggle"><input type="checkbox" id="toggle-lightonly" /><span data-i="toggleLight">Только освещение</span></label>
-        <label class="toggle"><input type="checkbox" id="toggle-grid" checked /><span data-i="toggleGrid">Сетка</span></label>
+      <div class="split"></div>
+
+      <div class="toolbar">
+        <button id="reset-camera" class="btn secondary" data-i="btnFrame">
+          <i class="fas fa-crosshairs"></i>
+          <span>К камере</span>
+        </button>
+        <button id="reset-all" class="btn secondary" data-i="btnResetAll">
+          <i class="fas fa-undo"></i>
+          <span>Сбросить всё</span>
+        </button>
       </div>
 
-      <div class="row">
-        <label data-i="bgLabel">Фон</label>
-        <select id="bg-select" class="field">
-          <option value="white" selected>Белый</option>
-          <option value="lightgray">Светло-серый</option>
-          <option value="midgray">Средне-серый</option>
-          <option value="darkgray">Тёмный</option>
-          <option value="transparent">Прозрачный</option>
-          <option value="custom">Произвольный</option>
-        </select>
-        <input id="bg-color" class="field" type="color" value="#ffffff" title="Custom" />
-      </div>
+      <div class="split"></div>
 
-      <div class="row">
-        <label>HDRI</label>
-        <input class="field" type="text" id="hdri-url" placeholder="URL .hdr" />
-        <button id="apply-hdri" class="btn" data-i="btnApply">Применить</button>
-      </div>
+      <!-- Collapsible: Display -->
+      <details class="section" data-sec="display" open>
+        <summary><span class="summary-title"><i class="fas fa-eye"></i> Display</span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row">
+            <label class="toggle"><input type="checkbox" id="toggle-shadows" /><i class="fas fa-sun"></i><span data-i="toggleShadows">Тени</span></label>
+            <label class="toggle"><input type="checkbox" id="toggle-fxaa" checked /><i class="fas fa-magic"></i><span>FXAA</span></label>
+            <label class="toggle"><input type="checkbox" id="toggle-lightonly" /><i class="fas fa-lightbulb"></i><span data-i="toggleLight">Только освещение</span></label>
+            <label class="toggle"><input type="checkbox" id="toggle-grid" checked /><i class="fas fa-th"></i><span data-i="toggleGrid">Сетка</span></label>
+          </div>
+        </div>
+      </details>
 
-      <div class="row">
-        <label>Текстуры</label>
-        <input id="texture-input" type="file" accept=".zip" hidden />
-        <label for="texture-input" class="btn" data-i="btnLoad">Загрузить текстуры</label>
-        <button id="apply-textures" class="btn" data-i="btnApply">Применить текстуры</button>
-      </div>
+      <div class="split"></div>
 
-      <!-- Moved up: Material/Wireframe always visible -->
-      <div class="row">
-        <label data-i="matOverride">Материал</label>
-        <select id="mat-override" class="field">
-          <option value="none" selected>Оригинал</option>
-          <option value="standard">Standard</option>
-          <option value="phong">Phong</option>
-          <option value="basic">Basic</option>
-          <option value="normal">Normal</option>
-          <option value="toon">Toon</option>
-        </select>
-        <label class="toggle"><input type="checkbox" id="toggle-wireframe" /><span data-i="wireframe">Каркас</span></label>
-      </div>
+      <!-- Collapsible: Background & HDRI -->
+      <details class="section" data-sec="background">
+        <summary><span class="summary-title"><i class="fas fa-image"></i> Background & HDRI</span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row">
+            <label data-i="bgLabel">Фон</label>
+            <select id="bg-select" class="field">
+              <option value="white" selected>Белый</option>
+              <option value="lightgray">Светло-серый</option>
+              <option value="midgray">Средне-серый</option>
+              <option value="darkgray">Тёмный</option>
+              <option value="transparent">Прозрачный</option>
+              <option value="custom">Произвольный</option>
+            </select>
+            <input id="bg-color" class="field" type="color" value="#ffffff" title="Custom" />
+          </div>
+
+          <div class="row">
+            <label><i class="fas fa-globe"></i> HDRI</label>
+            <input class="field" type="text" id="hdri-url" placeholder="URL .hdr" />
+            <button id="apply-hdri" class="btn" data-i="btnApply">
+              <i class="fas fa-check"></i>
+              <span>Применить</span>
+            </button>
+          </div>
+        </div>
+      </details>
+
+      <div class="split"></div>
+
+      <!-- Collapsible: Textures & Materials -->
+      <details class="section" data-sec="materials">
+        <summary><span class="summary-title"><i class="fas fa-palette"></i> Textures & Materials</span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row">
+            <label><i class="fas fa-palette"></i> Текстуры</label>
+            <input id="texture-input" type="file" accept=".zip" hidden />
+            <label for="texture-input" class="btn" data-i="btnLoad">
+              <i class="fas fa-folder-open"></i>
+              <span>Загрузить текстуры</span>
+            </label>
+            <button id="apply-textures" class="btn" data-i="btnApply">
+              <i class="fas fa-paint-brush"></i>
+              <span>Применить текстуры</span>
+            </button>
+          </div>
+
+          <!-- Moved up: Material/Wireframe always visible -->
+          <div class="row">
+            <label data-i="matOverride"><i class="fas fa-cube"></i> Материал</label>
+            <select id="mat-override" class="field">
+              <option value="none" selected>Оригинал</option>
+              <option value="standard">Standard</option>
+              <option value="phong">Phong</option>
+              <option value="basic">Basic</option>
+              <option value="normal">Normal</option>
+              <option value="toon">Toon</option>
+            </select>
+            <label class="toggle"><input type="checkbox" id="toggle-wireframe" /><i class="fas fa-project-diagram"></i><span data-i="wireframe">Каркас</span></label>
+          </div>
+        </div>
+      </details>
 
       <div class="split"></div>
 
       <!-- Collapsible: Render -->
       <details class="section" data-sec="render">
-        <summary><span class="summary-title">Render</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title"><i class="fas fa-paint-brush"></i> Render</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
             <label>Exposure</label>
@@ -131,7 +179,7 @@
 
       <!-- Collapsible: Directional light -->
       <details class="section" data-sec="dirlight">
-        <summary><span class="summary-title">Directional light</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title"><i class="fas fa-sun"></i> Directional light</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
             <label>Intensity</label>
@@ -156,7 +204,7 @@
 
       <!-- Collapsible: Environment -->
       <details class="section" data-sec="environment">
-        <summary><span class="summary-title">Environment</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title"><i class="fas fa-globe"></i> Environment</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
             <label>Env intensity</label>
@@ -171,7 +219,7 @@
 
       <!-- Collapsible: Gizmos & measurements -->
       <details class="section" data-sec="gizmos">
-        <summary><span class="summary-title">Gizmos & measurements</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title"><i class="fas fa-ruler-combined"></i> Gizmos & measurements</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
             <label class="toggle"><input type="checkbox" id="toggle-transform"/><span>Gizmo</span></label>
@@ -200,7 +248,7 @@
 
       <!-- Collapsible: Camera -->
       <details class="section" data-sec="camera">
-        <summary><span class="summary-title">Camera</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title"><i class="fas fa-camera"></i> Camera</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row" id="cam-presets">
             <button class="btn" data-view="front">Front</button>
@@ -216,7 +264,7 @@
 
       <!-- Collapsible: Animations -->
       <details class="section" data-sec="anim">
-        <summary><span class="summary-title" data-i="animTitle">Анимации</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title" data-i="animTitle"><i class="fas fa-play-circle"></i> Анимации</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row" id="anim-row">
             <select id="anim-select" class="field" style="min-width:200px"></select>

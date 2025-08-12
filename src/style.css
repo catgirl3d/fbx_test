@@ -56,8 +56,9 @@
       padding: 12px 12px 16px;
       display:flex; flex-direction:column; gap:12px; z-index: 30;
       box-shadow: 0 0 30px rgba(0,0,0,.06);
+      overflow-y: auto; /* Add scrollbar */
     }
-    .left-col header{ display:flex; align-items:center; gap:10px; }
+    .left-col header{ display:flex; align-items:center; gap:10px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
     .logo-dot{ width:10px; height:10px; border-radius:50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
     .left-col h1{ font-size: 16px; margin:0; font-weight: 700; letter-spacing: .2px; }
     .toolbar{ display:flex; gap:8px; flex-wrap:wrap; }
@@ -72,6 +73,8 @@
     .btn.ok{ border-color:color-mix(in srgb, var(--ok) 25%, var(--border)); background:color-mix(in srgb, var(--ok) 8%, var(--bg-panel)); color:color-mix(in srgb, var(--ok) 65%, black); }
     .toggle input{ display:none; }
     .toggle:has(input:checked){ border-color:color-mix(in srgb, var(--accent) 30%, var(--border)); background:var(--button-checked); }
+    .btn-primary{ background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover{ background: color-mix(in srgb, var(--accent) 80%, black); border-color: color-mix(in srgb, var(--accent) 80%, black); }
     .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
     .row label{ font-size:12px; color: var(--muted) }
     .field{ background:var(--bg-panel); border:1px solid var(--border); border-radius: 8px; padding:6px 8px; color:var(--text) }
