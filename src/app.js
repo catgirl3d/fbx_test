@@ -77,6 +77,24 @@ let selectedObject = null; // Track selected object globally
 let zipTextures = new Map(); // Map of loaded textures from ZIP
 let currentZipFile = null; // Currently loaded ZIP file
 
+// Listen for runtime Flip Y toggle from debug UI and re-apply textures so flipY takes effect immediately.
+// This allows toggling the Flip Y checkbox without reloading the model.
+window.addEventListener('debug:flipYChanged', () => {
+  try {
+    console.log('[app] debug:flipYChanged -> reapplying ZIP textures with new flipY setting');
+    if (currentModel && zipTextures && zipTextures.size > 0) {
+      try {
+        applyTexturesFromMap(currentModel, zipTextures);
+        ui && ui.toast && ui.toast(`Flip Y applied: ${!!window.DEBUG_FLIP_Y ? 'ON' : 'OFF'}`);
+      } catch (e) {
+        console.warn('[app] Failed to reapply ZIP textures after flip change:', e);
+      }
+    } else {
+      console.log('[app] No current model or ZIP textures to reapply for Flip Y change');
+    }
+  } catch (e) { /* ignore */ }
+});
+
 // Track pressed keys for WASDQE camera movement
 const pressedKeys = new Set();
 

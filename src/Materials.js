@@ -4,9 +4,50 @@ import * as THREE from 'three';
 const savedOriginal = new WeakMap();
 const savedOverride = new WeakMap();
 
+// Helper: set colorSpace/encoding in a way that's compatible with multiple Three.js versions.
+// For color maps (base color / emissive) we set sRGB; for other maps we prefer keeping linear/default.
+function setTextureColorSpace(tex, isColorMap) {
+  if (!tex) return;
+  try {
+    if (isColorMap) {
+      // Newer Three.js uses .colorSpace, older uses .encoding
+      if ('colorSpace' in tex && typeof THREE !== 'undefined') {
+        tex.colorSpace = THREE.SRGBColorSpace;
+      } else if ('encoding' in tex && typeof THREE !== 'undefined') {
+        tex.encoding = THREE.sRGBEncoding;
+      }
+    } else {
+      // Non-color maps typically should be linear. If a linear colorSpace constant exists, use it.
+      if ('colorSpace' in tex && typeof THREE !== 'undefined') {
+        if (typeof THREE.LinearSRGBColorSpace !== 'undefined') {
+          tex.colorSpace = THREE.LinearSRGBColorSpace;
+        }
+      }
+      // Do not override .encoding for non-color maps to avoid warnings on newer Three.js.
+    }
+  } catch (e) { /* ignore */ }
+}
+
+/**
+ * Helper: set flipY on a texture according to a runtime debug toggle.
+ * By default the code uses flipped Y = false for many FBX / ZIP workflows,
+ * but models and exporters vary. Expose a runtime flag `window.DEBUG_FLIP_Y`
+ * that can be toggled from the UI to invert textures without rebuilding assets.
+ */
+function setTextureFlipY(tex) {
+  if (!tex) return;
+  try {
+    if (typeof tex.flipY !== 'undefined') {
+      tex.flipY = !!window.DEBUG_FLIP_Y;
+    }
+  } catch (e) { /* ignore */ }
+}
+
 export function enhanceMaterial(material) {
   if (!material) return material;
   if (Array.isArray(material)) return material.map(m => enhanceMaterial(m));
+
+  // If it's not already a MeshStandardMaterial, create one and copy relevant properties
   if (!(material instanceof THREE.MeshStandardMaterial)) {
     const m = new THREE.MeshStandardMaterial({
       name: material.name || '',
@@ -14,15 +55,55 @@ export function enhanceMaterial(material) {
       opacity: material.opacity ?? 1,
       transparent: !!material.transparent,
       side: material.side ?? THREE.FrontSide,
-      wireframe: false
+      wireframe: false,
+      roughness: material.roughness ?? 0.5,
+      metalness: material.metalness ?? 0.0,
+      emissive: material.emissive ? material.emissive.clone() : new THREE.Color(0x000000),
+      emissiveIntensity: material.emissiveIntensity ?? 1
     });
-    if (material.map) { m.map = material.map; if (m.map) m.map.encoding = THREE.sRGBEncoding; }
-    m.metalness = material.metalness ?? 0.0;
-    m.roughness = material.roughness ?? 0.5;
+
+    // Heuristic: if original material had Phong-style shininess, convert it into a PBR roughness.
+    // This helps preserve appearance when converting e.g. MeshPhongMaterial -> MeshStandardMaterial.
+    try {
+      if (typeof material.shininess === 'number' && (material.roughness === undefined || material.roughness === null)) {
+        const shin = Math.max(0, material.shininess);
+        const normalized = Math.min(1, shin / 100); // map 0..100 -> 0..1
+        m.roughness = Math.max(0, 1 - normalized);
+      }
+    } catch (e) { /* ignore */ }
+
+    // Copy common texture maps and preserve sensible defaults for color/emissive maps
+    ['map','normalMap','metalnessMap','roughnessMap','emissiveMap','aoMap','alphaMap','bumpMap','displacementMap','envMap']
+      .forEach(k => {
+        if (material[k]) {
+          m[k] = material[k];
+          // Color maps should use sRGB (handled in helper for compatibility)
+          if ((k === 'map' || k === 'emissiveMap') && m[k]) {
+            try { setTextureColorSpace(m[k], true); } catch(e) {}
+          }
+          // Many FBX/ZIP textures are created with flipped Y — honor runtime toggle
+          if (typeof m[k]?.flipY !== 'undefined') {
+            try { setTextureFlipY(m[k]); } catch(e) {}
+          }
+        }
+      });
+
+    // Copy additional scalar properties if present
+    if ('envMapIntensity' in material) m.envMapIntensity = material.envMapIntensity;
+    if ('vertexColors' in material) m.vertexColors = material.vertexColors;
     material = m;
   } else {
-    if (material.map) material.map.encoding = THREE.sRGBEncoding;
+    // Already a MeshStandardMaterial: ensure encodings/flipY for color/emissive maps (use helper)
+    if (material.map) {
+      try { setTextureColorSpace(material.map, true); } catch(e) {}
+      if (typeof material.map.flipY !== 'undefined') try { setTextureFlipY(material.map); } catch(e) {}
+    }
+    if (material.emissiveMap) {
+      try { setTextureColorSpace(material.emissiveMap, true); } catch(e) {}
+      if (typeof material.emissiveMap.flipY !== 'undefined') try { setTextureFlipY(material.emissiveMap); } catch(e) {}
+    }
   }
+
   material.needsUpdate = true;
   return material;
 }
@@ -91,9 +172,21 @@ export function applyMaterialOverride(root, options = {}) {
         if (Array.isArray(o.material)){
           o.material = o.material.map(m => enhanceMaterial(m));
           o.material.forEach(m=>{ if (m) m.wireframe = !!wire; });
+          // Disable vertexColors on enhanced materials if geometry lacks vertex color attribute
+          try {
+            if (!o.geometry?.attributes?.color) {
+              o.material.forEach(m=>{ if (m && 'vertexColors' in m && m.vertexColors) m.vertexColors = false; });
+            }
+          } catch(e){}
         } else {
           o.material = enhanceMaterial(o.material);
           if (o.material) o.material.wireframe = !!wire;
+          // Disable vertexColors when geometry has no color attribute to avoid unintended tinting
+          try {
+            if (o.material && 'vertexColors' in o.material && !o.geometry?.attributes?.color) {
+              o.material.vertexColors = false;
+            }
+          } catch(e){}
         }
       }
     }
@@ -248,21 +341,41 @@ function normalizeMaterialName(materialName) {
  */
 function parseTextureFilename(filename) {
   if (!filename) return null;
+
+  // Accept either a string path/key or an object with a name property
+  const raw = (typeof filename === 'string') ? filename : (filename?.name || '');
+  if (!raw) return null;
+
+  // Work with the base filename (strip any path)
+  const file = raw.split(/[\\/]/).pop();
+
+  // Remove extension (jpg/png/tga/exr/etc.)
+  const nameNoExt = file.replace(/\.[^/.]+$/, '');
+
+  // Split by common separators (underscores, spaces, dots)
+  const parts = nameNoExt.split(/[_\s.]+/).filter(Boolean);
   
-  const baseName = filename.toLowerCase();
+  // DEBUG: Log parsing details
+  console.debug('[Materials] parseTextureFilename:', {
+    raw,
+    file,
+    nameNoExt,
+    parts,
+    partsLength: parts.length
+  });
   
-  // Expected pattern: MaterialName_MapType.tga (e.g., DevilBodyMtl_BaseColor.tga)
-  // Handle both simple (DevilHeadMtl_BaseColor) and complex paths (Textures/DevilHeadMtl_BaseColor.tga)
-  const pathParts = baseName.split(/[\\/]/);
-  const fileName = pathParts[pathParts.length - 1];
-  
-  const match = fileName.match(/^([^_]+(?:mtl|mt|mat|material)?)_([^_]+)(?:\.tga)?$/i);
-  if (!match) return null;
-  
-  const materialPrefix = normalizeMaterialName(match[1]);
-  const mapTypeSuffix = match[2];
-  
-  // Map suffix to Three.js map type
+  if (parts.length < 2) {
+    // Can't reliably extract material + mapType
+    console.debug('[Materials] parseTextureFilename: returning null (parts.length < 2)');
+    return null;
+  }
+
+  // Assume the last token denotes the map type, everything before is the material prefix
+  const mapTypeSuffix = parts.pop().toLowerCase();
+  const materialPart = parts.join('_'); // keep separators to preserve readability
+  const materialPrefix = normalizeMaterialName(materialPart);
+
+  // Map suffix to Three.js map type (support partial matches and common variants)
   const mapTypeMap = {
     'basecolor': 'map',
     'basecolour': 'map',
@@ -270,27 +383,49 @@ function parseTextureFilename(filename) {
     'albedo': 'map',
     'color': 'map',
     'base': 'map',
+    'diff': 'map',
+
     'normal': 'normalMap',
     'norm': 'normalMap',
+
     'roughness': 'roughnessMap',
     'rough': 'roughnessMap',
+
+    'metalness': 'metalnessMap',
     'metallic': 'metalnessMap',
     'metal': 'metalnessMap',
-    'metalic': 'metalnessMap', // Handle typo in your texture files
+    'metalic': 'metalnessMap',
+
     'ao': 'aoMap',
     'ambientocclusion': 'aoMap',
+
     'emissive': 'emissiveMap',
     'emission': 'emissiveMap',
     'emit': 'emissiveMap',
+
     'alpha': 'alphaMap',
     'transparency': 'alphaMap',
+    'opacity': 'alphaMap',
+
     'bump': 'bumpMap',
     'height': 'bumpMap',
+
     'displacement': 'displacementMap'
   };
-  
-  const mapType = mapTypeMap[mapTypeSuffix] || null;
-  
+
+  // Direct lookup
+  let mapType = mapTypeMap[mapTypeSuffix] || null;
+
+  // Fallback: try to match by substring (handles things like basecolor1, color_v2, etc.)
+  if (!mapType) {
+    for (const key in mapTypeMap) {
+      if (mapTypeSuffix.includes(key)) {
+        mapType = mapTypeMap[key];
+        break;
+      }
+    }
+  }
+
   return {
     materialPrefix,
     mapType
@@ -311,11 +446,11 @@ function buildMaterialTextureIndex(textureMap) {
   for (const [textureKey, texture] of textureMap) {
     // Use texture.name if available, otherwise use textureKey
     const filename = texture.name || textureKey;
-    console.log(`[Materials] Processing texture: "${filename}"`);
+    console.log(`[Materials] Processing texture: "${filename}" (textureKey: "${textureKey}")`);
     
     const parsed = parseTextureFilename(filename);
     if (!parsed || !parsed.mapType) {
-      console.log(`[Materials]  -> Failed to parse (no mapType)`);
+      console.log(`[Materials]  -> Failed to parse (no mapType) for textureKey: "${textureKey}"`);
       continue;
     }
     
@@ -413,47 +548,60 @@ export function applyTexturesFromMap(rootObject, textureMap) {
               const texture = materialTextures.get(mapType);
               
               try {
-                // Set texture properties based on type
-                if (mapType === 'map' || mapType === 'emissiveMap') {
-                  if (typeof THREE !== 'undefined') texture.encoding = THREE.sRGBEncoding;
-                }
-                if (typeof texture.flipY !== 'undefined') texture.flipY = false;
+                // Set texture properties based on type (color vs non-color)
+                setTextureColorSpace(texture, mapType === 'map' || mapType === 'emissiveMap');
+                if (typeof texture.flipY !== 'undefined') try { setTextureFlipY(texture); } catch(e) {}
                 texture.needsUpdate = true;
                 
                 // Special handling for aoMap - copy UV to UV2 on geometry if not already set
                 if (mapType === 'aoMap') {
-                  // Find the mesh that uses this material
+                  // Use the object itself as the mesh if it matches, otherwise search descendants
                   let mesh = null;
-                  object.parent?.traverse((child) => {
-                    if (child.isMesh && child.material === material) {
-                      mesh = child;
-                    }
+                  if (object.isMesh && object.material === material) mesh = object;
+                  else object.traverse((child) => {
+                    if (child.isMesh && child.material === material) mesh = child;
                   });
                   
                   if (mesh && mesh.geometry) {
-                    // Copy UV attributes to UV2 for aoMap
-                    if (mesh.geometry.attributes.uv && !mesh.geometry.attributes.uv2) {
-                      mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv.clone());
+                    // Copy UV attributes to UV2 for aoMap (ensure attribute clone works)
+                    if (mesh.geometry.attributes && mesh.geometry.attributes.uv && !mesh.geometry.attributes.uv2) {
+                      try {
+                        mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv.clone());
+                      } catch(e){}
                     }
                   }
                 }
                 
                 // Apply the texture
                 material[mapType] = texture;
+                
+                // If applying base color, ensure the material color/vertexColors do not tint the texture.
+                if (mapType === 'map') {
+                  try {
+                    // Reset material color to white so the texture is not multiply-tinted
+                    if (material.color && typeof material.color.set === 'function') material.color.set(0xffffff);
+                    // Disable vertexColors on the material if the geometry has no color attribute
+                    if ('vertexColors' in material && !object.geometry?.attributes?.color) {
+                      material.vertexColors = false;
+                    }
+                  } catch (e) { /* ignore color/vertex adjustments */ }
+                }
+                
                 material.needsUpdate = true;
                 appliedByIndex = true;
                 
                 console.log(`[Materials] Applied ${mapType} texture by material-index: ${texture.name} for material: ${material.name}`);
+                const textureKeyForDebug = texture?.name || '<unknown>';
                 console.debug(`[Materials] Applied ${mapType} details:`, {
                   materialName: material.name,
                   mapType,
-                  textureName: texture.name,
-                  textureImage: texture.image,
-                  textureReady: texture.image?.complete,
-                  textureWidth: texture.image?.width,
-                  textureHeight: texture.image?.height,
-                  textureFlipY: texture.flipY,
-                  textureEncoding: texture.encoding,
+                  textureName: textureKeyForDebug,
+                  textureImage: texture?.image,
+                  textureReady: texture?.image?.complete,
+                  textureWidth: texture?.image?.width,
+                  textureHeight: texture?.image?.height,
+                  textureFlipY: texture?.flipY,
+                  textureEncoding: texture?.encoding,
                   matchedBy: 'material-index'
                 });
                 
@@ -461,16 +609,18 @@ export function applyTexturesFromMap(rootObject, textureMap) {
                 if (!mappingSummary.has(material.name)) {
                   mappingSummary.set(material.name, new Map());
                 }
-                mappingSummary.get(material.name).set(mapType, texture.name);
+                mappingSummary.get(material.name).set(mapType, textureKeyForDebug);
                 
               } catch (e) {
-                console.warn(`[Materials] Error applying texture ${texture.name} to ${mapType} for material ${material.name}:`, e);
+                console.warn(`[Materials] Error applying texture ${texture?.name || '<unknown>'} to ${mapType} for material ${material.name}:`, e);
               }
             }
           });
         } else {
           console.debug(`[Materials] No textures found in material index for "${material.name}" (normalized: "${normalizedMaterialName}")`);
           console.debug(`[Materials] Available materials in index:`, Array.from(materialIndex.keys()));
+          // DEBUG: Log materials with no index hits for analysis
+          console.debug(`[Materials] Material "${material.name}" has no index hit. Available index keys:`, Array.from(materialIndex.keys()));
         }
       }
       
@@ -505,21 +655,30 @@ export function applyTexturesFromMap(rootObject, textureMap) {
               
               if (matchedTexture) {
                 // Prepare texture for FBX/THREE usage: common fixes
-                try {
-                  // If this is a color map ('map') ensure correct encoding
-                  if (mapType === 'map' && typeof THREE !== 'undefined') {
-                    matchedTexture.encoding = THREE.sRGBEncoding;
-                  }
-                  // FBX often uses flipped Y for UVs; try flipY = false when applying
-                  if (typeof matchedTexture.flipY !== 'undefined') matchedTexture.flipY = false;
-                  // Mark texture needing update
-                  matchedTexture.needsUpdate = true;
-                } catch (e) {
-                  console.debug('[Materials] Error preparing matchedTexture:', e);
-                }
+              try {
+                // If this is a color map ('map' or emissive) ensure correct colorSpace/encoding
+                setTextureColorSpace(matchedTexture, mapType === 'map' || mapType === 'emissiveMap');
+                // FBX often uses flipped Y for UVs; honor runtime flip toggle
+                if (typeof matchedTexture.flipY !== 'undefined') try { setTextureFlipY(matchedTexture); } catch(e) {}
+                // Mark texture needing update
+                matchedTexture.needsUpdate = true;
+              } catch (e) {
+                console.debug('[Materials] Error preparing matchedTexture:', e);
+              }
                 
                 // Replace the texture
                 material[mapType] = matchedTexture;
+                
+                // If applying base color, reset tinting sources (material.color, vertexColors)
+                if (mapType === 'map') {
+                  try {
+                    if (material.color && typeof material.color.set === 'function') material.color.set(0xffffff);
+                    if ('vertexColors' in material && !object.geometry?.attributes?.color) {
+                      material.vertexColors = false;
+                    }
+                  } catch(e){}
+                }
+                
                 material.needsUpdate = true;
                 
                 console.log(`[Materials] Applied texture ${texturePath} -> ${matchedTexture.name} (fallback)`);
@@ -597,12 +756,21 @@ export function applyTexturesFromMap(rootObject, textureMap) {
           
           if (foundTex) {
             try {
-              if (typeof foundTex.flipY !== 'undefined') foundTex.flipY = false;
+              if (typeof foundTex.flipY !== 'undefined') try { setTextureFlipY(foundTex); } catch(e) {}
               foundTex.needsUpdate = true;
-              if (typeof THREE !== 'undefined') foundTex.encoding = THREE.sRGBEncoding;
+              try { setTextureColorSpace(foundTex, true); } catch(e) {}
             } catch(e){/* ignore */ }
             
             material.map = foundTex;
+            
+            // Reset color/vertexColors so the base color texture displays without tint
+            try {
+              if (material.color && typeof material.color.set === 'function') material.color.set(0xffffff);
+              if ('vertexColors' in material && !object.geometry?.attributes?.color) {
+                material.vertexColors = false;
+              }
+            } catch(e){}
+            
             material.needsUpdate = true;
             console.log(`[Materials] Applied base-color by strict material-prefix ${material.name} -> ${foundTex.name} (fallback)`);
             
@@ -645,22 +813,38 @@ export function applyTexturesFromMap(rootObject, textureMap) {
               const filename = texture.name || textureKey;
               const parsed = parseTextureFilename(filename);
               if (!parsed || parsed.mapType !== mapType) continue;
-              
-              // Only match if the texture prefix exactly matches or endsWith the material name
+
               const prefix = parsed.materialPrefix;
+
+              // Strict prefix matching (highest priority)
               if (prefix === normalizedMaterialName ||
                   prefix.endsWith(normalizedMaterialName) ||
                   normalizedMaterialName.endsWith(prefix)) {
-                
-                // Prefer exact matches over partial matches
-                let score = 1;
-                if (prefix === normalizedMaterialName) score = 3;
-                else if (prefix.endsWith(normalizedMaterialName) || normalizedMaterialName.endsWith(prefix)) score = 2;
-                
+                let score = 8;
+                if (prefix === normalizedMaterialName) score = 12;
+                else if (prefix.endsWith(normalizedMaterialName) || normalizedMaterialName.endsWith(prefix)) score = 9;
                 if (score > bestScore) {
                   bestScore = score;
                   bestMatch = texture;
                 }
+                continue;
+              }
+
+              // Fallback: fuzzy similarity between material name and texture prefix
+              try {
+                const sim = similarityScore(prefix, normalizedMaterialName); // 0..1
+                // Lower threshold for base color maps to be more permissive
+                const threshold = isColorMap ? 0.58 : 0.72;
+                if (sim >= threshold) {
+                  // Convert similarity (0..1) into a comparable integer score
+                  const score = Math.round(sim * 8); // 0..8
+                  if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = texture;
+                  }
+                }
+              } catch (e) {
+                // ignore fuzzy errors
               }
             }
             
@@ -671,9 +855,9 @@ export function applyTexturesFromMap(rootObject, textureMap) {
                 
                 // Set texture properties based on type
                 if (isColorMap || mapType === 'emissiveMap') {
-                  if (typeof THREE !== 'undefined') tex.encoding = THREE.sRGBEncoding;
-                  if (typeof tex.flipY !== 'undefined') tex.flipY = false;
+                  try { setTextureColorSpace(tex, true); } catch(e){}
                 }
+                if (typeof tex.flipY !== 'undefined') try { setTextureFlipY(tex); } catch(e) {}
                 
                 tex.needsUpdate = true;
                 
@@ -697,6 +881,17 @@ export function applyTexturesFromMap(rootObject, textureMap) {
                 
                 // Apply the texture
                 material[mapType] = tex;
+                
+                // If applying a base color, reset tint sources so texture displays faithfully
+                if (mapType === 'map') {
+                  try {
+                    if (material.color && typeof material.color.set === 'function') material.color.set(0xffffff);
+                    if ('vertexColors' in material && !object.geometry?.attributes?.color) {
+                      material.vertexColors = false;
+                    }
+                  } catch(e){}
+                }
+                
                 material.needsUpdate = true;
                 appliedAny = true;
                 
@@ -759,28 +954,79 @@ function matchTexturePath(path, textureMap) {
   
   const pathLower = path.toLowerCase();
   
+  // DEBUG: Log lookup steps
+  console.debug('[Materials] matchTexturePath:', {
+    path,
+    pathLower,
+    textureMapSize: textureMap.size,
+    textureMapKeys: Array.from(textureMap.keys()).slice(0, 5)
+  });
+  
   // 1. Try exact match (case-insensitive)
   if (textureMap.has(pathLower)) {
+    console.debug('[Materials] matchTexturePath: exact match found for', pathLower);
     return textureMap.get(pathLower);
   }
   
   // 2. Try basename match (case-insensitive)
   const basename = path.split('/').pop().split('\\').pop().toLowerCase();
+  console.debug('[Materials] matchTexturePath: basename =', basename);
+  
   for (const [key, texture] of textureMap) {
-    if (key.split('/').pop().split('\\').pop().toLowerCase() === basename) {
+    const keyBasename = key.split('/').pop().split('\\').pop().toLowerCase();
+    if (keyBasename === basename) {
+      console.debug('[Materials] matchTexturePath: basename match found:', key, '->', texture?.name || '<unnamed>');
       return texture;
     }
   }
   
   // 3. Try partial match (path ends with texture name)
+  console.debug('[Materials] matchTexturePath: trying partial matches...');
   for (const [key, texture] of textureMap) {
     const keyLower = key.toLowerCase();
     if (keyLower.includes(basename) || basename.includes(keyLower)) {
+      console.debug('[Materials] matchTexturePath: partial match found:', key, '->', texture?.name || '<unnamed>');
       return texture;
     }
   }
   
+  console.debug('[Materials] matchTexturePath: no match found for path:', path);
   return null;
+}
+
+//
+// Utility: Levenshtein distance and similarity helpers
+//
+function levenshteinDistance(a, b) {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const alen = a.length;
+  const blen = b.length;
+  const v0 = new Array(blen + 1);
+  const v1 = new Array(blen + 1);
+  for (let j = 0; j <= blen; j++) v0[j] = j;
+  for (let i = 0; i < alen; i++) {
+    v1[0] = i + 1;
+    for (let j = 0; j < blen; j++) {
+      const cost = a.charAt(i) === b.charAt(j) ? 0 : 1;
+      const insertion = v1[j] + 1;
+      const deletion = v0[j + 1] + 1;
+      const substitution = v0[j] + cost;
+      v1[j + 1] = Math.min(insertion, deletion, substitution);
+    }
+    for (let j = 0; j <= blen; j++) v0[j] = v1[j];
+  }
+  return v0[blen];
+}
+
+function similarityScore(a, b) {
+  if (!a && !b) return 1;
+  const aa = (a || '').toLowerCase();
+  const bb = (b || '').toLowerCase();
+  const dist = levenshteinDistance(aa, bb);
+  const maxLen = Math.max(aa.length, bb.length);
+  return maxLen === 0 ? 1 : 1 - (dist / maxLen);
 }
 
 // Export supported map types for reference

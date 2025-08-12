@@ -152,7 +152,7 @@ export function initUI({
       if (file) {
         onApplyTextures(file);
       } else {
-        ui.toast('Выберите ZIP файл с текстурами');
+        persistedToast('Выберите ZIP файл с текстурами');
       }
     }
   });
@@ -161,9 +161,9 @@ export function initUI({
   textureInput?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     if (file && file.name.toLowerCase().endsWith('.zip')) {
-      ui.toast(`Выбран файл: ${file.name}`);
+      persistedToast(`Выбран файл: ${file.name}`);
     } else if (file) {
-      ui.toast('Выберите ZIP файл');
+      persistedToast('Выберите ZIP файл');
       textureInput.value = '';
     }
   });
@@ -218,7 +218,52 @@ export function initUI({
   
   // Initialize the control after settings are restored
   setTimeout(initMovementSensitivityControl, 100);
-
+ 
+  // Debug: create a small floating debug panel with a Flip Y toggle so users can invert textures at runtime.
+  try {
+    const settings = getSettings ? getSettings() : loadSettings();
+    // Ensure a global flag exists
+    window.DEBUG_FLIP_Y = !!settings.debugFlipY;
+ 
+    const dbg = document.createElement('div');
+    dbg.id = 'debug-panel';
+    dbg.style.position = 'fixed';
+    dbg.style.right = '8px';
+    dbg.style.top = '8px';
+    dbg.style.zIndex = '9999';
+    dbg.style.background = 'rgba(0,0,0,0.6)';
+    dbg.style.color = '#fff';
+    dbg.style.padding = '6px 8px';
+    dbg.style.borderRadius = '6px';
+    dbg.style.fontSize = '12px';
+    dbg.style.fontFamily = 'sans-serif';
+    dbg.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)';
+    dbg.innerHTML = `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+      <input id="toggle-flip-y" type="checkbox" ${window.DEBUG_FLIP_Y ? 'checked' : ''} />
+      <span>Flip Y</span>
+    </label>`;
+    document.body.appendChild(dbg);
+ 
+    const cb = document.getElementById('toggle-flip-y');
+    cb?.addEventListener('change', (e) => {
+      window.DEBUG_FLIP_Y = !!e.target.checked;
+      // Persist selection in settings if setSettings is available
+      try {
+        const s = getSettings ? (getSettings() || {}) : loadSettings();
+        s.debugFlipY = !!e.target.checked;
+        if (setSettings) setSettings(s);
+        saveSettings(s);
+      } catch (err) { /* ignore */ }
+      // Notify app to reapply textures if needed
+      try { window.dispatchEvent(new Event('debug:flipYChanged')); } catch (e) {}
+      // Small toast for feedback
+      persistedToast(`Flip Y: ${window.DEBUG_FLIP_Y ? 'ON' : 'OFF'}`);
+    });
+  } catch (e) {
+    // ignore UI injection failures
+    console.warn('[UI] Failed to create debug panel', e);
+  }
+ 
   return {
     applyLang,
     setTheme,
