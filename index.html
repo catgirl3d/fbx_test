@@ -200,6 +200,153 @@
     .chev{ opacity:.7; transition: transform .15s ease; }
     details.section[open] .chev{ transform: rotate(180deg) }
     .section-body{ padding:10px 12px; display:flex; flex-direction:column; gap:8px }
+/* Integrated styles from user task */
+.inspector-header {
+        padding: 8px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .inspector-toolbar {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+    .btn.small-btn {
+        padding: 4px 8px;
+        font-size: 12px;
+    }
+    .btn.icon-btn {
+        padding: 6px;
+        line-height: 1;
+        width: 28px;
+        height: 28px;
+    }
+    .btn.active {
+        background: var(--button-checked);
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+    #isolate-btn {
+        margin-left: auto;
+        border-color: var(--danger);
+        color: var(--danger);
+    }
+    #isolate-btn.active {
+        background: color-mix(in srgb, var(--danger) 15%, transparent);
+    }
+
+    .system-toggle {
+        font-size: 12px;
+        padding: 4px 8px;
+        color: var(--muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .tree-list-container {
+        flex: 1;
+        overflow: auto;
+        padding: 8px;
+    }
+    .tree-list {
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+    }
+    .tree-list.nested {
+        padding-left: 18px;
+        display: none; /* Collapsed by default */
+    }
+
+    .category-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        padding: 4px;
+        font-size: 13px;
+    }
+    
+    .tree-node.selected > .tree-row {
+        background: var(--tree-sel-bg);
+        border-radius: 4px;
+    }
+
+    .tree-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+    .tree-row:hover {
+        background: var(--button-hover);
+    }
+    .node-chev {
+        width: 12px;
+        text-align: center;
+        transition: transform 0.15s ease;
+    }
+    .node-chev.fa-rotate-180 { transform: rotate(90deg); }
+    .type-icon {
+        width: 16px;
+        text-align: center;
+        color: var(--muted);
+    }
+    .node-label {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 13px;
+    }
+    .vis-icon {
+        color: var(--muted);
+        opacity: 0.7;
+    }
+    .vis-icon:hover {
+        opacity: 1;
+    }
+    .fa-eye-slash {
+        opacity: 0.4;
+    }
+
+    #inspector-context-menu {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        padding: 6px;
+        display: none;
+        flex-direction: column;
+        gap: 4px;
+    }
+    #inspector-context-menu button {
+        background: none;
+        border: none;
+        color: var(--text);
+        text-align: left;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+    }
+    #inspector-context-menu button:hover {
+        background: var(--button-hover);
+    }
+    #inspector-context-menu hr {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 4px 0;
+    }
   </style>
 </head>
 <body class="preload">
