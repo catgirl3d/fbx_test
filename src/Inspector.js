@@ -154,9 +154,44 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
                                (!showSystemObjects && child.isObject3D && !child.isMesh && !child.isLight && !child.isCamera && child !== getCurrentModel());
 
         return showSystemObjects || !isSystemHelper;
+    }).sort((a, b) => {
+        // Sort meshes to the top
+        if (a.isMesh && !b.isMesh) {
+            return -1;
+        }
+        if (!a.isMesh && b.isMesh) {
+            return 1;
+        }
+        // Optional: secondary sort by name for consistency within categories
+        // if (a.name && b.name) {
+        //     return a.name.localeCompare(b.name);
+        // }
+        return 0;
     });
 
     if (rootObjects.length > 0) {
+        rootObjects.sort((a, b) => {
+            // Calculate system status for sorting
+            const aIsSystem = (a.type.includes('Helper') || (tControls && a === tControls) || (sceneManager.measure && a === sceneManager.measure.group) || (lighting && (a === lighting.hemi || a === lighting.dir)) || (a.isObject3D && !a.isMesh && !a.isLight && !a.isCamera && a !== getCurrentModel()));
+            const bIsSystem = (b.type.includes('Helper') || (tControls && b === tControls) || (sceneManager.measure && b === sceneManager.measure.group) || (lighting && (b === lighting.hemi || b === lighting.dir)) || (b.isObject3D && !b.isMesh && !b.isLight && !b.isCamera && b !== getCurrentModel()));
+
+            // Primary sort: non-system objects before system objects (only if showSystemObjects is true)
+            if (showSystemObjects) {
+                if (!aIsSystem && bIsSystem) return -1;
+                if (aIsSystem && !bIsSystem) return 1;
+            }
+
+            // Secondary sort: meshes before non-meshes
+            if (a.isMesh && !b.isMesh) return -1;
+            if (!a.isMesh && b.isMesh) return 1;
+
+            // Tertiary sort: alphabetical by name
+            if (a.name && b.name) {
+                return a.name.localeCompare(b.name);
+            }
+            return 0;
+        });
+
         const allObjectsCategory = createCategory('Scene Objects', rootObjects);
         mainContainer.appendChild(allObjectsCategory);
     }

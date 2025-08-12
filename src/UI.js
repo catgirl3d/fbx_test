@@ -9,8 +9,10 @@
 const i18n = {
   ru: {
     title: '3D Viewer', btnLoad:'Загрузить модель', btnFrame:'К камере', btnClear:'Очистить',
-    toggleShadows:'Тени', toggleLight:'Только освещение', toggleGrid:'Сетка', bgLabel:'Фон', btnApply:'Применить',
-    matOverride:'Материал', wireframe:'Каркас',
+    toggleShadows:'Тени', toggleLight:'Только освещение', toggleGrid:'Сетка', bgLabel:'Фон', btnApply:'Применить', toggleFlipUV:'Перевернуть UV',
+    bgWhite:'Белый', bgLightGray:'Светло-серый', bgMidGray:'Средне-серый', bgDarkGray:'Тёмный', bgTransparent:'Прозрачный', bgCustom:'Произвольный',
+    hdriLabel:'HDRI', texturesLabel:'Текстуры',
+    matOverride:'Материал', wireframe:'Каркас', matOriginal:'Оригинал',
     animTitle:'Анимации', animPlay:'Пуск', animPause:'Пауза', animStop:'Стоп', animLoop:'Зациклить', animSpeed:'Скорость',
     animHint:'По умолчанию анимация не проигрывается.', hotkeys:'Горячие клавиши',
     hkSelect:'выбор', hkFocus:'к объекту', hkReset:'сброс камеры', hkClearSel:'снять выделение',
@@ -20,8 +22,10 @@ const i18n = {
   },
   en: {
     title: '3D Viewer', btnLoad:'Load model', btnFrame:'Frame', btnClear:'Clear',
-    toggleShadows:'Shadows', toggleLight:'Light only', toggleGrid:'Grid', bgLabel:'Background', btnApply:'Apply',
-    matOverride:'Material', wireframe:'Wireframe',
+    toggleShadows:'Shadows', toggleLight:'Light only', toggleGrid:'Grid', bgLabel:'Background', btnApply:'Apply', toggleFlipUV:'Flip UV',
+    bgWhite:'White', bgLightGray:'Light Gray', bgMidGray:'Mid Gray', bgDarkGray:'Dark', bgTransparent:'Transparent', bgCustom:'Custom',
+    hdriLabel:'HDRI', texturesLabel:'Textures',
+    matOverride:'Material', wireframe:'Wireframe', matOriginal:'Original',
     animTitle:'Animations', animPlay:'Play', animPause:'Pause', animStop:'Stop', animLoop:'Loop', animSpeed:'Speed',
     animHint:'By default animations do not play.', hotkeys:'Hotkeys',
     hkSelect:'select', hkFocus:'focus', hkReset:'reset camera', hkClearSel:'clear selection',
@@ -66,7 +70,6 @@ export function initUI({
   const langSelect = d.getElementById('lang');
   const themeToggle = d.getElementById('theme-toggle');
   const themeIcon = d.getElementById('theme-icon');
-  const themeLabel = d.getElementById('theme-label');
   
   // Movement sensitivity control
   const movementSensitivityInput = d.getElementById('movement-sensitivity');
@@ -80,14 +83,12 @@ export function initUI({
     });
     const openInspectorBtn = d.getElementById('open-inspector');
     if (openInspectorBtn) openInspectorBtn.title = (i18n[lang] && i18n[lang].btnShowInspector) || '';
-    if (themeLabel) themeLabel.textContent = (lang === 'ru' ? (isDark() ? 'Ночная' : 'Светлая') : (isDark() ? 'Dark' : 'Light'));
   }
 
   function isDark() { return d.body.classList.contains('theme-dark'); }
   function setTheme(theme) {
     d.body.classList.toggle('theme-dark', theme === 'dark');
     if (themeIcon) themeIcon.textContent = theme === 'dark' ? '🌙' : '🌞';
-    if (themeLabel) themeLabel.textContent = (langSelect.value === 'ru') ? (theme==='dark' ? 'Ночная' : 'Светлая') : (theme==='dark' ? 'Dark' : 'Light');
     persist();
   }
 

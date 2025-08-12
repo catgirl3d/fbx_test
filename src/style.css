@@ -170,11 +170,11 @@
       list-style:none; cursor:pointer; padding:10px 12px; font-weight:700; font-size:12px;
       display:flex; align-items:center; justify-content:space-between; letter-spacing:.2px;
       border-bottom:1px solid var(--border); color: var(--text);
+      text-transform: uppercase;
     }
     details.section > summary::-webkit-details-marker{ display:none }
     details.section[open] > summary{ background:var(--button-checked); }
     .summary-title{ display:flex; align-items:center; gap:8px }
-    .summary-title::before{ content:""; width:3px; height:16px; border-radius:2px; background: color-mix(in srgb, var(--accent) 70%, transparent); }
     .chev{ opacity:.7; transition: transform .15s ease; }
     details.section[open] .chev{ transform: rotate(180deg) }
     .section-body{ padding:10px 12px; display:flex; flex-direction:column; gap:8px }
