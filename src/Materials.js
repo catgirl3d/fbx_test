@@ -1,12 +1,19 @@
 import * as THREE from 'three';
 
-// Material utilities
+// Утилиты для работы с материалами
 const savedOriginal = new WeakMap();
 const savedOverride = new WeakMap();
 
+/**
+ * Улучшает материал, приводя его к MeshStandardMaterial, если он таковым не является.
+ * @param {THREE.Material | THREE.Material[]} material - Исходный материал или массив материалов.
+ * @returns {THREE.Material | THREE.Material[]} Улучшенный материал.
+ */
 export function enhanceMaterial(material) {
   if (!material) return material;
   if (Array.isArray(material)) return material.map(m => enhanceMaterial(m));
+
+  // Если материал не является стандартным, создаем новый на его основе
   if (!(material instanceof THREE.MeshStandardMaterial)) {
     const m = new THREE.MeshStandardMaterial({
       name: material.name || '',
@@ -16,17 +23,23 @@ export function enhanceMaterial(material) {
       side: material.side ?? THREE.FrontSide,
       wireframe: false
     });
-    if (material.map) { m.map = material.map; if (m.map) m.map.encoding = THREE.sRGBEncoding; }
+    if (material.map) { m.map = material.map; if (m.map) m.map.colorSpace = THREE.SRGBColorSpace; }
     m.metalness = material.metalness ?? 0.0;
     m.roughness = material.roughness ?? 0.5;
     material = m;
   } else {
-    if (material.map) material.map.encoding = THREE.sRGBEncoding;
+    // Для стандартных материалов просто настраиваем цветовое пространство карты
+    if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
   }
   material.needsUpdate = true;
   return material;
 }
 
+/**
+ * Создает материал для переопределения.
+ * @param {string} type - Тип материала ('standard', 'phong', 'basic', 'normal', 'toon').
+ * @returns {THREE.Material | null} Новый материал или null.
+ */
 export function makeOverride(type) {
   switch(type){
     case 'standard': return new THREE.MeshStandardMaterial({ color: 0xffffff, metalness:0, roughness:0.5 });
@@ -38,6 +51,11 @@ export function makeOverride(type) {
   }
 }
 
+/**
+ * Применяет интенсивность окружения к материалу.
+ * @param {THREE.Material | THREE.Material[]} material - Материал или массив материалов.
+ * @param {number} intensity - Интенсивность.
+ */
 export function applyEnvIntensityToMaterial(material, intensity) {
   const list = Array.isArray(material) ? material : [material];
   list.filter(Boolean).forEach(m=>{
@@ -45,12 +63,19 @@ export function applyEnvIntensityToMaterial(material, intensity) {
   });
 }
 
+/**
+ * Применяет переопределение материала или каркасный режим к объекту и его дочерним элементам.
+ * @param {THREE.Object3D} root - Корневой объект.
+ * @param {object} options - Опции.
+ * @param {string} [options.overrideType='none'] - Тип материала для переопределения.
+ * @param {boolean} [options.wire=false] - Включить ли каркасный режим.
+ * @param {number} [options.envIntensity=1] - Интенсивность окружения.
+ */
 export function applyMaterialOverride(root, options = {}) {
   if (!root) return;
   const { overrideType = 'none', wire = false, envIntensity = 1 } = options;
   const overrideMat = makeOverride(overrideType);
 
-  // helper: dispose a material or array of materials (textures + material)
   function _disposeMaterial(mat){
     if (!mat) return;
     const list = Array.isArray(mat) ? mat : [mat];
@@ -66,7 +91,6 @@ export function applyMaterialOverride(root, options = {}) {
     if (!o.isMesh) return;
 
     if (overrideMat){
-      // Save original material once so we can restore it later
       if (!savedOverride.has(o)){
         savedOverride.set(o, o.material);
       }
@@ -78,16 +102,13 @@ export function applyMaterialOverride(root, options = {}) {
       }
       o.material = base;
     } else {
-      // Restore saved original material if present
       if (savedOverride.has(o)){
         const orig = savedOverride.get(o);
         const current = o.material;
         o.material = orig;
         savedOverride.delete(o);
-        // Dispose override material(s) we no longer use (if different from orig)
         if (current && current !== orig) _disposeMaterial(current);
       } else {
-        // Enhance existing material(s) if we don't have a saved original
         if (Array.isArray(o.material)){
           o.material = o.material.map(m => enhanceMaterial(m));
           o.material.forEach(m=>{ if (m) m.wireframe = !!wire; });
@@ -107,11 +128,14 @@ export function applyMaterialOverride(root, options = {}) {
   });
 }
 
+/**
+ * Переключает режим "только освещение", скрывая все текстурные карты.
+ * @param {THREE.Object3D} root - Корневой объект.
+ * @param {boolean} on - Включить или выключить режим.
+ */
 export function setLightOnly(root, on) {
   if (!root) return;
 
-  // We save/restore material state per-mesh (not per-material) so restoration
-  // works even if the mesh's material object is swapped while "light-only" is active.
   root.traverse(o=>{
     if (!o.isMesh) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -119,37 +143,22 @@ export function setLightOnly(root, on) {
     if (on){
       if (!savedOriginal.has(o)){
         const snapshot = mats.map(m => ({
-          ref: m,
-          color: m?.color?.clone?.(),
-          emissive: m?.emissive?.clone?.(),
-          emissiveIntensity: m?.emissiveIntensity,
-          map: m?.map || null,
-          emissiveMap: m?.emissiveMap || null,
-          normalMap: m?.normalMap || null,
-          roughnessMap: m?.roughnessMap || null,
-          metalnessMap: m?.metalnessMap || null,
-          aoMap: m?.aoMap || null,
-          bumpMap: m?.bumpMap || null,
-          displacementMap: m?.displacementMap || null,
-          alphaMap: m?.alphaMap || null,
-          side: m?.side,
-          transparent: m?.transparent,
-          opacity: m?.opacity,
-          alphaTest: m?.alphaTest,
-          depthWrite: m?.depthWrite,
-          visible: m?.visible,
-          roughness: m?.roughness,
-          metalness: m?.metalness,
-          envMapIntensity: m?.envMapIntensity
+          ref: m, color: m?.color?.clone?.(), emissive: m?.emissive?.clone?.(),
+          emissiveIntensity: m?.emissiveIntensity, map: m?.map || null,
+          emissiveMap: m?.emissiveMap || null, normalMap: m?.normalMap || null,
+          roughnessMap: m?.roughnessMap || null, metalnessMap: m?.metalnessMap || null,
+          aoMap: m?.aoMap || null, bumpMap: m?.bumpMap || null,
+          displacementMap: m?.displacementMap || null, alphaMap: m?.alphaMap || null,
+          side: m?.side, transparent: m?.transparent, opacity: m?.opacity,
+          alphaTest: m?.alphaTest, depthWrite: m?.depthWrite, visible: m?.visible,
+          roughness: m?.roughness, metalness: m?.metalness, envMapIntensity: m?.envMapIntensity
         }));
         savedOriginal.set(o, snapshot);
       }
 
-      // Apply "light-only" modifications to the active material(s)
       mats.forEach(m=>{
         if (!m) return;
-        m.map = null;
-        m.emissiveMap = null;
+        m.map = null; m.emissiveMap = null;
         if ('normalMap' in m) m.normalMap = null;
         if ('roughnessMap' in m) m.roughnessMap = null;
         if ('metalnessMap' in m) m.metalnessMap = null;
@@ -169,36 +178,20 @@ export function setLightOnly(root, on) {
         const currentMats = mats;
         currentMats.forEach((cm, idx)=>{
           if (!cm) return;
-          // prefer exact material reference match; otherwise fall back to index
-          let saved = snapshot.find(s => s.ref === cm);
-          if (!saved) saved = snapshot[idx];
+          let saved = snapshot.find(s => s.ref === cm) || snapshot[idx];
           if (!saved) return;
           try {
-            cm.map = saved.map;
-            cm.emissiveMap = saved.emissiveMap;
-            cm.normalMap = saved.normalMap;
-            cm.roughnessMap = saved.roughnessMap;
-            cm.metalnessMap = saved.metalnessMap;
-            cm.aoMap = saved.aoMap;
-            cm.bumpMap = saved.bumpMap;
-            cm.displacementMap = saved.displacementMap;
-            cm.alphaMap = saved.alphaMap;
-
+            Object.assign(cm, {
+              map: saved.map, emissiveMap: saved.emissiveMap, normalMap: saved.normalMap,
+              roughnessMap: saved.roughnessMap, metalnessMap: saved.metalnessMap, aoMap: saved.aoMap,
+              bumpMap: saved.bumpMap, displacementMap: saved.displacementMap, alphaMap: saved.alphaMap,
+              emissiveIntensity: saved.emissiveIntensity, roughness: saved.roughness, metalness: saved.metalness,
+              side: saved.side, transparent: saved.transparent, opacity: saved.opacity,
+              alphaTest: saved.alphaTest, depthWrite: saved.depthWrite, visible: saved.visible,
+              envMapIntensity: saved.envMapIntensity
+            });
             saved.color && cm.color?.copy?.(saved.color);
             saved.emissive && cm.emissive?.copy?.(saved.emissive);
-
-            if ('emissiveIntensity' in cm && saved.emissiveIntensity !== undefined) cm.emissiveIntensity = saved.emissiveIntensity;
-            if ('roughness' in cm && saved.roughness !== undefined) cm.roughness = saved.roughness;
-            if ('metalness' in cm && saved.metalness !== undefined) cm.metalness = saved.metalness;
-
-            if ('side' in cm && saved.side !== undefined) cm.side = saved.side;
-            if ('transparent' in cm && saved.transparent !== undefined) cm.transparent = saved.transparent;
-            if ('opacity' in cm && saved.opacity !== undefined) cm.opacity = saved.opacity;
-            if ('alphaTest' in cm && saved.alphaTest !== undefined) cm.alphaTest = saved.alphaTest;
-            if ('depthWrite' in cm && saved.depthWrite !== undefined) cm.depthWrite = saved.depthWrite;
-            if ('visible' in cm && saved.visible !== undefined) cm.visible = saved.visible;
-            if ('envMapIntensity' in cm && saved.envMapIntensity !== undefined) cm.envMapIntensity = saved.envMapIntensity;
-
             cm.needsUpdate = true;
           } catch(e){}
         });
@@ -208,6 +201,10 @@ export function setLightOnly(root, on) {
   });
 }
 
+/**
+ * Освобождает ресурсы материалов и геометрий.
+ * @param {THREE.Object3D} root - Корневой объект.
+ */
 export function disposeMaterialResources(root) {
   root.traverse(o=>{
     if (o.isMesh){
@@ -222,12 +219,183 @@ export function disposeMaterialResources(root) {
   });
 }
 
-// default export grouping
+/**
+ * Нормализует имя материала для сопоставления.
+ * @param {string} materialName - Имя материала.
+ * @returns {string} Нормализованное имя.
+ */
+function normalizeMaterialName(materialName) {
+  if (!materialName) return '';
+  return materialName.toLowerCase()
+    .replace(/(?:_mtl|_mat|_material)$/i, '') // Удаляет популярные суффиксы
+    .replace(/[-_\s]+/g, ''); // Удаляет разделители
+}
+
+/**
+ * Разбирает имя файла текстуры для извлечения префикса материала и типа карты.
+ * Эта версия более надежна и разделяет имя по последнему знаку подчеркивания.
+ * @param {string} filename - Имя файла текстуры.
+ * @returns {{materialPrefix: string, mapType: string} | null} Разобранные компоненты или null.
+ */
+function parseTextureFilename(filename) {
+  if (!filename) return null;
+
+  const baseName = filename.toLowerCase();
+  const pathParts = baseName.split(/[\\/]/);
+  const fileName = pathParts[pathParts.length - 1];
+  
+  const dotIndex = fileName.lastIndexOf('.');
+  const nameNoExt = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
+
+  const lastUnderscoreIndex = nameNoExt.lastIndexOf('_');
+  if (lastUnderscoreIndex === -1) {
+    return null; // Разделитель не найден
+  }
+  
+  const materialPrefix = normalizeMaterialName(nameNoExt.substring(0, lastUnderscoreIndex));
+  let mapTypeSuffix = nameNoExt.substring(lastUnderscoreIndex + 1).replace(/[^a-z0-9]/g, '');
+
+  const mapTypeMap = {
+    'basecolor': 'map', 'basecolour': 'map', 'diffuse': 'map', 'albedo': 'map', 'color': 'map', 'base': 'map',
+    'normal': 'normalMap', 'norm': 'normalMap',
+    'roughness': 'roughnessMap', 'rough': 'roughnessMap',
+    'metallic': 'metalnessMap', 'metal': 'metalnessMap', 'metalic': 'metalnessMap',
+    'ao': 'aoMap', 'ambientocclusion': 'aoMap',
+    'emissive': 'emissiveMap', 'emission': 'emissiveMap', 'emit': 'emissiveMap',
+    'alpha': 'alphaMap', 'transparency': 'alphaMap',
+    'bump': 'bumpMap', 'height': 'bumpMap',
+    'displacement': 'displacementMap'
+  };
+
+  const mapType = mapTypeMap[mapTypeSuffix] || null;
+
+  return { materialPrefix, mapType };
+}
+
+/**
+ * Создает индекс "материал -> текстуры" из карты текстур.
+ * @param {Map<string, THREE.Texture>} textureMap - Карта путей текстур к текстурам.
+ * @returns {Map<string, Map<string, THREE.Texture>>} Карта нормализованных имен материалов к (тип карты -> текстура).
+ */
+function buildMaterialTextureIndex(textureMap) {
+  const materialIndex = new Map();
+  
+  for (const [textureKey, texture] of textureMap) {
+    const filename = texture.name || textureKey;
+    const parsed = parseTextureFilename(filename);
+    
+    if (parsed && parsed.materialPrefix && parsed.mapType) {
+      const { materialPrefix, mapType } = parsed;
+      if (!materialIndex.has(materialPrefix)) {
+        materialIndex.set(materialPrefix, new Map());
+      }
+      materialIndex.get(materialPrefix).set(mapType, texture);
+    }
+  }
+  
+  return materialIndex;
+}
+
+/**
+ * Применяет текстуры из карты текстур к материалам в 3D-объекте.
+ * Эта версия упрощена и полагается исключительно на детерминированный индекс материалов и текстур.
+ * @param {THREE.Object3D} rootObject - Корневой объект для обхода.
+ * @param {Map<string, THREE.Texture>} textureMap - Карта текстур, загруженных из ZIP.
+ */
+export function applyTexturesFromMap(rootObject, textureMap) {
+  if (!rootObject || !textureMap || textureMap.size === 0) return;
+
+  console.log('[Materials] Applying textures from map...');
+  const materialIndex = buildMaterialTextureIndex(textureMap);
+
+  if (materialIndex.size === 0) {
+    console.warn('[Materials] Texture index is empty. No textures will be applied. Check texture naming.');
+    return;
+  }
+  
+  console.log(`[Materials] Built material-texture index with ${materialIndex.size} materials.`);
+  
+  const mappingSummary = new Map();
+
+  rootObject.traverse((object) => {
+    if (!object.isMesh || !object.material) return;
+
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+
+    materials.forEach((material) => {
+      if (!material || !material.name) return;
+      
+      const normalizedMaterialName = normalizeMaterialName(material.name);
+      
+      if (materialIndex.has(normalizedMaterialName)) {
+        const materialTextures = materialIndex.get(normalizedMaterialName);
+
+        // Если для материала нашлась основная текстура цвета (map),
+        // то принудительно отключаем цвета вершин и сбрасываем базовый цвет.
+        if (materialTextures.has('map')) {
+          material.vertexColors = false; // Игнорировать цвета вершин из модели
+          if (material.color) {
+              material.color.set(0xffffff); // Сбросить цвет материала на белый
+          }
+        }
+
+        for (const [mapType, texture] of materialTextures.entries()) {
+          // Настройка свойств текстуры
+          if (mapType === 'map' || mapType === 'emissiveMap') {
+            texture.colorSpace = THREE.SRGBColorSpace;
+          }
+          
+          // >>> НАЧАЛО ИСПРАВЛЕНИЯ <<<
+          // Для FBX моделей часто требуется переворачивать текстуру по оси Y.
+          texture.flipY = true;
+          // >>> КОНЕЦ ИСПРАВЛЕНИЯ <<<
+          
+          texture.wrapS = THREE.RepeatWrapping;
+          texture.wrapT = THREE.RepeatWrapping;
+          
+          texture.needsUpdate = true;
+          
+          // Применение текстуры
+          material[mapType] = texture;
+          material.needsUpdate = true;
+
+          // Логирование для отладки
+          if (!mappingSummary.has(material.name)) {
+            mappingSummary.set(material.name, new Map());
+          }
+          mappingSummary.get(material.name).set(mapType, texture.name);
+        }
+      }
+    });
+  });
+
+  // Вывод итоговой информации о сопоставлении
+  console.info('[Materials] === Texture Mapping Summary ===');
+  if (mappingSummary.size === 0) {
+    console.info('[Materials] No textures were applied. Check material and texture names for mismatches.');
+  } else {
+    for (const [materialName, maps] of mappingSummary) {
+      const mapEntries = Array.from(maps.entries()).map(([mapType, textureName]) => `${mapType}: ${textureName}`);
+      console.info(`[Materials] ${materialName} -> { ${mapEntries.join(', ')} }`);
+    }
+  }
+  console.info('[Materials] === End Mapping Summary ===');
+}
+
+// Экспорт поддерживаемых типов карт для справки
+export const SUPPORTED_MAP_TYPES = [
+  'map', 'normalMap', 'metalnessMap', 'roughnessMap',
+  'emissiveMap', 'aoMap', 'alphaMap', 'bumpMap', 'displacementMap'
+];
+
+// Группировка экспорта по умолчанию
 export default {
   enhanceMaterial,
   makeOverride,
   applyMaterialOverride,
   applyEnvIntensityToMaterial,
   setLightOnly,
-  disposeMaterialResources
+  disposeMaterialResources,
+  applyTexturesFromMap,
+  SUPPORTED_MAP_TYPES,
 };

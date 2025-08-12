@@ -124,12 +124,6 @@ export class RendererManager {
     // lazy init passes so we can pass scene/camera from caller
     if (!this.renderPass) this.initPasses(scene, camera);
 
-    // debug: log exposure/toneMapping prior to render
-    try {
-      if (typeof console !== 'undefined') {
-        console.debug('[renderer] toneMapping=', this.renderer.toneMapping, 'exposure=', this.renderer.toneMappingExposure);
-      }
-    } catch (e) {}
 
     // ensure full viewport for main composer
     const w = window.innerWidth, h = window.innerHeight;

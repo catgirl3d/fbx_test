@@ -402,5 +402,11 @@ export function bindUI(managers, dom, opts) {
     dom.off(dom.get('exposure'), 'change');
     dom.off(dom.get('toneMapping'), 'change');
     dom.off(dom.get('fxaa'), 'change');
+
+    // Remove apply textures button listener
+    const applyTexturesBtn = dom.get('apply-textures');
+    if (applyTexturesBtn) {
+      applyTexturesBtn.removeEventListener('click', applyTexturesBtn._handler);
+    }
   };
 }

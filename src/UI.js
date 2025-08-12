@@ -52,7 +52,7 @@ function saveSettings(s) {
  * @param {(s:Object)=>void} [opts.setSettings]
  */
 export function initUI({
-  onLoadFile, onApplyHDRI, onResetAll, onFrame, onClearScene, getSettings, setSettings
+  onLoadFile, onApplyHDRI, onApplyTextures, onResetAll, onFrame, onClearScene, getSettings, setSettings
 } = {}) {
   const d = document;
   const fileInput = d.getElementById('file-input');
@@ -61,6 +61,8 @@ export function initUI({
   const resetAllBtn = d.getElementById('reset-all');
   const applyHdriBtn = d.getElementById('apply-hdri');
   const hdriUrlInput = d.getElementById('hdri-url');
+  const applyTexturesBtn = d.getElementById('apply-textures');
+  const textureInput = d.getElementById('texture-input');
   const langSelect = d.getElementById('lang');
   const themeToggle = d.getElementById('theme-toggle');
   const themeIcon = d.getElementById('theme-icon');
@@ -143,6 +145,29 @@ export function initUI({
     if (onApplyHDRI) onApplyHDRI(hdriUrlInput.value.trim());
   });
 
+  // Apply textures button
+  applyTexturesBtn?.addEventListener('click', () => {
+    if (onApplyTextures) {
+      const file = textureInput.files?.[0];
+      if (file) {
+        onApplyTextures(file);
+      } else {
+        ui.toast('Выберите ZIP файл с текстурами');
+      }
+    }
+  });
+
+  // Texture input change
+  textureInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file && file.name.toLowerCase().endsWith('.zip')) {
+      ui.toast(`Выбран файл: ${file.name}`);
+    } else if (file) {
+      ui.toast('Выберите ZIP файл');
+      textureInput.value = '';
+    }
+  });
+
   // Theme toggle
   themeToggle?.addEventListener('click', () => setTheme(isDark() ? 'light' : 'dark'));
 
@@ -160,6 +185,9 @@ export function initUI({
     toastEl.classList.add('show');
     setTimeout(() => toastEl.classList.remove('show'), 2600);
   }
+
+  // Expose toast for app use
+  const toast = persistedToast;
 
   // Initialize movement sensitivity control
   // Fixed: Guard against undefined getSettings and missing movementSensitivity property

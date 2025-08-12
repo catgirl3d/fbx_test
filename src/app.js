@@ -6,7 +6,8 @@ import { initUI } from './UI.js';
 import { GLTFLoaderWrapper } from './loaders/GLTF.js';
 import { FBXLoaderWrapper } from './loaders/FBX.js';
 import { AnimationManager } from './Animation.js';
-import Materials, { applyMaterialOverride, setLightOnly } from './Materials.js';
+import Materials, { applyMaterialOverride, setLightOnly, applyTexturesFromMap } from './Materials.js';
+import { loadTexturesFromZIP, matchTexturePath } from './utils/zipTextures.js';
 import TransformControlsWrapper from './TransformControls.js';
 import { initInspector } from './Inspector.js';
 import { LightingManager } from './Lighting.js';
@@ -71,6 +72,10 @@ controls.update();
 let clock = new THREE.Clock();
 let currentModel = null;
 let selectedObject = null; // Track selected object globally
+
+// ZIP texture handling
+let zipTextures = new Map(); // Map of loaded textures from ZIP
+let currentZipFile = null; // Currently loaded ZIP file
 
 // Track pressed keys for WASDQE camera movement
 const pressedKeys = new Set();
@@ -183,6 +188,85 @@ function clearCurrentModel() {
   tControls.detach();
 }
 
+// Clear scene including ZIP textures
+function clearScene() {
+  clearCurrentModel();
+  clearZipTextures();
+  ui.toast('Сцена очищена');
+}
+
+// Clear ZIP textures and resources
+function clearZipTextures() {
+  // Dispose all textures
+  for (const [path, texture] of zipTextures) {
+    if (texture && texture.dispose) {
+      texture.dispose();
+    }
+  }
+  
+  // Clear the map
+  zipTextures.clear();
+  currentZipFile = null;
+  
+  console.log('[app] ZIP textures cleared');
+}
+
+// Texture resolver function for FBX loader
+function createTextureResolver() {
+  return (path) => {
+    if (!path || !zipTextures.size) return null;
+    
+    // Try to find texture in ZIP
+    const texture = matchTexturePath(path, zipTextures);
+    
+    if (texture) {
+      console.log(`[app] Texture resolver found: ${path} -> ${texture.name}`);
+      return texture;
+    } else {
+      console.warn(`[app] Texture resolver failed to find: ${path}`);
+      return null;
+    }
+  };
+}
+
+// Load textures from ZIP file
+async function loadTexturesFromZIPFile(zipFile) {
+  if (!zipFile) {
+    throw new Error('No ZIP file provided');
+  }
+  
+  try {
+    showOverlay('Загрузка текстур', 'Распаковка ZIP...');
+    
+    // Clear previous textures
+    clearZipTextures();
+    
+    // Load new textures
+    zipTextures = await loadTexturesFromZIP(zipFile, THREE);
+    currentZipFile = zipFile;
+    
+    // Save texture map to global for debugging and manual texture application
+    window.zipTextureMap = zipTextures;
+    console.log('[app] Saved texture map to window.zipTextureMap for debugging');
+    
+    hideOverlay();
+    
+    if (zipTextures.size > 0) {
+      ui.toast(`Загружено ${zipTextures.size} текстур из ZIP`);
+      console.log(`[app] Loaded ${zipTextures.size} textures from ZIP:`, Array.from(zipTextures.keys()));
+    } else {
+      ui.toast('В ZIP не найдены текстуры');
+    }
+    
+    return zipTextures;
+  } catch (error) {
+    hideOverlay();
+    console.error('[app] Failed to load textures from ZIP:', error);
+    ui.toast('Ошибка загрузки текстур из ZIP: ' + error.message);
+    throw error;
+  }
+}
+
 // Scene tree is handled by Inspector module (src/Inspector.js). Use inspectorApi.refresh() to update the tree when available.
 
 // Post-load common operations
@@ -216,6 +300,19 @@ async function postLoad(gltf, sourceType = 'gltf') {
   applyMaterialOverride(currentModel, { overrideType, wire, envIntensity: envI });
 
   if (lightOnlyEl && lightOnlyEl.checked) setLightOnly(currentModel, true);
+
+  // Apply textures from ZIP if available (fallback)
+  if (zipTextures.size > 0) {
+    try {
+      console.log(`[app] Applying ${zipTextures.size} ZIP textures as fallback...`);
+      applyTexturesFromMap(currentModel, zipTextures);
+      ui.toast(`Применено ${zipTextures.size} текстур из ZIP (fallback)`);
+    } catch (error) {
+      console.warn('[app] Failed to apply ZIP textures as fallback:', error);
+    }
+  } else {
+    console.log('[app] No ZIP textures available for fallback application');
+  }
 
   frameObject(currentModel);
   updateStatsUI();
@@ -387,8 +484,25 @@ function resetAll(){
 
 /* initialize UI */
 const ui = initUI({
-  onLoadFile: (file) => {
+  toast: toast, // Pass toast function to app
+  onLoadFile: async (file) => {
     const name = file.name.toLowerCase();
+    
+    // Handle ZIP file (texture pack)
+    if (name.endsWith('.zip')) {
+      try {
+        showOverlay('Загрузка текстур', file.name);
+        await loadTexturesFromZIPFile(file);
+        hideOverlay();
+        ui.toast('Текстуры загружены из ZIP. Теперь можно загружать FBX модель.');
+      } catch (err) {
+        hideOverlay();
+        ui.toast('Ошибка загрузки ZIP: ' + (err.message || err));
+      }
+      return;
+    }
+    
+    // Handle 3D model files
     if (name.endsWith('.gltf') || name.endsWith('.glb')) {
       showOverlay('Загрузка glTF/GLB', file.name);
       gltfLoaderWrapper.loadFromFile(file, (evt) => {
@@ -403,7 +517,18 @@ const ui = initUI({
       });
     } else if (name.endsWith('.fbx')) {
       showOverlay('Загрузка FBX', file.name);
-      fbxLoaderWrapper.loadFromFile(file, (evt) => {
+      
+      // Create texture resolver if ZIP textures are available
+      let textureResolver = null;
+      if (zipTextures.size > 0) {
+        textureResolver = createTextureResolver();
+        console.log(`[app] Created texture resolver with ${zipTextures.size} textures`);
+      }
+      
+      // Create FBX loader with texture resolver
+      const fbxLoader = new FBXLoaderWrapper(textureResolver);
+      
+      fbxLoader.loadFromFile(file, (evt) => {
         if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
         else setIndeterminate();
       }).then(obj => {
@@ -415,7 +540,7 @@ const ui = initUI({
         ui.toast('Ошибка FBX: ' + (err.message || err));
       });
     } else {
-      ui.toast('Поддерживаются: glTF/GLB/FBX');
+      ui.toast('Поддерживаются: glTF/GLB/FBX и ZIP с текстурами');
     }
   },
 
@@ -440,11 +565,52 @@ const ui = initUI({
     });
   },
 
+  onApplyTextures: async (file) => {
+    if (!file) {
+      ui.toast('Выберите ZIP файл с текстурами');
+      return;
+    }
+    
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      ui.toast('Выберите ZIP файл');
+      return;
+    }
+    
+    try {
+      showOverlay('Загрузка текстур', file.name);
+      
+      // Load textures from the ZIP file
+      await loadTexturesFromZIPFile(file);
+      
+      // Apply textures to current model if available
+      if (currentModel && zipTextures.size > 0) {
+        try {
+          console.log(`[app] Applying ${zipTextures.size} ZIP textures to current model...`);
+          applyTexturesFromMap(currentModel, zipTextures);
+          ui.toast(`Применено ${zipTextures.size} текстур из ZIP`);
+        } catch (error) {
+          console.warn('[app] Failed to apply ZIP textures:', error);
+          ui.toast('Ошибка применения текстур: ' + error.message);
+        }
+      } else if (!currentModel) {
+        ui.toast('Загрузите модель FBX перед применением текстур');
+      } else {
+        ui.toast('В ZIP не найдены текстуры');
+      }
+      
+      hideOverlay();
+    } catch (error) {
+      hideOverlay();
+      console.error('[app] Failed to load textures from file:', error);
+      ui.toast('Ошибка загрузки текстур: ' + error.message);
+    }
+  },
+
   onResetAll: resetAll,
 
   onFrame: () => { frameObject(currentModel || sceneMgr.getScene()); },
 
-  onClearScene: () => { clearCurrentModel(); ui.toast('Scene cleared'); },
+  onClearScene: () => { clearScene(); },
   
   getSettings: () => settings.get(),
   setSettings: (s) => {
@@ -788,6 +954,8 @@ function dispose() {
     unbindUI();
     unbindUI = null;
   }
+  // Clear ZIP textures
+  clearZipTextures();
   // Remove global event listeners
   dom.offResize(onResize);
   dom.offError((e) => {});
@@ -880,4 +1048,56 @@ dom.setGlobal('clearSelection', clearSelection);
   } catch (e) {
     console.error('[DIAG] Diagnostics failed', e);
   }
+// Load default model function
+async function loadDefaultModel() {
+  try {
+    console.log('[app] Loading default model: model/devilgirl.fbx');
+    
+    // Create a File object from the default model path
+    const defaultModelPath = 'model/devilgirl.fbx';
+    const response = await fetch(defaultModelPath);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load default model: ${response.status} ${response.statusText}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const defaultModelFile = new File([arrayBuffer], 'devilgirl.fbx', { type: 'application/octet-stream' });
+    
+    showOverlay('Загрузка модели', 'devilgirl.fbx');
+    
+    // Create texture resolver if ZIP textures are available
+    let textureResolver = null;
+    if (zipTextures.size > 0) {
+      textureResolver = createTextureResolver();
+      console.log(`[app] Created texture resolver with ${zipTextures.size} textures for default model`);
+    }
+    
+    // Create FBX loader with texture resolver
+    const fbxLoader = new FBXLoaderWrapper(textureResolver);
+    
+    fbxLoader.loadFromFile(defaultModelFile, (evt) => {
+      if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
+      else setIndeterminate();
+    }).then(obj => {
+      hideOverlay();
+      // FBX returns Object3D — wrap in a simple shape consistent with GLTF handling
+      postLoad(obj, 'fbx');
+      console.log('[app] Default model loaded successfully');
+    }).catch(err => {
+      hideOverlay();
+      console.error('[app] Failed to load default model:', err);
+      ui.toast('Ошибка загрузки модели по умолчанию: ' + (err.message || err));
+    });
+    
+  } catch (error) {
+    console.error('[app] Failed to load default model:', error);
+    // Don't show toast error for default model loading failure to avoid spamming user
+    // The app will start without a model, which is acceptable
+  }
+}
+
+// Load default model on startup
+loadDefaultModel();
+
 })();
