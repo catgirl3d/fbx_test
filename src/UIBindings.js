@@ -308,8 +308,8 @@ export function bindUI(managers, dom, opts) {
         }
         rendererMgr.setOutlineObjects(hit.object);
         sceneMgr.updateBBox(hit.object);
-        if (inspectorApi && typeof inspectorApi.refresh === 'function') {
-          try { inspectorApi.refresh(); } catch(e) {}
+        if (inspectorApi && typeof inspectorApi.selectObject === 'function') {
+          try { inspectorApi.selectObject(hit.object); } catch(e) {}
         }
         setInspectorOpen(true);
       }

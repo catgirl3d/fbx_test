@@ -497,6 +497,11 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
       });
       // Update the properties panel
       updatePropertiesPanel();
+
+      // If there's a selection, reveal the first selected object in the tree
+      if (selectedObjects.length > 0) {
+          revealObject(selectedObjects[0]);
+      }
   }
   
   function clearSelection() {
@@ -595,9 +600,45 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
   // --- Initial Setup ---
   renderTree();
  
+  function selectObject(object) {
+    if (!object) {
+      clearSelection();
+      return;
+    }
+    handleSelection({
+      // Mock event object
+      ctrlKey: false,
+      metaKey: false,
+    }, object);
+  }
+
+  function revealObject(object) {
+    const nodeElement = nodeMap.get(object);
+    if (!nodeElement) return;
+
+    // Expand all parent nodes
+    let current = nodeElement;
+    while (current && current !== listContainer) {
+        if (current.tagName === 'UL' && current.classList.contains('nested')) {
+            current.style.display = 'block';
+            // Also activate the chevron icon
+            const parentLi = current.parentElement;
+            const expandBtn = parentLi.querySelector('.node-chev');
+            if (expandBtn) {
+                expandBtn.classList.add('fa-rotate-180');
+            }
+        }
+        current = current.parentElement;
+    }
+
+    // Scroll the element into view
+    nodeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   // --- Exposed API ---
   return {
     refresh: renderTree,
     getSelected: () => selectedObjects,
+    selectObject,
   };
 }
