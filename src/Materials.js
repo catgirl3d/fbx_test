@@ -1,12 +1,19 @@
 import * as THREE from 'three';
 
-// Material utilities
+// Утилиты для работы с материалами
 const savedOriginal = new WeakMap();
 const savedOverride = new WeakMap();
 
+/**
+ * Улучшает материал, приводя его к MeshStandardMaterial, если он таковым не является.
+ * @param {THREE.Material | THREE.Material[]} material - Исходный материал или массив материалов.
+ * @returns {THREE.Material | THREE.Material[]} Улучшенный материал.
+ */
 export function enhanceMaterial(material) {
   if (!material) return material;
   if (Array.isArray(material)) return material.map(m => enhanceMaterial(m));
+
+  // Если материал не является стандартным, создаем новый на его основе
   if (!(material instanceof THREE.MeshStandardMaterial)) {
     const m = new THREE.MeshStandardMaterial({
       name: material.name || '',
@@ -16,17 +23,23 @@ export function enhanceMaterial(material) {
       side: material.side ?? THREE.FrontSide,
       wireframe: false
     });
-    if (material.map) { m.map = material.map; if (m.map) m.map.encoding = THREE.sRGBEncoding; }
+    if (material.map) { m.map = material.map; if (m.map) m.map.colorSpace = THREE.SRGBColorSpace; }
     m.metalness = material.metalness ?? 0.0;
     m.roughness = material.roughness ?? 0.5;
     material = m;
   } else {
-    if (material.map) material.map.encoding = THREE.sRGBEncoding;
+    // Для стандартных материалов просто настраиваем цветовое пространство карты
+    if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
   }
   material.needsUpdate = true;
   return material;
 }
 
+/**
+ * Создает материал для переопределения.
+ * @param {string} type - Тип материала ('standard', 'phong', 'basic', 'normal', 'toon').
+ * @returns {THREE.Material | null} Новый материал или null.
+ */
 export function makeOverride(type) {
   switch(type){
     case 'standard': return new THREE.MeshStandardMaterial({ color: 0xffffff, metalness:0, roughness:0.5 });
@@ -38,6 +51,11 @@ export function makeOverride(type) {
   }
 }
 
+/**
+ * Применяет интенсивность окружения к материалу.
+ * @param {THREE.Material | THREE.Material[]} material - Материал или массив материалов.
+ * @param {number} intensity - Интенсивность.
+ */
 export function applyEnvIntensityToMaterial(material, intensity) {
   const list = Array.isArray(material) ? material : [material];
   list.filter(Boolean).forEach(m=>{
@@ -45,12 +63,19 @@ export function applyEnvIntensityToMaterial(material, intensity) {
   });
 }
 
+/**
+ * Применяет переопределение материала или каркасный режим к объекту и его дочерним элементам.
+ * @param {THREE.Object3D} root - Корневой объект.
+ * @param {object} options - Опции.
+ * @param {string} [options.overrideType='none'] - Тип материала для переопределения.
+ * @param {boolean} [options.wire=false] - Включить ли каркасный режим.
+ * @param {number} [options.envIntensity=1] - Интенсивность окружения.
+ */
 export function applyMaterialOverride(root, options = {}) {
   if (!root) return;
   const { overrideType = 'none', wire = false, envIntensity = 1 } = options;
   const overrideMat = makeOverride(overrideType);
 
-  // helper: dispose a material or array of materials (textures + material)
   function _disposeMaterial(mat){
     if (!mat) return;
     const list = Array.isArray(mat) ? mat : [mat];
@@ -66,7 +91,6 @@ export function applyMaterialOverride(root, options = {}) {
     if (!o.isMesh) return;
 
     if (overrideMat){
-      // Save original material once so we can restore it later
       if (!savedOverride.has(o)){
         savedOverride.set(o, o.material);
       }
@@ -78,16 +102,13 @@ export function applyMaterialOverride(root, options = {}) {
       }
       o.material = base;
     } else {
-      // Restore saved original material if present
       if (savedOverride.has(o)){
         const orig = savedOverride.get(o);
         const current = o.material;
         o.material = orig;
         savedOverride.delete(o);
-        // Dispose override material(s) we no longer use (if different from orig)
         if (current && current !== orig) _disposeMaterial(current);
       } else {
-        // Enhance existing material(s) if we don't have a saved original
         if (Array.isArray(o.material)){
           o.material = o.material.map(m => enhanceMaterial(m));
           o.material.forEach(m=>{ if (m) m.wireframe = !!wire; });
@@ -107,11 +128,14 @@ export function applyMaterialOverride(root, options = {}) {
   });
 }
 
+/**
+ * Переключает режим "только освещение", скрывая все текстурные карты.
+ * @param {THREE.Object3D} root - Корневой объект.
+ * @param {boolean} on - Включить или выключить режим.
+ */
 export function setLightOnly(root, on) {
   if (!root) return;
 
-  // We save/restore material state per-mesh (not per-material) so restoration
-  // works even if the mesh's material object is swapped while "light-only" is active.
   root.traverse(o=>{
     if (!o.isMesh) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -119,37 +143,22 @@ export function setLightOnly(root, on) {
     if (on){
       if (!savedOriginal.has(o)){
         const snapshot = mats.map(m => ({
-          ref: m,
-          color: m?.color?.clone?.(),
-          emissive: m?.emissive?.clone?.(),
-          emissiveIntensity: m?.emissiveIntensity,
-          map: m?.map || null,
-          emissiveMap: m?.emissiveMap || null,
-          normalMap: m?.normalMap || null,
-          roughnessMap: m?.roughnessMap || null,
-          metalnessMap: m?.metalnessMap || null,
-          aoMap: m?.aoMap || null,
-          bumpMap: m?.bumpMap || null,
-          displacementMap: m?.displacementMap || null,
-          alphaMap: m?.alphaMap || null,
-          side: m?.side,
-          transparent: m?.transparent,
-          opacity: m?.opacity,
-          alphaTest: m?.alphaTest,
-          depthWrite: m?.depthWrite,
-          visible: m?.visible,
-          roughness: m?.roughness,
-          metalness: m?.metalness,
-          envMapIntensity: m?.envMapIntensity
+          ref: m, color: m?.color?.clone?.(), emissive: m?.emissive?.clone?.(),
+          emissiveIntensity: m?.emissiveIntensity, map: m?.map || null,
+          emissiveMap: m?.emissiveMap || null, normalMap: m?.normalMap || null,
+          roughnessMap: m?.roughnessMap || null, metalnessMap: m?.metalnessMap || null,
+          aoMap: m?.aoMap || null, bumpMap: m?.bumpMap || null,
+          displacementMap: m?.displacementMap || null, alphaMap: m?.alphaMap || null,
+          side: m?.side, transparent: m?.transparent, opacity: m?.opacity,
+          alphaTest: m?.alphaTest, depthWrite: m?.depthWrite, visible: m?.visible,
+          roughness: m?.roughness, metalness: m?.metalness, envMapIntensity: m?.envMapIntensity
         }));
         savedOriginal.set(o, snapshot);
       }
 
-      // Apply "light-only" modifications to the active material(s)
       mats.forEach(m=>{
         if (!m) return;
-        m.map = null;
-        m.emissiveMap = null;
+        m.map = null; m.emissiveMap = null;
         if ('normalMap' in m) m.normalMap = null;
         if ('roughnessMap' in m) m.roughnessMap = null;
         if ('metalnessMap' in m) m.metalnessMap = null;
@@ -169,36 +178,20 @@ export function setLightOnly(root, on) {
         const currentMats = mats;
         currentMats.forEach((cm, idx)=>{
           if (!cm) return;
-          // prefer exact material reference match; otherwise fall back to index
-          let saved = snapshot.find(s => s.ref === cm);
-          if (!saved) saved = snapshot[idx];
+          let saved = snapshot.find(s => s.ref === cm) || snapshot[idx];
           if (!saved) return;
           try {
-            cm.map = saved.map;
-            cm.emissiveMap = saved.emissiveMap;
-            cm.normalMap = saved.normalMap;
-            cm.roughnessMap = saved.roughnessMap;
-            cm.metalnessMap = saved.metalnessMap;
-            cm.aoMap = saved.aoMap;
-            cm.bumpMap = saved.bumpMap;
-            cm.displacementMap = saved.displacementMap;
-            cm.alphaMap = saved.alphaMap;
-
+            Object.assign(cm, {
+              map: saved.map, emissiveMap: saved.emissiveMap, normalMap: saved.normalMap,
+              roughnessMap: saved.roughnessMap, metalnessMap: saved.metalnessMap, aoMap: saved.aoMap,
+              bumpMap: saved.bumpMap, displacementMap: saved.displacementMap, alphaMap: saved.alphaMap,
+              emissiveIntensity: saved.emissiveIntensity, roughness: saved.roughness, metalness: saved.metalness,
+              side: saved.side, transparent: saved.transparent, opacity: saved.opacity,
+              alphaTest: saved.alphaTest, depthWrite: saved.depthWrite, visible: saved.visible,
+              envMapIntensity: saved.envMapIntensity
+            });
             saved.color && cm.color?.copy?.(saved.color);
             saved.emissive && cm.emissive?.copy?.(saved.emissive);
-
-            if ('emissiveIntensity' in cm && saved.emissiveIntensity !== undefined) cm.emissiveIntensity = saved.emissiveIntensity;
-            if ('roughness' in cm && saved.roughness !== undefined) cm.roughness = saved.roughness;
-            if ('metalness' in cm && saved.metalness !== undefined) cm.metalness = saved.metalness;
-
-            if ('side' in cm && saved.side !== undefined) cm.side = saved.side;
-            if ('transparent' in cm && saved.transparent !== undefined) cm.transparent = saved.transparent;
-            if ('opacity' in cm && saved.opacity !== undefined) cm.opacity = saved.opacity;
-            if ('alphaTest' in cm && saved.alphaTest !== undefined) cm.alphaTest = saved.alphaTest;
-            if ('depthWrite' in cm && saved.depthWrite !== undefined) cm.depthWrite = saved.depthWrite;
-            if ('visible' in cm && saved.visible !== undefined) cm.visible = saved.visible;
-            if ('envMapIntensity' in cm && saved.envMapIntensity !== undefined) cm.envMapIntensity = saved.envMapIntensity;
-
             cm.needsUpdate = true;
           } catch(e){}
         });
@@ -208,6 +201,10 @@ export function setLightOnly(root, on) {
   });
 }
 
+/**
+ * Освобождает ресурсы материалов и геометрий.
+ * @param {THREE.Object3D} root - Корневой объект.
+ */
 export function disposeMaterialResources(root) {
   root.traverse(o=>{
     if (o.isMesh){
@@ -223,693 +220,175 @@ export function disposeMaterialResources(root) {
 }
 
 /**
- * Apply textures from a texture map to materials in a 3D object
- * This is used as a fallback when texture resolver doesn't work
- * @param {THREE.Object3D} rootObject - The root object to traverse
- * @param {Map<string, THREE.Texture>} textureMap - Map of texture paths to textures
- */
-/**
- * Normalize a material name for matching by removing common suffixes and separators
- * @param {string} materialName - The material name to normalize
- * @returns {string} Normalized material name (lowercase, no suffixes)
+ * Нормализует имя материала для сопоставления.
+ * @param {string} materialName - Имя материала.
+ * @returns {string} Нормализованное имя.
  */
 function normalizeMaterialName(materialName) {
   if (!materialName) return '';
-  // Remove common suffixes (mt, mtl, mat, material) and separators
   return materialName.toLowerCase()
-    .replace(/(?:mtl|mt|mat|material)$/i, '')
-    .replace(/[-_\s]+/g, '');
+    .replace(/(?:_mtl|_mat|_material)$/i, '') // Удаляет популярные суффиксы
+    .replace(/[-_\s]+/g, ''); // Удаляет разделители
 }
 
 /**
- * Parse a texture filename to extract material prefix and map type
- * @param {string} filename - The texture filename
- * @returns {{materialPrefix: string, mapType: string} | null} Parsed components or null if not matching expected pattern
+ * Разбирает имя файла текстуры для извлечения префикса материала и типа карты.
+ * Эта версия более надежна и разделяет имя по последнему знаку подчеркивания.
+ * @param {string} filename - Имя файла текстуры.
+ * @returns {{materialPrefix: string, mapType: string} | null} Разобранные компоненты или null.
  */
 function parseTextureFilename(filename) {
   if (!filename) return null;
-  
+
   const baseName = filename.toLowerCase();
-  
-  // Handle both simple (DevilHeadMtl_BaseColor) and complex paths (Textures/DevilHeadMtl_BaseColor.tga)
   const pathParts = baseName.split(/[\\/]/);
   const fileName = pathParts[pathParts.length - 1];
   
-  // Strip extension (handle .tga and other common image extensions)
-  const dot = fileName.lastIndexOf('.');
-  const nameNoExt = dot > 0 ? fileName.substring(0, dot) : fileName;
+  const dotIndex = fileName.lastIndexOf('.');
+  const nameNoExt = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
+
+  const lastUnderscoreIndex = nameNoExt.lastIndexOf('_');
+  if (lastUnderscoreIndex === -1) {
+    return null; // Разделитель не найден
+  }
   
-  // Expected pattern (without extension): MaterialName_MapType
-  const match = nameNoExt.match(/^([^_]+(?:mtl|mt|mat|material)?)_([^_]+)$/i);
-  if (!match) return null;
-  
-  const materialPrefix = normalizeMaterialName(match[1]);
-  let mapTypeSuffix = match[2].toLowerCase();
-  // Remove any non-alphanumeric characters from suffix
-  mapTypeSuffix = mapTypeSuffix.replace(/[^a-z0-9]/g, '');
-  
-  // Map suffix to Three.js map type
+  const materialPrefix = normalizeMaterialName(nameNoExt.substring(0, lastUnderscoreIndex));
+  let mapTypeSuffix = nameNoExt.substring(lastUnderscoreIndex + 1).replace(/[^a-z0-9]/g, '');
+
   const mapTypeMap = {
-    'basecolor': 'map',
-    'basecolour': 'map',
-    'diffuse': 'map',
-    'albedo': 'map',
-    'color': 'map',
-    'base': 'map',
-    'normal': 'normalMap',
-    'norm': 'normalMap',
-    'roughness': 'roughnessMap',
-    'rough': 'roughnessMap',
-    'metallic': 'metalnessMap',
-    'metal': 'metalnessMap',
-    'metalic': 'metalnessMap', // Handle typo in your texture files
-    'ao': 'aoMap',
-    'ambientocclusion': 'aoMap',
-    'emissive': 'emissiveMap',
-    'emission': 'emissiveMap',
-    'emit': 'emissiveMap',
-    'alpha': 'alphaMap',
-    'transparency': 'alphaMap',
-    'bump': 'bumpMap',
-    'height': 'bumpMap',
+    'basecolor': 'map', 'basecolour': 'map', 'diffuse': 'map', 'albedo': 'map', 'color': 'map', 'base': 'map',
+    'normal': 'normalMap', 'norm': 'normalMap',
+    'roughness': 'roughnessMap', 'rough': 'roughnessMap',
+    'metallic': 'metalnessMap', 'metal': 'metalnessMap', 'metalic': 'metalnessMap',
+    'ao': 'aoMap', 'ambientocclusion': 'aoMap',
+    'emissive': 'emissiveMap', 'emission': 'emissiveMap', 'emit': 'emissiveMap',
+    'alpha': 'alphaMap', 'transparency': 'alphaMap',
+    'bump': 'bumpMap', 'height': 'bumpMap',
     'displacement': 'displacementMap'
   };
-  
+
   const mapType = mapTypeMap[mapTypeSuffix] || null;
-  
-  return {
-    materialPrefix,
-    mapType
-  };
+
+  return { materialPrefix, mapType };
 }
 
 /**
- * Build a material-texture index from the texture map
- * @param {Map<string, THREE.Texture>} textureMap - Map of texture paths to textures
- * @returns {Map<string, Map<string, THREE.Texture>>} Map of normalized material names to map type -> texture
+ * Создает индекс "материал -> текстуры" из карты текстур.
+ * @param {Map<string, THREE.Texture>} textureMap - Карта путей текстур к текстурам.
+ * @returns {Map<string, Map<string, THREE.Texture>>} Карта нормализованных имен материалов к (тип карты -> текстура).
  */
 function buildMaterialTextureIndex(textureMap) {
   const materialIndex = new Map();
   
-  console.log('[Materials] === Debug: Building material-texture index ===');
-  console.log('[Materials] Available texture keys:', Array.from(textureMap.keys()).slice(0, 10));
-  
   for (const [textureKey, texture] of textureMap) {
-    // Use texture.name if available, otherwise use textureKey
     const filename = texture.name || textureKey;
-    console.log(`[Materials] Processing texture: "${filename}"`);
-    
     const parsed = parseTextureFilename(filename);
-    if (!parsed || !parsed.mapType) {
-      console.log(`[Materials]  -> Failed to parse (no mapType)`);
-      continue;
+    
+    if (parsed && parsed.materialPrefix && parsed.mapType) {
+      const { materialPrefix, mapType } = parsed;
+      if (!materialIndex.has(materialPrefix)) {
+        materialIndex.set(materialPrefix, new Map());
+      }
+      materialIndex.get(materialPrefix).set(mapType, texture);
     }
-    
-    console.log(`[Materials]  -> Parsed: materialPrefix="${parsed.materialPrefix}", mapType="${parsed.mapType}"`);
-    
-    const { materialPrefix, mapType } = parsed;
-    
-    // Add color-prefixed variants as fallbacks (e.g., whitedevilhead -> devilhead)
-    const basePrefix = materialPrefix.replace(/^(white|black|red|blue|green|yellow|brown|gray|grey|pink|purple|orange|silver|gold)[a-z]*/i, '');
-    
-    // Add both exact and base prefixes to index
-    [materialPrefix, basePrefix].forEach(prefix => {
-      if (!prefix) return;
-      
-      if (!materialIndex.has(prefix)) {
-        materialIndex.set(prefix, new Map());
-      }
-      
-      const materialTextures = materialIndex.get(prefix);
-      // Only set if not already set (prefer exact match over base/fallback)
-      if (!materialTextures.has(mapType)) {
-        materialTextures.set(mapType, texture);
-        console.log(`[Materials]  -> Added ${mapType} for ${prefix}`);
-      } else {
-        console.log(`[Materials]  -> ${mapType} already exists for ${prefix}, skipping`);
-      }
-    });
   }
   
-  console.log('[Materials] === Debug: Index building complete ===');
-  console.log('[Materials] Final index materials:', Array.from(materialIndex.keys()));
   return materialIndex;
 }
 
 /**
- * Apply textures from a texture map to materials in a 3D object
- * This is used as a fallback when texture resolver doesn't work
- * @param {THREE.Object3D} rootObject - The root object to traverse
- * @param {Map<string, THREE.Texture>} textureMap - Map of texture paths to textures
+ * Применяет текстуры из карты текстур к материалам в 3D-объекте.
+ * Эта версия упрощена и полагается исключительно на детерминированный индекс материалов и текстур.
+ * @param {THREE.Object3D} rootObject - Корневой объект для обхода.
+ * @param {Map<string, THREE.Texture>} textureMap - Карта текстур, загруженных из ZIP.
  */
 export function applyTexturesFromMap(rootObject, textureMap) {
-  if (!rootObject || !textureMap) return;
-  
-  console.log('[Materials] applyTexturesFromMap: starting on rootObject', rootObject?.name || rootObject?.uuid);
-  
-  // Build material-texture index for deterministic matching
+  if (!rootObject || !textureMap || textureMap.size === 0) return;
+
+  console.log('[Materials] Applying textures from map...');
   const materialIndex = buildMaterialTextureIndex(textureMap);
-  console.log(`[Materials] Built material-texture index with ${materialIndex.size} materials:`,
-    Array.from(materialIndex.keys()));
-  
-  // Supported material map types
-  const supportedMapTypes = [
-    'map', 'normalMap', 'metalnessMap', 'roughnessMap',
-    'emissiveMap', 'aoMap', 'alphaMap', 'bumpMap', 'displacementMap'
-  ];
-  
-  // Material-specific exclusions (skip these map types for these materials)
-  const materialExclusions = {
-    'devileyesmtl': ['aoMap'] // Skip aoMap for DevilEyesMtl
-  };
-  
-  // Track processed materials to avoid duplicate applications
-  const processedMaterials = new Set();
-  
-  // Warn if scene-level overrideMaterial is present (it will prevent visible changes)
-  if (rootObject && rootObject.type === 'Scene' && rootObject.overrideMaterial) {
-    console.warn('[Materials] Scene has overrideMaterial set - texture application may not be visible', rootObject.overrideMaterial);
+
+  if (materialIndex.size === 0) {
+    console.warn('[Materials] Texture index is empty. No textures will be applied. Check texture naming.');
+    return;
   }
   
-  const mappingSummary = new Map();
+  console.log(`[Materials] Built material-texture index with ${materialIndex.size} materials.`);
   
+  const mappingSummary = new Map();
+
   rootObject.traverse((object) => {
-    if (!object.isMesh) return;
-    
+    if (!object.isMesh || !object.material) return;
+
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    
-    materials.forEach((material, matIndex) => {
-      if (!material) return;
+
+    materials.forEach((material) => {
+      if (!material || !material.name) return;
       
-      // Skip if we've already processed this material name
-      const materialKey = material.name || `material-${matIndex}`;
-      if (processedMaterials.has(materialKey)) {
-        console.debug(`[Materials] Skipping already processed material: ${materialKey}`);
-        return;
-      }
-      processedMaterials.add(materialKey);
+      const normalizedMaterialName = normalizeMaterialName(material.name);
       
-      console.debug(`[Materials] Processing mesh "${object.name || object.uuid}" material[${matIndex}] name="${material.name || ''}" type=${material.type}`);
-      
-      // Dump some pre-state for debugging
-      try {
-        console.debug('[Materials] Material pre-state:', {
-          name: material.name,
-          color: material.color?.getHexString?.() ?? null,
-          map: material.map?.name ?? (material.map ? '<texture without name>' : null),
-          normalMap: material.normalMap?.name ?? null,
-          metalness: material.metalness,
-          roughness: material.roughness,
-          vertexColors: material.vertexColors,
-          transparent: material.transparent,
-          visible: material.visible,
-          side: material.side
-        });
-      } catch(e){/* ignore debug errors */ }
-      
-      // Try deterministic material-texture index matching first
-      let appliedByIndex = false;
-      if (material.name) {
-        const normalizedMaterialName = normalizeMaterialName(material.name);
-        console.debug(`[Materials] Normalized material name: "${material.name}" -> "${normalizedMaterialName}"`);
-        
-        // Skip if this map type is excluded for this material
-        const exclusions = materialExclusions[normalizedMaterialName] || [];
-        
-        if (materialIndex.has(normalizedMaterialName)) {
-          const materialTextures = materialIndex.get(normalizedMaterialName);
-          console.log(`[Materials] Found ${materialTextures.size} textures for material "${material.name}"`);
-          
-          // Apply all supported map types found in the index
-          supportedMapTypes.forEach(mapType => {
-            // Skip if this map type is excluded for this material
-            if (exclusions.includes(mapType)) {
-              console.debug(`[Materials] Skipping excluded mapType ${mapType} for material ${material.name}`);
-              return;
-            }
-            
-            if (materialTextures.has(mapType)) {
-              const texture = materialTextures.get(mapType);
-              
-              try {
-                // Set texture properties based on type
-                if (mapType === 'map' || mapType === 'emissiveMap') {
-                  if (typeof THREE !== 'undefined') texture.encoding = THREE.sRGBEncoding;
-                }
-                if (typeof texture.flipY !== 'undefined') texture.flipY = false;
-                texture.needsUpdate = true;
-                
-                // Special handling for aoMap - copy UV to UV2 on geometry if not already set
-                if (mapType === 'aoMap') {
-                  // Find the mesh that uses this material
-                  let mesh = null;
-                  object.parent?.traverse((child) => {
-                    if (child.isMesh && child.material === material) {
-                      mesh = child;
-                    }
-                  });
-                  
-                  if (mesh && mesh.geometry) {
-                    // Copy UV attributes to UV2 for aoMap
-                    if (mesh.geometry.attributes.uv && !mesh.geometry.attributes.uv2) {
-                      mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv.clone());
-                    }
-                  }
-                }
-                
-                // Apply the texture
-                material[mapType] = texture;
-                material.needsUpdate = true;
-                appliedByIndex = true;
-                
-                console.log(`[Materials] Applied ${mapType} texture by material-index: ${texture.name} for material: ${material.name}`);
-                console.debug(`[Materials] Applied ${mapType} details:`, {
-                  materialName: material.name,
-                  mapType,
-                  textureName: texture.name,
-                  textureImage: texture.image,
-                  textureReady: texture.image?.complete,
-                  textureWidth: texture.image?.width,
-                  textureHeight: texture.image?.height,
-                  textureFlipY: texture.flipY,
-                  textureEncoding: texture.encoding,
-                  matchedBy: 'material-index'
-                });
-                
-                // Update mapping summary
-                if (!mappingSummary.has(material.name)) {
-                  mappingSummary.set(material.name, new Map());
-                }
-                mappingSummary.get(material.name).set(mapType, texture.name);
-                
-              } catch (e) {
-                console.warn(`[Materials] Error applying texture ${texture.name} to ${mapType} for material ${material.name}:`, e);
-              }
-            }
-          });
-        } else {
-          console.debug(`[Materials] No textures found in material index for "${material.name}" (normalized: "${normalizedMaterialName}")`);
-          console.debug(`[Materials] Available materials in index:`, Array.from(materialIndex.keys()));
-        }
-      }
-      
-      // If we didn't find any textures via material index, fall back to existing logic
-      if (!appliedByIndex) {
-        console.debug(`[Materials] No textures found via material index for "${material.name}", falling back to existing logic`);
-        
-        // Try to replace each supported map type
-        supportedMapTypes.forEach(mapType => {
-          // Skip if this map type is excluded for this material
-          const normalizedMaterialName = normalizeMaterialName(material.name || '');
-          const exclusions = materialExclusions[normalizedMaterialName] || [];
-          if (exclusions.includes(mapType)) {
-            console.debug(`[Materials] Skipping excluded mapType ${mapType} for material ${material.name}`);
-            return;
-          }
-          
-          // If the material already had a referenced texture, prefer that path
-          if (material[mapType]) {
-            const textureInfo = material[mapType];
-            let texturePath = null;
-            
-            // Extract texture path from different possible sources
-            if (textureInfo && typeof textureInfo === 'object') {
-              if (textureInfo.name) {
-                texturePath = textureInfo.name;
-              } else if (textureInfo.sourceFileName) {
-                texturePath = textureInfo.sourceFileName;
-              } else if (textureInfo.url) {
-                texturePath = textureInfo.url;
-              }
-            } else if (typeof textureInfo === 'string') {
-              texturePath = textureInfo;
-            }
-            
-            if (texturePath) {
-              console.debug(`[Materials] Attempting to match texture for path "${texturePath}" on mapType "${mapType}"`);
-              // Try to find matching texture in the map
-              const matchedTexture = matchTexturePath(texturePath, textureMap);
-              
-              if (matchedTexture) {
-                // Prepare texture for FBX/THREE usage: common fixes
-                try {
-                  // If this is a color map ('map') ensure correct encoding
-                  if (mapType === 'map' && typeof THREE !== 'undefined') {
-                    matchedTexture.encoding = THREE.sRGBEncoding;
-                  }
-                  // FBX often uses flipped Y for UVs; try flipY = false when applying
-                  if (typeof matchedTexture.flipY !== 'undefined') matchedTexture.flipY = false;
-                  // Mark texture needing update
-                  matchedTexture.needsUpdate = true;
-                } catch (e) {
-                  console.debug('[Materials] Error preparing matchedTexture:', e);
-                }
-                
-                // Replace the texture
-                material[mapType] = matchedTexture;
-                material.needsUpdate = true;
-                
-                console.log(`[Materials] Applied texture ${texturePath} -> ${matchedTexture.name} (fallback)`);
-                console.debug(`[Materials] Applied texture details:`, {
-                  materialName: material.name,
-                  mapType,
-                  texturePath,
-                  textureName: matchedTexture.name,
-                  textureImage: matchedTexture.image,
-                  textureReady: matchedTexture.image?.complete,
-                  textureWidth: matchedTexture.image?.width,
-                  textureHeight: matchedTexture.image?.height,
-                  textureFlipY: matchedTexture.flipY,
-                  textureEncoding: matchedTexture.encoding
-                });
-                
-                // Update mapping summary
-                if (!mappingSummary.has(material.name)) {
-                  mappingSummary.set(material.name, new Map());
-                }
-                mappingSummary.get(material.name).set(mapType, matchedTexture.name);
-                
-                // Dump material post-state
-                try {
-                  console.debug('[Materials] Material post-state:', {
-                    name: material.name,
-                    map: material.map?.name ?? (material.map ? '<texture without name>' : null),
-                    normalMap: material.normalMap?.name ?? null,
-                    metalness: material.metalness,
-                    roughness: material.roughness,
-                    needsUpdate: material.needsUpdate
-                  });
-                } catch(e){}
-                
-              } else {
-                console.warn(`[Materials] No matching texture found for: ${texturePath}`);
-                console.debug(`[Materials] Available texture keys:`, Array.from(textureMap.keys()).slice(0,50));
-              }
-            } else {
-              console.debug('[Materials] textureInfo present but could not extract path:', textureInfo);
-            }
-          }
-        });
-        
-        // If we didn't find any referenced texture maps, try a strict material-prefix search for base color
-        // This avoids broad partial/keyword matches that can apply unrelated textures (e.g. "devil" token)
-        if (!material.map && material.name) {
-          const normalizedMaterialNameCandidate = normalizeMaterialName(material.name);
-          let foundTex = null;
-          
-          // Prefer exact prefix match (e.g., devilhead -> DevilHeadMtl_BaseColor)
-          for (const [textureKey, texture] of textureMap) {
-            const filename = texture.name || textureKey;
-            const parsed = parseTextureFilename(filename);
-            if (!parsed || parsed.mapType !== 'map') continue;
-            if (parsed.materialPrefix === normalizedMaterialNameCandidate) {
-              foundTex = texture;
-              break;
-            }
-          }
-          
-          // If no exact prefix, allow color-prefixed variants (e.g., whitedevilhead -> devilhead)
-          if (!foundTex) {
-            for (const [textureKey, texture] of textureMap) {
-              const filename = texture.name || textureKey;
-              const parsed = parseTextureFilename(filename);
-              if (!parsed || parsed.mapType !== 'map') continue;
-              const prefix = parsed.materialPrefix;
-              if (prefix.endsWith(normalizedMaterialNameCandidate) || normalizedMaterialNameCandidate.endsWith(prefix)) {
-                foundTex = texture;
-                break;
-              }
-            }
-          }
-          
-          if (foundTex) {
-            try {
-              if (typeof foundTex.flipY !== 'undefined') foundTex.flipY = false;
-              foundTex.needsUpdate = true;
-              if (typeof THREE !== 'undefined') foundTex.encoding = THREE.sRGBEncoding;
-            } catch(e){/* ignore */ }
-            
-            material.map = foundTex;
-            material.needsUpdate = true;
-            console.log(`[Materials] Applied base-color by strict material-prefix ${material.name} -> ${foundTex.name} (fallback)`);
-            
-            if (!mappingSummary.has(material.name)) mappingSummary.set(material.name, new Map());
-            mappingSummary.get(material.name).set('map', foundTex.name);
-          } else {
-            console.debug(`[Materials] No strict material-prefix basecolor match for "${material.name}"`);
+      if (materialIndex.has(normalizedMaterialName)) {
+        const materialTextures = materialIndex.get(normalizedMaterialName);
+
+        // Если для материала нашлась основная текстура цвета (map),
+        // то принудительно отключаем цвета вершин и сбрасываем базовый цвет.
+        if (materialTextures.has('map')) {
+          material.vertexColors = false; // Игнорировать цвета вершин из модели
+          if (material.color) {
+              material.color.set(0xffffff); // Сбросить цвет материала на белый
           }
         }
 
-        // NEW: Try to apply all texture types by strict material-prefix matching
-        // This replaces the overly broad keyword matching that was applying unrelated textures
-        const textureTypes = [
-          { pattern: /_basecolor|_basecolour|_diffuse|_albedo|_color|_base/i, mapType: 'map', isColorMap: true },
-          { pattern: /_normal|_norm/i, mapType: 'normalMap', isColorMap: false },
-          { pattern: /_roughness|_rough/i, mapType: 'roughnessMap', isColorMap: false },
-          { pattern: /_metalness|_metal/i, mapType: 'metalnessMap', isColorMap: false },
-          { pattern: /_ao|_ambientocclusion/i, mapType: 'aoMap', isColorMap: false },
-          { pattern: /_emissive|_emission|_emit/i, mapType: 'emissiveMap', isColorMap: false },
-          { pattern: /_alpha|_transparency/i, mapType: 'alphaMap', isColorMap: false },
-          { pattern: /_bump|_height/i, mapType: 'bumpMap', isColorMap: false },
-          { pattern: /_displacement/i, mapType: 'displacementMap', isColorMap: false }
-        ];
-
-        let appliedAny = false;
-        
-        // For each material, find textures that belong to it by strict prefix matching
-        if (material.name) {
-          const normalizedMaterialName = normalizeMaterialName(material.name);
-          console.debug(`[Materials] Material "${material.name}" normalized: "${normalizedMaterialName}"`);
-          
-          textureTypes.forEach(({ pattern, mapType, isColorMap }) => {
-            // Skip if this map type is excluded for this material
-            const exclusions = materialExclusions[normalizedMaterialName] || [];
-            if (exclusions.includes(mapType)) {
-              console.debug(`[Materials] Skipping excluded textureType ${mapType} for material ${material.name}`);
-              return;
-            }
-            
-            if (!supportedMapTypes.includes(mapType)) return;
-
-            // Find textures that match this material and texture type by strict prefix
-            let bestMatch = null;
-            let bestScore = 0;
-            
-            for (const [textureKey, texture] of textureMap) {
-              const filename = texture.name || textureKey;
-              const parsed = parseTextureFilename(filename);
-              if (!parsed || parsed.mapType !== mapType) continue;
-              
-              // Only match if the texture prefix exactly matches or endsWith the material name
-              const prefix = parsed.materialPrefix;
-              if (prefix === normalizedMaterialName ||
-                  prefix.endsWith(normalizedMaterialName) ||
-                  normalizedMaterialName.endsWith(prefix)) {
-                
-                // Prefer exact matches over partial matches
-                let score = 1;
-                if (prefix === normalizedMaterialName) score = 3;
-                else if (prefix.endsWith(normalizedMaterialName) || normalizedMaterialName.endsWith(prefix)) score = 2;
-                
-                if (score > bestScore) {
-                  bestScore = score;
-                  bestMatch = texture;
-                }
-              }
-            }
-            
-            if (bestMatch) {
-              // Apply texture to appropriate map type
-              try {
-                const tex = bestMatch;
-                
-                // Set texture properties based on type
-                if (isColorMap || mapType === 'emissiveMap') {
-                  if (typeof THREE !== 'undefined') tex.encoding = THREE.sRGBEncoding;
-                  if (typeof tex.flipY !== 'undefined') tex.flipY = false;
-                }
-                
-                tex.needsUpdate = true;
-                
-                // Special handling for aoMap - copy UV to UV2 on geometry if not already set
-                if (mapType === 'aoMap') {
-                  // Find the mesh that uses this material
-                  let mesh = null;
-                  object.parent?.traverse((child) => {
-                    if (child.isMesh && child.material === material) {
-                      mesh = child;
-                    }
-                  });
-                  
-                  if (mesh && mesh.geometry) {
-                    // Copy UV attributes to UV2 for aoMap
-                    if (mesh.geometry.attributes.uv && !mesh.geometry.attributes.uv2) {
-                      mesh.geometry.setAttribute('uv2', mesh.geometry.attributes.uv.clone());
-                    }
-                  }
-                }
-                
-                // Apply the texture
-                material[mapType] = tex;
-                material.needsUpdate = true;
-                appliedAny = true;
-                
-                console.log(`[Materials] Applied ${mapType} texture: ${tex.name} for material: ${material.name} (strict prefix fallback)`);
-                console.debug(`[Materials] Applied ${mapType} details:`, {
-                  materialName: material.name,
-                  mapType,
-                  textureName: tex.name,
-                  textureImage: tex.image,
-                  textureReady: tex.image?.complete,
-                  textureWidth: tex.image?.width,
-                  textureHeight: tex.image?.height,
-                  textureFlipY: tex.flipY,
-                  textureEncoding: tex.encoding,
-                  isColorMap,
-                  matchedBy: 'strict-prefix-matching',
-                  materialPrefix: normalizedMaterialName,
-                  texturePrefix: parseTextureFilename(tex.name || textureKey)?.materialPrefix
-                });
-                
-                // Update mapping summary
-                if (!mappingSummary.has(material.name)) {
-                  mappingSummary.set(material.name, new Map());
-                }
-                mappingSummary.get(material.name).set(mapType, tex.name);
-                
-              } catch (e) {
-                console.warn(`[Materials] Error applying texture to ${mapType} for material ${material.name}:`, e);
-              }
-            }
-          });
-          
-          // Log unmatched textures for debugging
-          if (!appliedAny) {
-            console.debug(`[Materials] No textures found for material "${material.name}". Available textures:`,
-              Array.from(textureMap.keys()));
+        for (const [mapType, texture] of materialTextures.entries()) {
+          // Настройка свойств текстуры
+          if (mapType === 'map' || mapType === 'emissiveMap') {
+            texture.colorSpace = THREE.SRGBColorSpace;
           }
+          
+          // >>> НАЧАЛО ИСПРАВЛЕНИЯ <<<
+          // Для FBX моделей часто требуется переворачивать текстуру по оси Y.
+          texture.flipY = true;
+          // >>> КОНЕЦ ИСПРАВЛЕНИЯ <<<
+          
+          texture.wrapS = THREE.RepeatWrapping;
+          texture.wrapT = THREE.RepeatWrapping;
+          
+          texture.needsUpdate = true;
+          
+          // Применение текстуры
+          material[mapType] = texture;
+          material.needsUpdate = true;
+
+          // Логирование для отладки
+          if (!mappingSummary.has(material.name)) {
+            mappingSummary.set(material.name, new Map());
+          }
+          mappingSummary.get(material.name).set(mapType, texture.name);
         }
       }
     });
   });
-  
-  // Print mapping summary
+
+  // Вывод итоговой информации о сопоставлении
   console.info('[Materials] === Texture Mapping Summary ===');
-  for (const [materialName, maps] of mappingSummary) {
-    const mapEntries = Array.from(maps.entries()).map(([mapType, textureName]) => `${mapType}:${textureName}`);
-    console.info(`[Materials] ${materialName} -> { ${mapEntries.join(', ')} }`);
+  if (mappingSummary.size === 0) {
+    console.info('[Materials] No textures were applied. Check material and texture names for mismatches.');
+  } else {
+    for (const [materialName, maps] of mappingSummary) {
+      const mapEntries = Array.from(maps.entries()).map(([mapType, textureName]) => `${mapType}: ${textureName}`);
+      console.info(`[Materials] ${materialName} -> { ${mapEntries.join(', ')} }`);
+    }
   }
   console.info('[Materials] === End Mapping Summary ===');
 }
 
-/**
- * Match a texture path against a texture map with different strategies
- * @param {string} path - The texture path to match
- * @param {Map<string, THREE.Texture>} textureMap - The map of available textures
- * @returns {THREE.Texture|null} The matched texture or null if not found
- */
-function matchTexturePath(path, textureMap) {
-  if (!path || !textureMap) return null;
-  
-  const pathLower = path.toLowerCase();
-  
-  // 1. Try exact match (case-insensitive)
-  if (textureMap.has(pathLower)) {
-    return textureMap.get(pathLower);
-  }
-  
-  // 2. Try basename match (case-insensitive)
-  const basename = path.split('/').pop().split('\\').pop().toLowerCase();
-  for (const [key, texture] of textureMap) {
-    if (key.split('/').pop().split('\\').pop().toLowerCase() === basename) {
-      return texture;
-    }
-  }
-  
-  // 3. Try partial match (path ends with texture name)
-  for (const [key, texture] of textureMap) {
-    const keyLower = key.toLowerCase();
-    if (keyLower.includes(basename) || basename.includes(keyLower)) {
-      return texture;
-    }
-  }
-  
-  return null;
-}
-
-// Export supported map types for reference
+// Экспорт поддерживаемых типов карт для справки
 export const SUPPORTED_MAP_TYPES = [
   'map', 'normalMap', 'metalnessMap', 'roughnessMap',
   'emissiveMap', 'aoMap', 'alphaMap', 'bumpMap', 'displacementMap'
 ];
 
-/**
- * Extract keywords from a string by splitting on capital letters
- * @param {string} str - Input string
- * @returns {string[]} Array of keywords
- */
-function extractKeywords(str) {
-  if (!str) return [];
-  
-  // Remove numbers and special characters, split by capital letters
-  const cleaned = str.replace(/[0-9_\-]/g, '');
-  const keywords = [];
-  
-  // Split by capital letters and filter out empty strings
-  const parts = cleaned.split(/(?=[A-Z])/);
-  parts.forEach(part => {
-    if (part && part.length > 1) {
-      keywords.push(part.toLowerCase());
-    }
-  });
-  
-  return keywords;
-}
-
-/**
- * Find the best matching texture for a material based on keywords
- * @param {string} materialName - Name of the material
- * @param {Map<string, THREE.Texture>} textureMap - Available textures
- * @param {Object} textureType - Texture type info (pattern, mapType, isColorMap)
- * @returns {THREE.Texture|null} Best matching texture or null
- */
-function findBestTextureForMaterial(materialName, textureMap, textureType) {
-  if (!materialName || !textureMap || !textureType) return null;
-  
-  const materialKeywords = extractKeywords(materialName);
-  let bestMatch = null;
-  let bestScore = 0;
-  
-  for (const [textureKey, texture] of textureMap) {
-    const textureName = textureKey.toLowerCase();
-    
-    // Check if texture matches the type pattern
-    if (!textureType.pattern.test(textureName)) continue;
-    
-    // Extract keywords from texture filename
-    const textureKeywords = extractKeywords(textureKey);
-    
-    // Calculate match score
-    let score = 0;
-    materialKeywords.forEach(mKeyword => {
-      textureKeywords.forEach(tKeyword => {
-        if (tKeyword.includes(mKeyword) || mKeyword.includes(tKeyword)) {
-          score += mKeyword.length + tKeyword.length;
-        }
-      });
-    });
-    
-    // Update best match if this one is better
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = texture;
-    }
-  }
-  
-  return bestMatch;
-}
-
-// default export grouping
+// Группировка экспорта по умолчанию
 export default {
   enhanceMaterial,
   makeOverride,
@@ -919,6 +398,4 @@ export default {
   disposeMaterialResources,
   applyTexturesFromMap,
   SUPPORTED_MAP_TYPES,
-  extractKeywords,
-  findBestTextureForMaterial
 };
