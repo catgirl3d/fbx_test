@@ -14,6 +14,12 @@
   }
   </script>
 
+  <!-- JSZip for ZIP texture loading -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- TGA-js - standalone TGA loader for browser -->
+  <script src="/src/utils/tga-js.js"></script>
+  <script>console.debug('[index.html] TGALoader global:', typeof TGALoader !== 'undefined');</script>
+
   <style>
     :root{
       /* Light theme (default) */
@@ -227,6 +233,13 @@
         <label>HDRI</label>
         <input class="field" type="text" id="hdri-url" placeholder="URL .hdr" />
         <button id="apply-hdri" class="btn" data-i="btnApply">Применить</button>
+      </div>
+
+      <div class="row">
+        <label>Текстуры</label>
+        <input id="texture-input" type="file" accept=".zip" hidden />
+        <label for="texture-input" class="btn" data-i="btnLoad">Загрузить текстуры</label>
+        <button id="apply-textures" class="btn" data-i="btnApply">Применить текстуры</button>
       </div>
 
       <!-- Moved up: Material/Wireframe always visible -->
