@@ -251,16 +251,22 @@ function parseTextureFilename(filename) {
   
   const baseName = filename.toLowerCase();
   
-  // Expected pattern: MaterialName_MapType.tga (e.g., DevilBodyMtl_BaseColor.tga)
   // Handle both simple (DevilHeadMtl_BaseColor) and complex paths (Textures/DevilHeadMtl_BaseColor.tga)
   const pathParts = baseName.split(/[\\/]/);
   const fileName = pathParts[pathParts.length - 1];
   
-  const match = fileName.match(/^([^_]+(?:mtl|mt|mat|material)?)_([^_]+)(?:\.tga)?$/i);
+  // Strip extension (handle .tga and other common image extensions)
+  const dot = fileName.lastIndexOf('.');
+  const nameNoExt = dot > 0 ? fileName.substring(0, dot) : fileName;
+  
+  // Expected pattern (without extension): MaterialName_MapType
+  const match = nameNoExt.match(/^([^_]+(?:mtl|mt|mat|material)?)_([^_]+)$/i);
   if (!match) return null;
   
   const materialPrefix = normalizeMaterialName(match[1]);
-  const mapTypeSuffix = match[2];
+  let mapTypeSuffix = match[2].toLowerCase();
+  // Remove any non-alphanumeric characters from suffix
+  mapTypeSuffix = mapTypeSuffix.replace(/[^a-z0-9]/g, '');
   
   // Map suffix to Three.js map type
   const mapTypeMap = {
@@ -323,18 +329,26 @@ function buildMaterialTextureIndex(textureMap) {
     
     const { materialPrefix, mapType } = parsed;
     
-    if (!materialIndex.has(materialPrefix)) {
-      materialIndex.set(materialPrefix, new Map());
-    }
+    // Add color-prefixed variants as fallbacks (e.g., whitedevilhead -> devilhead)
+    const basePrefix = materialPrefix.replace(/^(white|black|red|blue|green|yellow|brown|gray|grey|pink|purple|orange|silver|gold)[a-z]*/i, '');
     
-    const materialTextures = materialIndex.get(materialPrefix);
-    // Only set if not already set (prefer first match)
-    if (!materialTextures.has(mapType)) {
-      materialTextures.set(mapType, texture);
-      console.log(`[Materials]  -> Added ${mapType} for ${materialPrefix}`);
-    } else {
-      console.log(`[Materials]  -> ${mapType} already exists for ${materialPrefix}, skipping`);
-    }
+    // Add both exact and base prefixes to index
+    [materialPrefix, basePrefix].forEach(prefix => {
+      if (!prefix) return;
+      
+      if (!materialIndex.has(prefix)) {
+        materialIndex.set(prefix, new Map());
+      }
+      
+      const materialTextures = materialIndex.get(prefix);
+      // Only set if not already set (prefer exact match over base/fallback)
+      if (!materialTextures.has(mapType)) {
+        materialTextures.set(mapType, texture);
+        console.log(`[Materials]  -> Added ${mapType} for ${prefix}`);
+      } else {
+        console.log(`[Materials]  -> ${mapType} already exists for ${prefix}, skipping`);
+      }
+    });
   }
   
   console.log('[Materials] === Debug: Index building complete ===');
@@ -364,6 +378,14 @@ export function applyTexturesFromMap(rootObject, textureMap) {
     'emissiveMap', 'aoMap', 'alphaMap', 'bumpMap', 'displacementMap'
   ];
   
+  // Material-specific exclusions (skip these map types for these materials)
+  const materialExclusions = {
+    'devileyesmtl': ['aoMap'] // Skip aoMap for DevilEyesMtl
+  };
+  
+  // Track processed materials to avoid duplicate applications
+  const processedMaterials = new Set();
+  
   // Warn if scene-level overrideMaterial is present (it will prevent visible changes)
   if (rootObject && rootObject.type === 'Scene' && rootObject.overrideMaterial) {
     console.warn('[Materials] Scene has overrideMaterial set - texture application may not be visible', rootObject.overrideMaterial);
@@ -378,6 +400,14 @@ export function applyTexturesFromMap(rootObject, textureMap) {
     
     materials.forEach((material, matIndex) => {
       if (!material) return;
+      
+      // Skip if we've already processed this material name
+      const materialKey = material.name || `material-${matIndex}`;
+      if (processedMaterials.has(materialKey)) {
+        console.debug(`[Materials] Skipping already processed material: ${materialKey}`);
+        return;
+      }
+      processedMaterials.add(materialKey);
       
       console.debug(`[Materials] Processing mesh "${object.name || object.uuid}" material[${matIndex}] name="${material.name || ''}" type=${material.type}`);
       
@@ -403,12 +433,21 @@ export function applyTexturesFromMap(rootObject, textureMap) {
         const normalizedMaterialName = normalizeMaterialName(material.name);
         console.debug(`[Materials] Normalized material name: "${material.name}" -> "${normalizedMaterialName}"`);
         
+        // Skip if this map type is excluded for this material
+        const exclusions = materialExclusions[normalizedMaterialName] || [];
+        
         if (materialIndex.has(normalizedMaterialName)) {
           const materialTextures = materialIndex.get(normalizedMaterialName);
           console.log(`[Materials] Found ${materialTextures.size} textures for material "${material.name}"`);
           
           // Apply all supported map types found in the index
           supportedMapTypes.forEach(mapType => {
+            // Skip if this map type is excluded for this material
+            if (exclusions.includes(mapType)) {
+              console.debug(`[Materials] Skipping excluded mapType ${mapType} for material ${material.name}`);
+              return;
+            }
+            
             if (materialTextures.has(mapType)) {
               const texture = materialTextures.get(mapType);
               
@@ -480,6 +519,14 @@ export function applyTexturesFromMap(rootObject, textureMap) {
         
         // Try to replace each supported map type
         supportedMapTypes.forEach(mapType => {
+          // Skip if this map type is excluded for this material
+          const normalizedMaterialName = normalizeMaterialName(material.name || '');
+          const exclusions = materialExclusions[normalizedMaterialName] || [];
+          if (exclusions.includes(mapType)) {
+            console.debug(`[Materials] Skipping excluded mapType ${mapType} for material ${material.name}`);
+            return;
+          }
+          
           // If the material already had a referenced texture, prefer that path
           if (material[mapType]) {
             const textureInfo = material[mapType];
@@ -635,6 +682,13 @@ export function applyTexturesFromMap(rootObject, textureMap) {
           console.debug(`[Materials] Material "${material.name}" normalized: "${normalizedMaterialName}"`);
           
           textureTypes.forEach(({ pattern, mapType, isColorMap }) => {
+            // Skip if this map type is excluded for this material
+            const exclusions = materialExclusions[normalizedMaterialName] || [];
+            if (exclusions.includes(mapType)) {
+              console.debug(`[Materials] Skipping excluded textureType ${mapType} for material ${material.name}`);
+              return;
+            }
+            
             if (!supportedMapTypes.includes(mapType)) return;
 
             // Find textures that match this material and texture type by strict prefix

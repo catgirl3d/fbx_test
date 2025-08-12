@@ -1048,4 +1048,56 @@ dom.setGlobal('clearSelection', clearSelection);
   } catch (e) {
     console.error('[DIAG] Diagnostics failed', e);
   }
+// Load default model function
+async function loadDefaultModel() {
+  try {
+    console.log('[app] Loading default model: model/devilgirl.fbx');
+    
+    // Create a File object from the default model path
+    const defaultModelPath = 'model/devilgirl.fbx';
+    const response = await fetch(defaultModelPath);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load default model: ${response.status} ${response.statusText}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const defaultModelFile = new File([arrayBuffer], 'devilgirl.fbx', { type: 'application/octet-stream' });
+    
+    showOverlay('Загрузка модели', 'devilgirl.fbx');
+    
+    // Create texture resolver if ZIP textures are available
+    let textureResolver = null;
+    if (zipTextures.size > 0) {
+      textureResolver = createTextureResolver();
+      console.log(`[app] Created texture resolver with ${zipTextures.size} textures for default model`);
+    }
+    
+    // Create FBX loader with texture resolver
+    const fbxLoader = new FBXLoaderWrapper(textureResolver);
+    
+    fbxLoader.loadFromFile(defaultModelFile, (evt) => {
+      if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
+      else setIndeterminate();
+    }).then(obj => {
+      hideOverlay();
+      // FBX returns Object3D — wrap in a simple shape consistent with GLTF handling
+      postLoad(obj, 'fbx');
+      console.log('[app] Default model loaded successfully');
+    }).catch(err => {
+      hideOverlay();
+      console.error('[app] Failed to load default model:', err);
+      ui.toast('Ошибка загрузки модели по умолчанию: ' + (err.message || err));
+    });
+    
+  } catch (error) {
+    console.error('[app] Failed to load default model:', error);
+    // Don't show toast error for default model loading failure to avoid spamming user
+    // The app will start without a model, which is acceptable
+  }
+}
+
+// Load default model on startup
+loadDefaultModel();
+
 })();
