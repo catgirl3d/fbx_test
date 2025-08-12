@@ -14,13 +14,13 @@ import { LightingManager } from './Lighting.js';
 import Settings from './Settings.js';
 import { RenderSettings } from './RenderSettings.js';
 import { bindUI } from './UIBindings.js';
-import DOMManager from './DOMManager.js';
+import DOMManager, { createDOMManager } from './DOMManager.js';
 
 // Bootstrap: wire modules together and re-implement core behaviors from the original inline script.
 // This file replaces the monolithic inline script and uses modular building blocks.
 
 // Initialize DOM Manager
-const dom = DOMManager;
+const dom = createDOMManager();
 
 const canvas = dom.getOrThrow('viewport', 'Canvas #viewport not found');
 
@@ -192,7 +192,7 @@ function clearCurrentModel() {
 function clearScene() {
   clearCurrentModel();
   clearZipTextures();
-  ui.toast('Сцена очищена');
+  dom.showToast('Сцена очищена');
 }
 
 // Clear ZIP textures and resources
@@ -252,17 +252,17 @@ async function loadTexturesFromZIPFile(zipFile) {
     hideOverlay();
     
     if (zipTextures.size > 0) {
-      ui.toast(`Загружено ${zipTextures.size} текстур из ZIP`);
+      dom.showToast(`Загружено ${zipTextures.size} текстур из ZIP`);
       console.log(`[app] Loaded ${zipTextures.size} textures from ZIP:`, Array.from(zipTextures.keys()));
     } else {
-      ui.toast('В ZIP не найдены текстуры');
+      dom.showToast('В ZIP не найдены текстуры');
     }
     
     return zipTextures;
   } catch (error) {
     hideOverlay();
     console.error('[app] Failed to load textures from ZIP:', error);
-    ui.toast('Ошибка загрузки текстур из ZIP: ' + error.message);
+    dom.showToast('Ошибка загрузки текстур из ZIP: ' + error.message);
     throw error;
   }
 }
@@ -306,7 +306,7 @@ async function postLoad(gltf, sourceType = 'gltf') {
     try {
       console.log(`[app] Applying ${zipTextures.size} ZIP textures as fallback...`);
       applyTexturesFromMap(currentModel, zipTextures);
-      ui.toast(`Применено ${zipTextures.size} текстур из ZIP (fallback)`);
+      dom.showToast(`Применено ${zipTextures.size} текстур из ZIP (fallback)`);
     } catch (error) {
       console.warn('[app] Failed to apply ZIP textures as fallback:', error);
     }
@@ -363,7 +363,7 @@ async function postLoad(gltf, sourceType = 'gltf') {
 */
 function _showToast(msg){
   try {
-    if (typeof ui !== 'undefined' && ui && ui.toast) { ui.toast(msg); return; }
+    if (typeof dom !== 'undefined' && dom && dom.showToast) { dom.showToast(msg); return; }
   } catch(e){}
   const t = dom.get('toast');
   if (t){ t.textContent = msg; t.classList.add('show'); setTimeout(()=> t.classList.remove('show'), 2600); }
@@ -494,10 +494,10 @@ const ui = initUI({
         showOverlay('Загрузка текстур', file.name);
         await loadTexturesFromZIPFile(file);
         hideOverlay();
-        ui.toast('Текстуры загружены из ZIP. Теперь можно загружать FBX модель.');
+        dom.showToast('Текстуры загружены из ZIP. Теперь можно загружать FBX модель.');
       } catch (err) {
         hideOverlay();
-        ui.toast('Ошибка загрузки ZIP: ' + (err.message || err));
+        dom.showToast('Ошибка загрузки ZIP: ' + (err.message || err));
       }
       return;
     }
@@ -513,7 +513,7 @@ const ui = initUI({
         postLoad(gltf, 'gltf');
       }).catch(err => {
         hideOverlay();
-        ui.toast('Ошибка загрузки: ' + (err.message || err));
+        dom.showToast('Ошибка загрузки: ' + (err.message || err));
       });
     } else if (name.endsWith('.fbx')) {
       showOverlay('Загрузка FBX', file.name);
@@ -537,17 +537,17 @@ const ui = initUI({
         postLoad(obj, 'fbx');
       }).catch(err => {
         hideOverlay();
-        ui.toast('Ошибка FBX: ' + (err.message || err));
+        dom.showToast('Ошибка FBX: ' + (err.message || err));
       });
     } else {
-      ui.toast('Поддерживаются: glTF/GLB/FBX и ZIP с текстурами');
+      dom.showToast('Поддерживаются: glTF/GLB/FBX и ZIP с текстурами');
     }
   },
 
   onApplyHDRI: async (url) => {
     if (!url) {
       sceneMgr.setEnvironment(null);
-      ui.toast('HDRI cleared');
+      dom.showToast('HDRI cleared');
       return;
     }
     showOverlay('HDRI', 'Загружаем окружение…');
@@ -558,21 +558,21 @@ const ui = initUI({
       sceneMgr.setEnvironment(tex);
       sceneMgr.applyEnvIntensity && sceneMgr.applyEnvIntensity( Number(dom.get('env-intensity')?.value || 1), currentModel || sceneMgr.getScene());
       hideOverlay();
-      ui.toast('HDRI applied');
+      dom.showToast('HDRI applied');
     }, undefined, (err) => {
       hideOverlay();
-      ui.toast('Не удалось загрузить HDRI');
+      dom.showToast('Не удалось загрузить HDRI');
     });
   },
 
   onApplyTextures: async (file) => {
     if (!file) {
-      ui.toast('Выберите ZIP файл с текстурами');
+      dom.showToast('Выберите ZIP файл с текстурами');
       return;
     }
     
     if (!file.name.toLowerCase().endsWith('.zip')) {
-      ui.toast('Выберите ZIP файл');
+      dom.showToast('Выберите ZIP файл');
       return;
     }
     
@@ -587,22 +587,22 @@ const ui = initUI({
         try {
           console.log(`[app] Applying ${zipTextures.size} ZIP textures to current model...`);
           applyTexturesFromMap(currentModel, zipTextures);
-          ui.toast(`Применено ${zipTextures.size} текстур из ZIP`);
+          dom.showToast(`Применено ${zipTextures.size} текстур из ZIP`);
         } catch (error) {
           console.warn('[app] Failed to apply ZIP textures:', error);
-          ui.toast('Ошибка применения текстур: ' + error.message);
+          dom.showToast('Ошибка применения текстур: ' + error.message);
         }
       } else if (!currentModel) {
-        ui.toast('Загрузите модель FBX перед применением текстур');
+        dom.showToast('Загрузите модель FBX перед применением текстур');
       } else {
-        ui.toast('В ZIP не найдены текстуры');
+        dom.showToast('В ZIP не найдены текстуры');
       }
       
       hideOverlay();
     } catch (error) {
       hideOverlay();
       console.error('[app] Failed to load textures from file:', error);
-      ui.toast('Ошибка загрузки текстур: ' + error.message);
+      dom.showToast('Ошибка загрузки текстур: ' + error.message);
     }
   },
 
@@ -666,6 +666,7 @@ try {
   if (typeof initInspector === 'function') {
     inspectorApi = initInspector({
       sceneManager: sceneMgr,
+      getCurrentModel: () => currentModel,
       onSelect: (obj) => {
         rendererMgr.setOutlineObjects(obj);
         sceneMgr.updateBBox(obj);
@@ -758,9 +759,9 @@ initUIBindings();
 
 // Resize
 function onResize() {
-  const w = dom.windowWidth(), h = dom.windowHeight();
-  rendererMgr.setSize(w, h);
-  camera.aspect = w / h;
+  const size = dom.getWindowSize();
+  rendererMgr.setSize(size.width, size.height);
+  camera.aspect = size.width / size.height;
   camera.updateProjectionMatrix();
 }
 dom.onResize(onResize);
@@ -1087,7 +1088,7 @@ async function loadDefaultModel() {
     }).catch(err => {
       hideOverlay();
       console.error('[app] Failed to load default model:', err);
-      ui.toast('Ошибка загрузки модели по умолчанию: ' + (err.message || err));
+      dom.showToast('Ошибка загрузки модели по умолчанию: ' + (err.message || err));
     });
     
   } catch (error) {

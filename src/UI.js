@@ -152,7 +152,7 @@ export function initUI({
       if (file) {
         onApplyTextures(file);
       } else {
-        ui.toast('Выберите ZIP файл с текстурами');
+        toast('Выберите ZIP файл с текстурами');
       }
     }
   });
@@ -161,9 +161,9 @@ export function initUI({
   textureInput?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     if (file && file.name.toLowerCase().endsWith('.zip')) {
-      ui.toast(`Выбран файл: ${file.name}`);
+      toast(`Выбран файл: ${file.name}`);
     } else if (file) {
-      ui.toast('Выберите ZIP файл');
+      toast('Выберите ZIP файл');
       textureInput.value = '';
     }
   });

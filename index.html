@@ -14,6 +14,8 @@
   }
   </script>
 
+  <!-- FontAwesome icon font (used by inspector toggles) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <!-- JSZip for ZIP texture loading -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <!-- TGA-js - standalone TGA loader for browser -->
@@ -121,6 +123,27 @@
     .tree button{ background: none; border:1px solid transparent; color: var(--text); cursor: pointer; padding: 2px 6px; border-radius: 6px }
     .tree button:hover{ background:var(--button-hover); border-color:color-mix(in srgb, var(--border) 60%, transparent) }
     .tree .selected{ background:var(--tree-sel-bg); border-color:var(--tree-sel-bd) }
+    
+    /* Minimalist icon toggles used in inspector (monochrome) */
+    .toggle-icon {
+      font-size: 14px;
+      color: var(--muted);
+      width: 18px;
+      height: 18px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      cursor: pointer;
+      transition: color .12s ease, opacity .12s ease, transform .12s ease;
+      opacity: 0.95;
+    }
+    .toggle-icon.inactive { opacity: 0.45; }
+    .toggle-icon:hover { color: var(--text); transform: translateY(-1px); }
+    .category-eye { margin-right: 6px; }
+    .chev { margin-right: 6px; transition: transform .18s ease; color: var(--muted); }
+    .chev.fa-rotate-180 { transform: rotate(180deg); }
+    .tree .object-row { display:flex; gap:8px; align-items:center; }
+    .tree .object-row .btn { padding:4px 8px; border-radius:6px; font-size:13px; }
 
     .overlay{ position:fixed; inset:0; display:none; place-items:center; background: rgba(0,0,0,.6); z-index: 50; }
     .overlay.show{ display:grid }

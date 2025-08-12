@@ -255,9 +255,9 @@ export function bindUI(managers, dom, opts) {
 
   // Resize
   function onResize() {
-    const w = dom.windowWidth(), h = dom.windowHeight();
-    rendererMgr.setSize(w, h);
-    camera.aspect = w / h;
+    const size = dom.getWindowSize();
+    rendererMgr.setSize(size.width, size.height);
+    camera.aspect = size.width / size.height;
     camera.updateProjectionMatrix();
   }
   dom.onResize(onResize);
