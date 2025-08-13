@@ -287,6 +287,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
     row.addEventListener('click', (e) => handleSelection(e, o));
     row.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+        showContextMenu(e, o);
         e.stopPropagation();
         // Ensure the right-clicked object is part of the selection
         if (!selectedObjects.includes(o)) {
@@ -753,5 +754,6 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
     refresh: renderTree,
     getSelected: () => selectedObjects,
     selectObject,
+    showContextMenu,
   };
 }

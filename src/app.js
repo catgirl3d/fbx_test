@@ -82,6 +82,10 @@ let currentZipFile = null; // Currently loaded ZIP file
 
 // Track pressed keys for WASDQE camera movement
 const pressedKeys = new Set();
+let isLeftMouseDown = false;
+let isRightMouseDown = false;
+let lastMousePosition = { x: 0, y: 0 };
+let rightClickStartPosition = { x: 0, y: 0 };
 
 function getSelectedObject() { return selectedObject; }
 function clearSelection() {
@@ -827,6 +831,9 @@ try {
         }
         // Open inspector panel on selection
         try { setInspectorOpen(true); } catch(e) {}
+      },
+      onFocus: (obj) => {
+        frameObject(obj);
       }
     });
   }
@@ -1288,6 +1295,118 @@ dom.on(window, 'keyup', (e) => {
     e.preventDefault();
   }
 });
+
+// Mouse listeners for panning
+dom.on(rendererMgr.renderer.domElement, 'mousedown', (e) => {
+    if (e.button === 0) { // Left button
+        isLeftMouseDown = true;
+    } else if (e.button === 2) { // Right button
+        isRightMouseDown = true;
+    }
+
+    if (isLeftMouseDown && isRightMouseDown) {
+        controls.enabled = false; // Disable OrbitControls
+        lastMousePosition.x = e.clientX;
+        lastMousePosition.y = e.clientY;
+    }
+});
+
+dom.on(window, 'mouseup', (e) => {
+    if (e.button === 0) {
+        isLeftMouseDown = false;
+    } else if (e.button === 2) {
+        isRightMouseDown = false;
+    }
+
+    if (!isLeftMouseDown || !isRightMouseDown) {
+        controls.enabled = true; // Re-enable OrbitControls
+    }
+});
+
+dom.on(window, 'mousemove', (e) => {
+    if (isLeftMouseDown && isRightMouseDown) {
+        const deltaX = e.clientX - lastMousePosition.x;
+        const deltaY = e.clientY - lastMousePosition.y;
+
+        // Make pan speed proportional to the distance to the target
+        const distance = camera.position.distanceTo(controls.target);
+        const panSpeed = distance * 0.001; // Adjust the multiplier for sensitivity
+
+        const panOffset = new THREE.Vector3();
+        const up = camera.up.clone();
+        const right = new THREE.Vector3().crossVectors(camera.getWorldDirection(new THREE.Vector3()), up).normalize();
+
+        panOffset.add(right.multiplyScalar(-deltaX * panSpeed));
+        panOffset.add(up.multiplyScalar(deltaY * panSpeed));
+
+        camera.position.add(panOffset);
+        controls.target.add(panOffset);
+
+        lastMousePosition.x = e.clientX;
+        lastMousePosition.y = e.clientY;
+    }
+});
+
+// Mouse listeners for panning and context menu
+dom.on(rendererMgr.renderer.domElement, 'mousedown', (e) => {
+    if (e.button === 0) { // Left button
+        isLeftMouseDown = true;
+    } else if (e.button === 2) { // Right button
+        isRightMouseDown = true;
+        rightClickStartPosition.x = e.clientX;
+        rightClickStartPosition.y = e.clientY;
+    }
+
+    if (isLeftMouseDown && isRightMouseDown) {
+        controls.enabled = false; // Disable OrbitControls for panning
+        lastMousePosition.x = e.clientX;
+        lastMousePosition.y = e.clientY;
+    }
+});
+
+dom.on(window, 'mouseup', (e) => {
+    if (e.button === 0) {
+        isLeftMouseDown = false;
+    } else if (e.button === 2) {
+        isRightMouseDown = false;
+        const slop = 5; // pixels
+        const dx = Math.abs(e.clientX - rightClickStartPosition.x);
+        const dy = Math.abs(e.clientY - rightClickStartPosition.y);
+
+        // If it was a click (not a drag/pan), show the context menu
+        if (dx <= slop && dy <= slop) {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            const rect = rendererMgr.renderer.domElement.getBoundingClientRect();
+
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(sceneMgr.getScene().children, true);
+
+            if (intersects.length > 0) {
+                const clickedObject = intersects[0].object;
+                if (inspectorApi && inspectorApi.selectObject) {
+                    inspectorApi.selectObject(clickedObject);
+                }
+                if (inspectorApi && inspectorApi.showContextMenu) {
+                    inspectorApi.showContextMenu(e.clientX, e.clientY);
+                }
+            }
+        }
+    }
+
+    if (!isLeftMouseDown || !isRightMouseDown) {
+        controls.enabled = true; // Re-enable OrbitControls
+    }
+});
+
+// Prevent the default context menu from ever appearing on the canvas
+dom.on(rendererMgr.renderer.domElement, 'contextmenu', (e) => e.preventDefault());
+
+// This is now handled by the mouseup listener to distinguish clicks from drags.
+// The 'contextmenu' event is suppressed there if needed.
 
 // Start the animation loop
 start();
