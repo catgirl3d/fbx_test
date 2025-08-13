@@ -6,7 +6,7 @@
  * It handles language switching (i18n), theme toggle, basic bindings and settings persistence.
  */
 
-import { t } from './i18n.js';
+import { t, loadLanguage } from './i18n.js';
 
 const LS_KEY = 'viewerSettings.v1';
 
@@ -29,7 +29,7 @@ function saveSettings(s) {
  * @param {(s:Object)=>void} [opts.setSettings]
  */
 export function initUI({
-  onLoadFile, onApplyHDRI, onApplyTextures, onResetAll, onFrame, onClearScene, getSettings, setSettings, t
+  onLoadFile, onApplyHDRI, onApplyTextures, onResetAll, onFrame, onClearScene, getSettings, setSettings
 } = {}) {
   const d = document;
   const fileInput = d.getElementById('file-input');
@@ -75,11 +75,14 @@ export function initUI({
   }
 
   // restore saved settings
-  (function restore() {
+  (async function restore() {
     const s = getSettings ? getSettings() : loadSettings();
     if (s.theme) setTheme(s.theme); else setTheme('light');
-    if (s.lang) langSelect.value = s.lang;
-    applyLang(langSelect.value);
+    // Restore language, load it, then apply translations
+    const lang = s.lang || (navigator.language.startsWith('ru') ? 'ru' : 'en');
+    langSelect.value = lang;
+    await loadLanguage(lang);
+    applyLang();
   })();
 
   // Bind file input
@@ -146,8 +149,9 @@ export function initUI({
   themeToggle?.addEventListener('click', () => setTheme(isDark() ? 'light' : 'dark'));
 
   // Language select
-  langSelect?.addEventListener('change', () => {
-    applyLang(langSelect.value);
+  langSelect?.addEventListener('change', async () => {
+    await loadLanguage(langSelect.value);
+    applyLang();
     persist();
   });
 
