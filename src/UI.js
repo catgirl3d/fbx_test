@@ -58,6 +58,10 @@ export function initUI({
     });
     const openInspectorBtn = d.getElementById('open-inspector');
     if (openInspectorBtn) openInspectorBtn.title = t('btnShowInspector');
+    
+    // Update inspector title specifically (in case inspector panel is not visible when applyLang is called)
+    const inspectorTitle = d.querySelector('#scene-inspector header strong[data-i="inspector"]');
+    if (inspectorTitle) inspectorTitle.textContent = t('inspector');
   }
 
   function isDark() { return d.body.classList.contains('theme-dark'); }
@@ -89,8 +93,10 @@ export function initUI({
 
   // Bind file input
   fileInput?.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file && onLoadFile) onLoadFile(file);
+    const files = e.target.files;
+    if (files && files.length > 0 && onLoadFile) {
+      onLoadFile(files);
+    }
     fileInput.value = '';
   });
 

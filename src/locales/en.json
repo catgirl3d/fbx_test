@@ -18,7 +18,6 @@
   "hdri_applied": "HDRI applied",
   "failed_to_load_hdri": "Failed to load HDRI",
   "select_zip_file_textures": "Select ZIP file with textures",
-  "select_zip_file": "Select ZIP file",
   "applying_zip_textures": "Applied {count} textures from ZIP",
   "btnLoadTexturesText": "Load textures",
   "error_applying_textures": "Error applying textures: {message}",
@@ -73,9 +72,9 @@
   "hkReset": "reset camera",
   "hkClearSel": "clear selection",
   "movementSensitivity": "Movement sensitivity",
-  "inspector": "Scene",
+  "inspector": "Inspector",
   "btnHideInspector": "Hide",
-  "btnShowInspector": "Inspector",
+  "btnShowInspector": "Show Inspector",
   "objects": "Objects:",
   "btnResetAll": "Reset all",
   "btnReset": "Reset",
@@ -125,5 +124,11 @@
   "camBottom": "Bottom",
   "camIso": "Iso",
   "lang_en": "English",
-  "lang_ru": "Русский"
+  "lang_ru": "Русский",
+  "animSpeedUnit": "x",
+  "loading": "Loading...",
+  "loadingTitle": "Loading",
+  "select_zip_file": "Select ZIP file",
+  "attachments_loaded": "Attachments loaded",
+  "alert_select_two_objects": "Please select exactly two objects: the object to attach and the target parent (e.g., a bone)."
 }

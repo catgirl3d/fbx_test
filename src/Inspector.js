@@ -553,7 +553,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
           console.log(`Attached ${objectToAttach.name} to ${targetParent.name}`);
           renderTree();
         } else {
-          alert('Please select exactly two objects: the object to attach and the target parent (e.g., a bone).');
+          alert(t('alert_select_two_objects'));
         }
         break;
     }
