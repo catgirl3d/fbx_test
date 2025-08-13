@@ -7,6 +7,7 @@
  */
 
 import { t, loadLanguage } from './i18n.js';
+import dom from './DOMManager.js'; // Import DOMManager
 
 const LS_KEY = 'viewerSettings.v1';
 
@@ -43,6 +44,7 @@ export function initUI({
   const langSelect = d.getElementById('lang');
   const themeToggle = d.getElementById('theme-toggle');
   const themeIcon = d.getElementById('theme-icon');
+  const dropZone = d.getElementById('drop-zone'); // Get the drop zone element
   
   // Movement sensitivity control
   const movementSensitivityInput = d.getElementById('movement-sensitivity');
@@ -196,6 +198,29 @@ export function initUI({
   
   // Initialize the control after settings are restored
   setTimeout(initMovementSensitivityControl, 100);
+
+  // Drag and Drop functionality
+  if (dropZone) {
+    dom.on(dropZone, 'dragover', (e) => {
+      e.preventDefault(); // Prevent default to allow drop
+      dom.addClass(dropZone, 'drag-over');
+    });
+
+    dom.on(dropZone, 'dragleave', () => {
+      dom.removeClass(dropZone, 'drag-over');
+    });
+
+    dom.on(dropZone, 'drop', (e) => {
+      e.preventDefault(); // Prevent default file opening
+      dom.removeClass(dropZone, 'drag-over');
+
+      const files = e.dataTransfer.files;
+      if (files.length > 0 && onLoadFile) {
+        // Pass all dropped files to the handler
+        onLoadFile(files);
+      }
+    });
+  }
 
   return {
     applyLang,

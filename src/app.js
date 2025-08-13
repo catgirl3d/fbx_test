@@ -5,6 +5,7 @@ import { RendererManager } from './Renderer.js';
 import { initUI } from './UI.js';
 import { GLTFLoaderWrapper } from './loaders/GLTF.js';
 import { FBXLoaderWrapper } from './loaders/FBX.js';
+import { OBJLoaderWrapper } from './loaders/OBJ.js';
 import { AnimationManager } from './Animation.js';
 import Materials, { applyMaterialOverride, setLightOnly, applyTexturesFromMap } from './Materials.js';
 import { loadTexturesFromZIP, matchTexturePath } from './utils/zipTextures.js';
@@ -96,6 +97,10 @@ gltfLoaderWrapper.init(rendererMgr.renderer);
 
 const fbxLoaderWrapper = new FBXLoaderWrapper();
 fbxLoaderWrapper.init(rendererMgr.renderer);
+
+const objLoaderWrapper = new OBJLoaderWrapper();
+// OBJLoaderWrapper does not have an init method like GLTF/FBX,
+// as it handles its own internal loaders.
 
 // Animation manager
 const animMgr = new AnimationManager();
@@ -587,11 +592,31 @@ function resetAll(){
 const ui = initUI({
   t: t,
   toast: toast, // Pass toast function to app
-  onLoadFile: async (file) => {
-    const name = file.name.toLowerCase();
-    
-    // Handle ZIP file (texture pack)
-    if (name.endsWith('.zip')) {
+  onLoadFile: async (files) => {
+    const fileList = Array.from(files); // Convert FileList to array
+    console.log(`[app] onLoadFile received ${fileList.length} files.`);
+
+    // Separate files by type
+    const modelFiles = [];
+    const mtlFiles = new Map();
+    const textureFiles = [];
+    const zipFiles = [];
+
+    for (const file of fileList) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.obj') || name.endsWith('.fbx') || name.endsWith('.gltf') || name.endsWith('.glb')) {
+        modelFiles.push(file);
+      } else if (name.endsWith('.mtl')) {
+        mtlFiles.set(file.name, file);
+      } else if (name.endsWith('.zip')) {
+        zipFiles.push(file);
+      } else {
+        textureFiles.push(file); // Assume other files are textures
+      }
+    }
+
+    // Handle ZIP files first
+    for (const file of zipFiles) {
       try {
         showOverlay(t('loading_textures'), file.name);
         await loadTexturesFromZIPFile(file);
@@ -601,48 +626,59 @@ const ui = initUI({
         hideOverlay();
         dom.showToast(t('zip_load_error', { message: err.message || err }));
       }
-      return;
     }
-    
-    // Handle 3D model files
-    if (name.endsWith('.gltf') || name.endsWith('.glb')) {
-      showOverlay(t('loading_gltf_glb'), file.name);
-      gltfLoaderWrapper.loadFromFile(file, (evt) => {
-        if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
-        else setIndeterminate();
-      }, file.name).then(gltf => {
-        hideOverlay();
-        postLoad(gltf, 'gltf', file.name);
-      }).catch(err => {
-        hideOverlay();
-        dom.showToast(t('loading_error', { message: err.message || err }));
-      });
-    } else if (name.endsWith('.fbx')) {
-      showOverlay(t('loading_fbx'), file.name);
-      
-      // Create texture resolver if ZIP textures are available
-      let textureResolver = null;
-      if (zipTextures.size > 0) {
-        textureResolver = createTextureResolver();
-        console.log(`[app] Created texture resolver with ${zipTextures.size} textures`);
+
+    // Handle model files
+    for (const file of modelFiles) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.gltf') || name.endsWith('.glb')) {
+        showOverlay(t('loading_gltf_glb'), file.name);
+        gltfLoaderWrapper.loadFromFile(file, (evt) => {
+          if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
+          else setIndeterminate();
+        }, file.name).then(gltf => {
+          hideOverlay();
+          postLoad(gltf, 'gltf', file.name);
+        }).catch(err => {
+          hideOverlay();
+          dom.showToast(t('loading_error', { message: err.message || err }));
+        });
+      } else if (name.endsWith('.fbx')) {
+        showOverlay(t('loading_fbx'), file.name);
+        let textureResolver = null;
+        if (zipTextures.size > 0) {
+          textureResolver = createTextureResolver();
+        }
+        const fbxLoader = new FBXLoaderWrapper(textureResolver);
+        fbxLoader.loadFromFile(file, (evt) => {
+          if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
+          else setIndeterminate();
+        }, file.name).then(obj => {
+          hideOverlay();
+          postLoad(obj, 'fbx', file.name);
+        }).catch(err => {
+          hideOverlay();
+          dom.showToast(t('fbx_error', { message: err.message || err }));
+        });
+      } else if (name.endsWith('.obj')) {
+        showOverlay(t('loading_obj'), file.name);
+        const mtlFileName = file.name.replace(/\.obj$/, '.mtl');
+        let mtlFile = null;
+
+        // Find accompanying MTL file from the dropped files
+        if (mtlFiles.has(mtlFileName)) {
+          mtlFile = mtlFiles.get(mtlFileName);
+          console.log(`[app] Found associated MTL in dropped files: ${mtlFileName}`);
+        }
+
+        objLoaderWrapper.loadFromFile(file, mtlFile).then(obj => {
+          hideOverlay();
+          postLoad(obj, 'obj', file.name);
+        }).catch(err => {
+          hideOverlay();
+          dom.showToast(t('obj_error', { message: err.message || err }));
+        });
       }
-      
-      // Create FBX loader with texture resolver
-      const fbxLoader = new FBXLoaderWrapper(textureResolver);
-      
-      fbxLoader.loadFromFile(file, (evt) => {
-        if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
-        else setIndeterminate();
-      }, file.name).then(obj => {
-        hideOverlay();
-        // FBX returns Object3D — wrap in a simple shape consistent with GLTF handling
-        postLoad(obj, 'fbx', file.name);
-      }).catch(err => {
-        hideOverlay();
-        dom.showToast(t('fbx_error', { message: err.message || err }));
-      });
-    } else {
-      dom.showToast(t('supported_formats'));
     }
   },
 

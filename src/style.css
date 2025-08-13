@@ -451,3 +451,8 @@
     #anim-time {
       white-space: nowrap; /* Prevent time display from wrapping */
     }
+/* Drag and Drop feedback */
+.viewer-wrap.drag-over {
+  border: 2px dashed #fff;
+  background-color: rgba(255, 255, 255, 0.1);
+}
