@@ -114,7 +114,8 @@ class DOMManager {
       'resetRender': '#reset-render',
       'resetDir': '#reset-dir',
       'resetEnv': '#reset-env',
-      'resetGizmos': '#reset-gizmos'
+      'resetGizmos': '#reset-gizmos',
+      'filenameDisplay': '#filename-display'
     };
 
     // Cache common elements

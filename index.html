@@ -34,8 +34,8 @@
       <span class="logo-dot" aria-hidden="true"></span>
       <h1 data-i="title">3D Viewer</h1>
       <select id="lang" class="field lang-select">
-        <option value="en">English</option>
-        <option value="ru">Русский</option>
+        <option value="en" data-i="lang_en">English</option>
+        <option value="ru" data-i="lang_ru">Русский</option>
       </select>
       <button id="theme-toggle" class="theme-switch" title="Theme">
         <span class="icon" id="theme-icon">🌞</span>
@@ -72,11 +72,11 @@
 
       <!-- Collapsible: Display -->
       <details class="section" data-sec="display" open>
-        <summary><span class="summary-title"><i class="fas fa-eye"></i> Display</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title" data-i="displayTitle"><i class="fas fa-eye"></i> Display</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
             <label class="toggle"><input type="checkbox" id="toggle-shadows" /><i class="fas fa-sun"></i><span data-i="toggleShadows">Тени</span></label>
-            <label class="toggle"><input type="checkbox" id="toggle-fxaa" checked /><i class="fas fa-magic"></i><span>FXAA</span></label>
+            <label class="toggle"><input type="checkbox" id="toggle-fxaa" checked /><i class="fas fa-magic"></i><span data-i="toggleFXAA">FXAA</span></label>
             <label class="toggle"><input type="checkbox" id="toggle-lightonly" /><i class="fas fa-lightbulb"></i><span data-i="toggleLight">Только освещение</span></label>
             <label class="toggle"><input type="checkbox" id="toggle-grid" checked /><i class="fas fa-th"></i><span data-i="toggleGrid">Сетка</span></label>
             <label class="toggle"><input type="checkbox" id="toggle-flipuv" /><i class="fas fa-arrows-alt-h"></i><span data-i="toggleFlipUV">Перевернуть UV</span></label>
@@ -86,7 +86,7 @@
   
       <!-- Collapsible: Background & HDRI -->
       <details class="section" data-sec="background">
-        <summary><span class="summary-title"><i class="fas fa-image"></i> Background & HDRI</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title" data-i="backgroundTitle"><i class="fas fa-image"></i> Background & HDRI</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
             <label data-i="bgLabel">Фон</label>
@@ -94,7 +94,7 @@
               <option value="white" selected data-i="bgWhite">Белый</option>
               <option value="lightgray" data-i="bgLightGray">Светло-серый</option>
               <option value="midgray" data-i="bgMidGray">Средне-серый</option>
-              <option="darkgray" data-i="bgDarkGray">Тёмный</option>
+              <option value="darkgray" data-i="bgDarkGray">Тёмный</option>
               <option value="transparent" data-i="bgTransparent">Прозрачный</option>
               <option value="custom" data-i="bgCustom">Произвольный</option>
             </select>
@@ -106,7 +106,7 @@
             <input class="field" type="text" id="hdri-url" placeholder="URL .hdr" />
             <button id="apply-hdri" class="btn" data-i="btnApply">
               <i class="fas fa-check"></i>
-              <span>Применить</span>
+              <span data-i="btnApplyText">Применить</span>
             </button>
           </div>
         </div>
@@ -114,18 +114,18 @@
 
       <!-- Collapsible: Textures & Materials -->
       <details class="section" data-sec="materials">
-        <summary><span class="summary-title"><i class="fas fa-palette"></i> Textures & Materials</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title" data-i="materialsTitle"><i class="fas fa-palette"></i> Textures & Materials</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
             <label data-i="texturesLabel"><i class="fas fa-palette"></i> Текстуры</label>
             <input id="texture-input" type="file" accept=".zip" hidden />
-            <label for="texture-input" class="btn" data-i="btnLoad">
+            <label for="texture-input" class="btn" data-i="btnLoadTextures">
               <i class="fas fa-folder-open"></i>
-              <span>Загрузить текстуры</span>
+              <span data-i="btnLoadTexturesText">Загрузить текстуры</span>
             </label>
-            <button id="apply-textures" class="btn" data-i="btnApply">
+            <button id="apply-textures" class="btn" data-i="btnApplyTextures">
               <i class="fas fa-paint-brush"></i>
-              <span>Применить текстуры</span>
+              <span data-i="btnApplyTexturesText">Применить текстуры</span>
             </button>
           </div>
 
@@ -134,11 +134,11 @@
             <label data-i="matOverride"><i class="fas fa-cube"></i> Материал</label>
             <select id="mat-override" class="field">
               <option value="none" selected data-i="matOriginal">Оригинал</option>
-              <option value="standard">Standard</option>
-              <option value="phong">Phong</option>
-              <option value="basic">Basic</option>
-              <option value="normal">Normal</option>
-              <option value="toon">Toon</option>
+              <option value="standard" data-i="matStandard">Standard</option>
+              <option value="phong" data-i="matPhong">Phong</option>
+              <option value="basic" data-i="matBasic">Basic</option>
+              <option value="normal" data-i="matNormal">Normal</option>
+              <option value="toon" data-i="matToon">Toon</option>
             </select>
             <label class="toggle"><input type="checkbox" id="toggle-wireframe" /><i class="fas fa-project-diagram"></i><span data-i="wireframe">Каркас</span></label>
           </div>
@@ -148,22 +148,22 @@
 
       <!-- Collapsible: Render -->
       <details class="section" data-sec="render">
-        <summary><span class="summary-title"><i class="fas fa-paint-brush"></i> Render</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title" data-i="renderTitle"><i class="fas fa-paint-brush"></i> Render</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
-            <label>Exposure</label>
+            <label data-i="exposureLabel">Exposure</label>
             <input id="exposure" class="range" type="range" min="0" max="4" step="0.01" value="1" />
             <span class="small" id="exposure-val">1.00</span>
           </div>
           <div class="row">
-            <label>Tone mapping</label>
+            <label data-i="toneMappingLabel">Tone mapping</label>
             <select id="tone-mapping" class="field">
-              <option value="ACES" selected>ACES</option>
-              <option value="Linear">Linear</option>
-              <option value="Reinhard">Reinhard</option>
-              <option value="Cineon">Cineon</option>
-              <option value="Neutral">Neutral</option>
-              <option value="None">None</option>
+              <option value="ACES" selected data-i="toneMappingACES">ACES</option>
+              <option value="Linear" data-i="toneMappingLinear">Linear</option>
+              <option value="Reinhard" data-i="toneMappingReinhard">Reinhard</option>
+              <option value="Cineon" data-i="toneMappingCineon">Cineon</option>
+              <option value="Neutral" data-i="toneMappingNeutral">Neutral</option>
+              <option value="None" data-i="toneMappingNone">None</option>
             </select>
           </div>
           <div class="row">
@@ -174,20 +174,20 @@
 
       <!-- Collapsible: Directional light -->
       <details class="section" data-sec="dirlight">
-        <summary><span class="summary-title"><i class="fas fa-sun"></i> Directional light</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title" data-i="directionalLightTitle"><i class="fas fa-sun"></i> Directional light</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
-            <label>Intensity</label>
+            <label data-i="intensityLabel">Intensity</label>
             <input id="dir-intensity" class="range" type="range" min="0" max="5" step="0.01" value="0.9" />
             <span class="small" id="dir-intensity-val">0.90</span>
           </div>
           <div class="row">
-            <label>Angle</label>
+            <label data-i="angleLabel">Angle</label>
             <input id="dir-angle" class="range" type="range" min="0" max="360" step="1" value="34" />
             <span class="small" id="dir-angle-val">34°</span>
           </div>
           <div class="row">
-            <label>Softness</label>
+            <label data-i="softnessLabel">Softness</label>
             <input id="dir-softness" class="range" type="range" min="0" max="4" step="0.1" value="1" />
             <span class="small" id="dir-softness-val">1.0</span>
           </div>
@@ -199,10 +199,10 @@
 
       <!-- Collapsible: Environment -->
       <details class="section" data-sec="environment">
-        <summary><span class="summary-title"><i class="fas fa-globe"></i> Environment</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title" data-i="environmentTitle"><i class="fas fa-globe"></i> Environment</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
-            <label>Env intensity</label>
+            <label data-i="envIntensityLabel">Env intensity</label>
             <input id="env-intensity" class="range" type="range" min="0" max="4" step="0.01" value="1" />
             <span class="small" id="env-intensity-val">1.00</span>
           </div>
@@ -214,25 +214,25 @@
 
       <!-- Collapsible: Gizmos & measurements -->
       <details class="section" data-sec="gizmos">
-        <summary><span class="summary-title"><i class="fas fa-ruler-combined"></i> Gizmos & measurements</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title" data-i="gizmosTitle"><i class="fas fa-ruler-combined"></i> Gizmos & measurements</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row">
-            <label class="toggle"><input type="checkbox" id="toggle-transform"/><span>Gizmo</span></label>
+            <label class="toggle"><input type="checkbox" id="toggle-transform"/><span data-i="gizmoToggle">Gizmo</span></label>
             <select id="transform-mode" class="field">
-              <option value="translate" selected>Translate</option>
-              <option value="rotate">Rotate</option>
-              <option value="scale">Scale</option>
+              <option value="translate" selected data-i="transformTranslate">Translate</option>
+              <option value="rotate" data-i="transformRotate">Rotate</option>
+              <option value="scale" data-i="transformScale">Scale</option>
             </select>
-            <label class="toggle"><input type="checkbox" id="toggle-snap"/><span>Snap</span></label>
+            <label class="toggle"><input type="checkbox" id="toggle-snap"/><span data-i="snapToggle">Snap</span></label>
           </div>
           <div class="row">
-            <label>ΔPos</label><input id="snap-pos" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
-            <label>ΔRot°</label><input id="snap-rot" class="field" type="number" step="1" value="15" style="width:80px" />
-            <label>ΔScale</label><input id="snap-scale" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
+            <label data-i="deltaPosLabel">ΔPos</label><input id="snap-pos" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
+            <label data-i="deltaRotLabel">ΔRot°</label><input id="snap-rot" class="field" type="number" step="1" value="15" style="width:80px" />
+            <label data-i="deltaScaleLabel">ΔScale</label><input id="snap-scale" class="field" type="number" step="0.01" value="0.1" style="width:80px" />
           </div>
           <div class="row">
-            <button id="measure-toggle" class="btn">Measure</button>
-            <button id="measure-clear" class="btn secondary">Clear</button>
+            <button id="measure-toggle" class="btn" data-i="measureToggle">Measure</button>
+            <button id="measure-clear" class="btn secondary" data-i="measureClear">Clear</button>
             <span class="tag" id="measure-out">—</span>
           </div>
           <div class="row">
@@ -243,16 +243,16 @@
 
       <!-- Collapsible: Camera -->
       <details class="section" data-sec="camera">
-        <summary><span class="summary-title"><i class="fas fa-camera"></i> Camera</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title" data-i="cameraTitle"><i class="fas fa-camera"></i> Camera</span><span class="chev">▾</span></summary>
         <div class="section-body">
           <div class="row" id="cam-presets">
-            <button class="btn" data-view="front">Front</button>
-            <button class="btn" data-view="back">Back</button>
-            <button class="btn" data-view="left">Left</button>
-            <button class="btn" data-view="right">Right</button>
-            <button class="btn" data-view="top">Top</button>
-            <button class="btn" data-view="bottom">Bottom</button>
-            <button class="btn" data-view="iso">Iso</button>
+            <button class="btn" data-view="front" data-i="camFront">Front</button>
+            <button class="btn" data-view="back" data-i="camBack">Back</button>
+            <button class="btn" data-view="left" data-i="camLeft">Left</button>
+            <button class="btn" data-view="right" data-i="camRight">Right</button>
+            <button class="btn" data-view="top" data-i="camTop">Top</button>
+            <button class="btn" data-view="bottom" data-i="camBottom">Bottom</button>
+            <button class="btn" data-view="iso" data-i="camIso">Iso</button>
           </div>
         </div>
       </details>
@@ -269,7 +269,7 @@
             <label class="row small">
               <span data-i="animSpeed">Скорость</span>
               <input id="anim-speed" class="field" type="number" step="0.25" min="0.25" max="3" value="1" style="width:70px" />
-              <span>x</span>
+              <span data-i="animSpeedUnit">x</span>
             </label>
           </div>
           <div class="row">
@@ -302,10 +302,10 @@
 
   <aside id="scene-inspector" class="inspector right-0" aria-label="Scene Inspector">
     <header>
-      <strong data-i="inspector">Сцена</strong>
+      <strong data-i="inspectorTitle">Сцена</strong>
       <div class="row">
         <span class="tag" id="poly-count">—</span>
-        <span class="tag" id="bbox-size">bbox: —</span>
+        <span class="tag" id="bbox-size" data-i="bboxSize">bbox: —</span>
         <button class="btn" id="inspector-close" data-i="btnHideInspector">Скрыть</button>
       </div>
     </header>
@@ -318,16 +318,28 @@
 
   <div class="overlay" id="overlay">
     <div class="progress">
-      <h3 id="progress-title">Загрузка…</h3>
+      <h3 id="progress-title" data-i="loadingTitle">Загрузка…</h3>
       <div class="meter indeterminate" id="meter"><i></i></div>
-      <div class="small" id="progress-sub">Ожидаем данные…</div>
+      <div class="small" id="progress-sub" data-i="awaitingData">Ожидаем данные…</div>
     </div>
   </div>
 
   <div class="debug" id="debug-bar">
+    <div class="chip" id="filename-display"></div>
     <div class="chip"><b>FPS:</b> <span id="fps">—</span></div>
     <div class="chip"><b data-i="objects">Объекты:</b> <span id="obj-count">—</span></div>
   </div>
 <script type="module" src="./src/app.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const langSelect = document.getElementById('lang');
+    if (langSelect) {
+      // Set initial language based on browser or saved preference
+      const userLang = navigator.language.startsWith('ru') ? 'ru' : 'en';
+      langSelect.value = userLang;
+      // The app.js will handle loading the language via ui.applyLang
+    }
+  });
+</script>
 </body>
 </html>
