@@ -34,5 +34,6 @@
   "awaiting_data": "Awaiting data…",
   "loading_model": "Loading model",
   "error_loading_default_model": "Error loading default model: {message}",
-  "tris": "tris"
+  "tris": "tris",
+  "movementSensitivityHint": "Any layouts"
 }

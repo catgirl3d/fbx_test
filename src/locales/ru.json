@@ -34,5 +34,6 @@
   "awaiting_data": "Ожидаем данные…",
   "loading_model": "Загрузка модели",
   "error_loading_default_model": "Ошибка загрузки модели по умолчанию: {message}",
-  "tris": "треугольников"
+  "tris": "треугольников",
+  "movementSensitivityHint": "Любые раскладки"
 }
