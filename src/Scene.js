@@ -21,8 +21,9 @@ export class SceneManager {
     this.bboxHelper = null;
     this.env = null;
     this.measureLine = null;
+    this.model = null; // Store reference to the loaded model
 
-    this.createGrid(10, 20);
+    this.updateGrid(); // Call updateGrid initially
   }
 
   getScene() {
@@ -41,6 +42,17 @@ export class SceneManager {
     this.grid.material.opacity = 0.6;
     this.grid.position.y = 0;
     this.scene.add(this.grid);
+  }
+
+  updateGrid() {
+    let gridSize = 10; // Default size
+    if (this.model) {
+      const bboxSize = this.updateBBox(this.model);
+      if (bboxSize) {
+        gridSize = Math.max(bboxSize.x, bboxSize.y, bboxSize.z) * 2; // Adjust multiplier as needed
+      }
+    }
+    this.createGrid(gridSize, 20); // Divisions can remain constant or be adjusted
   }
 
   setGridVisible(v) { if (this.grid) this.grid.visible = !!v; }
@@ -86,10 +98,16 @@ export class SceneManager {
     });
   }
 
-  add(root) { this.scene.add(root); }
+  add(root) {
+    this.scene.add(root);
+    this.model = root; // Set the model when added
+    this.updateGrid(); // Update grid based on new model
+  }
   remove(root) {
     this.scene.remove(root);
     this.disposeObject(root);
+    this.model = null; // Clear model reference
+    this.updateGrid(); // Update grid after model removal
   }
 
   updateBBox(objects) {
