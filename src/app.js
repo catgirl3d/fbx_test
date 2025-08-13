@@ -585,6 +585,7 @@ function resetAll(){
 
 /* initialize UI */
 const ui = initUI({
+  t: t,
   toast: toast, // Pass toast function to app
   onLoadFile: async (file) => {
     const name = file.name.toLowerCase();

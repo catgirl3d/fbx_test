@@ -6,34 +6,7 @@
  * It handles language switching (i18n), theme toggle, basic bindings and settings persistence.
  */
 
-const i18n = {
-  ru: {
-    title: '3D Viewer', btnLoad:'Загрузить модель', btnFrame:'К камере', btnClear:'Очистить',
-    toggleShadows:'Тени', toggleLight:'Только освещение', toggleGrid:'Сетка', bgLabel:'Фон', btnApply:'Применить', toggleFlipUV:'Перевернуть UV',
-    bgWhite:'Белый', bgLightGray:'Светло-серый', bgMidGray:'Средне-серый', bgDarkGray:'Тёмный', bgTransparent:'Прозрачный', bgCustom:'Произвольный',
-    hdriLabel:'HDRI', texturesLabel:'Текстуры',
-    matOverride:'Материал', wireframe:'Каркас', matOriginal:'Оригинал',
-    animTitle:'Анимации', animPlay:'Пуск', animPause:'Пауза', animStop:'Стоп', animLoop:'Зациклить', animSpeed:'Скорость',
-    animHint:'По умолчанию анимация не проигрывается.', hotkeys:'Горячие клавиши',
-    hkSelect:'выбор', hkFocus:'к объекту', hkReset:'сброс камеры', hkClearSel:'снять выделение',
-    movementSensitivity:'Чувствительность движения', movementSensitivityHint:'Работает со всеми раскладками клавиатуры',
-    inspector:'Сцена', btnHideInspector:'Скрыть', btnShowInspector:'Инспектор', objects:'Объекты:',
-    btnResetAll:'Сбросить всё', btnReset:'Сбросить'
-  },
-  en: {
-    title: '3D Viewer', btnLoad:'Load model', btnFrame:'Frame', btnClear:'Clear',
-    toggleShadows:'Shadows', toggleLight:'Light only', toggleGrid:'Grid', bgLabel:'Background', btnApply:'Apply', toggleFlipUV:'Flip UV',
-    bgWhite:'White', bgLightGray:'Light Gray', bgMidGray:'Mid Gray', bgDarkGray:'Dark', bgTransparent:'Transparent', bgCustom:'Custom',
-    hdriLabel:'HDRI', texturesLabel:'Textures',
-    matOverride:'Material', wireframe:'Wireframe', matOriginal:'Original',
-    animTitle:'Animations', animPlay:'Play', animPause:'Pause', animStop:'Stop', animLoop:'Loop', animSpeed:'Speed',
-    animHint:'By default animations do not play.', hotkeys:'Hotkeys',
-    hkSelect:'select', hkFocus:'focus', hkReset:'reset camera', hkClearSel:'clear selection',
-    movementSensitivity:'Movement sensitivity', movementSensitivityHint:'Works with all keyboard layouts',
-    inspector:'Scene', btnHideInspector:'Hide', btnShowInspector:'Inspector', objects:'Objects:',
-    btnResetAll:'Reset all', btnReset:'Reset'
-  }
-};
+import { t } from './i18n.js';
 
 const LS_KEY = 'viewerSettings.v1';
 
@@ -56,7 +29,7 @@ function saveSettings(s) {
  * @param {(s:Object)=>void} [opts.setSettings]
  */
 export function initUI({
-  onLoadFile, onApplyHDRI, onApplyTextures, onResetAll, onFrame, onClearScene, getSettings, setSettings
+  onLoadFile, onApplyHDRI, onApplyTextures, onResetAll, onFrame, onClearScene, getSettings, setSettings, t
 } = {}) {
   const d = document;
   const fileInput = d.getElementById('file-input');
@@ -76,13 +49,13 @@ export function initUI({
   const movementSensitivityValue = d.getElementById('movement-sensitivity-val');
 
   // helper: apply language strings to elements using [data-i]
-  function applyLang(lang) {
+  function applyLang() {
     document.querySelectorAll('[data-i]').forEach(el => {
       const key = el.getAttribute('data-i');
-      if (i18n[lang] && i18n[lang][key] !== undefined) el.textContent = i18n[lang][key];
+      el.textContent = t(key);
     });
     const openInspectorBtn = d.getElementById('open-inspector');
-    if (openInspectorBtn) openInspectorBtn.title = (i18n[lang] && i18n[lang].btnShowInspector) || '';
+    if (openInspectorBtn) openInspectorBtn.title = t('btnShowInspector');
   }
 
   function isDark() { return d.body.classList.contains('theme-dark'); }
@@ -128,7 +101,7 @@ export function initUI({
   });
   clearSceneBtn?.addEventListener('click', () => {
     onClearScene && onClearScene();
-    persistedToast('Сцена очищена');
+    persistedToast(t('sceneCleared'));
     persist();
     // Also trigger the same logic as the Delete hotkey - clear selection
     if (typeof window !== 'undefined' && window.clearSelection) {
@@ -138,7 +111,7 @@ export function initUI({
 
   resetAllBtn?.addEventListener('click', () => {
     if (onResetAll) onResetAll();
-    persistedToast((langSelect.value === 'ru') ? 'Настройки сброшены по умолчанию' : 'Settings reset to defaults');
+    persistedToast(t('settingsReset'));
   });
 
   // HDRI apply
@@ -153,7 +126,7 @@ export function initUI({
       if (file) {
         onApplyTextures(file);
       } else {
-        toast('Выберите ZIP файл с текстурами');
+        toast(t('selectZipFile'));
       }
     }
   });
@@ -162,9 +135,9 @@ export function initUI({
   textureInput?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     if (file && file.name.toLowerCase().endsWith('.zip')) {
-      toast(`Выбран файл: ${file.name}`);
+      toast(t('fileSelected', { filename: file.name }));
     } else if (file) {
-      toast('Выберите ZIP файл');
+      toast(t('selectZipFile'));
       textureInput.value = '';
     }
   });
