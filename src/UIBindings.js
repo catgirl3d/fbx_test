@@ -228,11 +228,19 @@ export function bindUI(managers, dom, opts) {
           animMgr.play();
         }
         animPlayPauseEl.dataset.state = 'playing';
-        animPlayPauseEl.textContent = (dom.getValue('lang') === 'ru') ? 'Пауза' : 'Pause';
+        const playIcon = animPlayPauseEl.querySelector('i');
+        if (playIcon) {
+          playIcon.classList.remove('fa-play');
+          playIcon.classList.add('fa-pause');
+        }
       } else {
         animMgr.pause();
         animPlayPauseEl.dataset.state = 'paused';
-        animPlayPauseEl.textContent = (dom.getValue('lang') === 'ru') ? 'Пуск' : 'Play';
+        const playIcon = animPlayPauseEl.querySelector('i');
+        if (playIcon) {
+          playIcon.classList.remove('fa-pause');
+          playIcon.classList.add('fa-play');
+        }
       }
     });
   }
@@ -241,7 +249,11 @@ export function bindUI(managers, dom, opts) {
     dom.on(animStopEl, 'click', () => {
       animMgr.stop();
       animPlayPauseEl.dataset.state = 'stopped';
-      animPlayPauseEl.textContent = (dom.getValue('lang') === 'ru') ? 'Пуск' : 'Play';
+      const playIcon = animPlayPauseEl.querySelector('i');
+      if (playIcon) {
+        playIcon.classList.remove('fa-pause');
+        playIcon.classList.add('fa-play');
+      }
       updateAnimTimeUI(0, animMgr.getCurrentDuration());
     });
   }

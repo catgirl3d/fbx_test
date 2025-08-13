@@ -1,6 +1,6 @@
     :root{
       /* Light theme (default) */
-      --panel-w: 360px;
+      --panel-w: 400px;
       --bg-page: #f5f7fc;
       --bg-panel: #ffffff;
       --text: #0b1220;
@@ -66,6 +66,7 @@
       appearance:none; border:1px solid var(--border); background: var(--bg-panel); color: var(--text);
       padding: 8px 10px; border-radius: 10px; cursor: pointer; transition: .15s transform, .15s background, .15s border-color;
       font-size: 13px; line-height: 1; display:inline-flex; gap:8px; align-items:center;
+      box-sizing: border-box; /* Ensure consistent sizing including padding and border */
     }
     .btn:hover, .toggle:hover{ background:var(--button-hover); border-color:color-mix(in srgb, var(--border) 60%, transparent); transform: translateY(-1px) }
     .btn.secondary{ background: color-mix(in srgb, var(--bg-panel) 90%, white); }
@@ -207,6 +208,7 @@
         line-height: 1;
         width: 28px;
         height: 28px;
+        justify-content: center; /* Center icon horizontally */
     }
     .btn.active {
         background: var(--button-checked);
@@ -373,4 +375,79 @@
       font-family: monospace;
       font-size: 11px;
       color: var(--muted);
+    }
+
+    /* Animation section specific styles */
+    .anim-controls {
+      display: flex;
+      flex-wrap: wrap; /* Allow wrapping if needed */
+      gap: 8px;
+      align-items: center;
+    }
+
+    #anim-select {
+      flex-grow: 1; /* Allow select to take available space */
+      flex-shrink: 1; /* Allow it to shrink if needed */
+      min-width: 100px; /* Ensure it doesn't get too small */
+      max-width: 200px; /* Set max-width to approximately half the block */
+      height: 28px; /* Match button height */
+      padding: 0 8px; /* Adjust padding for vertical alignment */
+    }
+
+
+    .anim-speed-control {
+      display: flex; /* Ensure label and input are flex items */
+      align-items: center;
+      gap: 4px; /* Small gap between label and input */
+      white-space: nowrap; /* Prevent "Speed 0.25 x" from wrapping */
+    }
+
+    /* Visually hide content while keeping it accessible for screen readers */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+
+    /* Ensure loop toggle looks like an icon button */
+    label.toggle.icon-btn {
+      padding: 6px;
+      line-height: 1;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Ensure .btn.icon-btn also centers its content */
+    .btn.icon-btn {
+      justify-content: center;
+    }
+
+    .anim-speed-control input {
+      width: 60px; /* Adjust width for speed input */
+      text-align: center;
+    }
+
+    /* For the slider row */
+    .section-body > .row:nth-child(3) { /* Target the third .row in section-body (slider row) */
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #anim-progress {
+      flex-grow: 1; /* Allow slider to take available space */
+      max-width: 60%; /* Limit slider width to 60% as requested */
+    }
+
+    #anim-time {
+      white-space: nowrap; /* Prevent time display from wrapping */
     }

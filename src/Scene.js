@@ -92,15 +92,24 @@ export class SceneManager {
     this.disposeObject(root);
   }
 
-  updateBBox(root) {
+  updateBBox(objects) {
     if (this.bboxHelper) {
       this.scene.remove(this.bboxHelper);
       this.bboxHelper.geometry?.dispose?.();
       this.bboxHelper.material?.dispose?.();
       this.bboxHelper = null;
     }
-    if (!root) return null;
-    const box = new THREE.Box3().setFromObject(root);
+    if (!objects || (Array.isArray(objects) && objects.length === 0)) return null;
+
+    const targetObjects = Array.isArray(objects) ? objects : [objects];
+    const box = new THREE.Box3();
+
+    targetObjects.forEach(obj => {
+      if (obj instanceof THREE.Object3D) { // Ensure it's a Three.js object
+        box.union(new THREE.Box3().setFromObject(obj));
+      }
+    });
+
     if (!isFinite(box.min.x) || !isFinite(box.max.x)) return null;
     this.bboxHelper = new THREE.Box3Helper(box, 0x93c5fd);
     this.scene.add(this.bboxHelper);

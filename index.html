@@ -264,22 +264,22 @@
 
       <!-- Collapsible: Animations -->
       <details class="section" data-sec="anim">
-        <summary><span class="summary-title" data-i="animTitle"><i class="fas fa-play-circle"></i> Анимации</span><span class="chev">▾</span></summary>
+        <summary><span class="summary-title"><i class="fas fa-play"></i> <span data-i="animTitle">Анимации</span></span><span class="chev">▾</span></summary>
         <div class="section-body">
-          <div class="row" id="anim-row">
-            <select id="anim-select" class="field" style="min-width:200px"></select>
-            <button id="anim-playpause" class="btn ok" data-i="animPlay">Пуск</button>
-            <button id="anim-stop" class="btn" data-i="animStop">Стоп</button>
-            <label class="toggle"><input type="checkbox" id="anim-loop" checked /><span data-i="animLoop">Зациклить</span></label>
-            <label class="row small">
-              <span data-i="animSpeed">Скорость</span>
-              <input id="anim-speed" class="field" type="number" step="0.25" min="0.25" max="3" value="1" style="width:70px" />
-              <span data-i="animSpeedUnit">x</span>
-            </label>
+          <div class="row anim-controls" id="anim-row">
+            <select id="anim-select" class="field"></select>
+            <button id="anim-playpause" class="btn ok icon-btn" title="Play"><i class="fas fa-play"></i><span data-i="animPlay" class="sr-only">Play</span></button>
+            <button id="anim-stop" class="btn icon-btn" title="Stop"><i class="fas fa-stop"></i><span data-i="animStop" class="sr-only">Stop</span></button>
+            <label class="toggle icon-btn" id="anim-loop-toggle" title="Loop"><input type="checkbox" id="anim-loop" checked /><i class="fas fa-redo"></i></label>
           </div>
           <div class="row">
             <input id="anim-progress" class="range" type="range" min="0" max="1" step="0.001" value="0" />
             <span class="small" id="anim-time">0.00 / 0.00s</span>
+            <label class="row small anim-speed-control">
+              <span data-i="animSpeed">Скорость</span>
+              <input id="anim-speed" class="field" type="number" step="0.25" min="0.25" max="3" value="1" />
+              <span data-i="animSpeedUnit">x</span>
+            </label>
           </div>
           <div class="small" data-i="animHint">По умолчанию анимация не проигрывается.</div>
         </div>

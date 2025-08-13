@@ -71,7 +71,7 @@ controls.target.set(0, 0.8, 0);
 controls.update();
 
 let clock = new THREE.Clock();
-let currentModel = null;
+let loadedModels = []; // Use an array to store multiple models
 let selectedObject = null; // Track selected object globally
 let originalUVs = new Map(); // Store original UVs for flipping
 
@@ -157,9 +157,18 @@ function setAnimSectionVisible(visible) {
 }
 
 // Camera framing
-function frameObject(root) {
-  if (!root) return;
-  const box = new THREE.Box3().setFromObject(root);
+function frameObject(objects) {
+  if (!objects || (Array.isArray(objects) && objects.length === 0)) return;
+
+  const targetObjects = Array.isArray(objects) ? objects : [objects];
+
+  const box = new THREE.Box3();
+  targetObjects.forEach(obj => {
+    if (obj instanceof THREE.Object3D) { // Ensure it's a Three.js object
+      box.union(new THREE.Box3().setFromObject(obj));
+    }
+  });
+
   const sphere = box.getBoundingSphere(new THREE.Sphere());
   if (!isFinite(sphere.radius)) return;
   const fov = THREE.MathUtils.degToRad(camera.fov);
@@ -172,9 +181,11 @@ function frameObject(root) {
 
 // Clear model
 function clearCurrentModel() {
-  if (currentModel) {
-    sceneMgr.remove(currentModel);
-    currentModel = null;
+  if (loadedModels.length > 0) {
+    loadedModels.forEach(model => {
+      sceneMgr.remove(model);
+    });
+    loadedModels = []; // Clear the array
     sceneMgr.clearMeasure();
     sceneMgr.updateBBox(null);
     // Clear original UVs when model is cleared
@@ -291,59 +302,83 @@ function updateFilenameDisplay(filename) {
 // Post-load common operations
 async function postLoad(gltf, sourceType = 'gltf', filename = '') {
   updateFilenameDisplay(filename);
-  clearCurrentModel();
   const root = gltf.scene || gltf;
   sceneMgr.add(root);
-  currentModel = root;
+  loadedModels.push(root); // Add the new model to the array
 
-  // If shadows are enabled, set cast/receive flags for new meshes
-  const shadowsEnabled = dom.get('toggle-shadows')?.checked;
-  if (shadowsEnabled) {
-    root.traverse(obj => {
-      if (obj.isMesh) {
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-      }
-    });
-  }
-
-  // Apply material override default behavior if any UI toggles are set
-  const matOverrideEl = dom.get('mat-override');
-  const wireframeEl = dom.get('toggle-wireframe');
-  const envIntensityEl = dom.get('env-intensity');
-  const lightOnlyEl = dom.get('toggle-lightonly');
-
-  const overrideType = matOverrideEl?.value || 'none';
-  const wire = !!(wireframeEl && wireframeEl.checked);
-  const envI = envIntensityEl ? Number(envIntensityEl.value) : 1;
-
-  applyMaterialOverride(currentModel, { overrideType, wire, envIntensity: envI });
-
-  if (lightOnlyEl && lightOnlyEl.checked) setLightOnly(currentModel, true);
-
-  // Apply textures from ZIP if available (fallback)
-  if (zipTextures.size > 0) {
-    try {
-      console.log(`[app] Applying ${zipTextures.size} ZIP textures as fallback...`);
-      applyTexturesFromMap(currentModel, zipTextures);
-      dom.showToast(t('applying_zip_textures', { count: zipTextures.size }) + ' (fallback)');
-    } catch (error) {
-      console.warn('[app] Failed to apply ZIP textures as fallback:', error);
+  // Apply settings to the newly loaded model
+  const applySettingsToModel = (model) => {
+    // If shadows are enabled, set cast/receive flags for new meshes
+    const shadowsEnabled = dom.get('toggle-shadows')?.checked;
+    if (shadowsEnabled) {
+      model.traverse(obj => {
+        if (obj.isMesh) {
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+        }
+      });
     }
-  } else {
-    console.log('[app] No ZIP textures available for fallback application');
+
+    // Apply material override default behavior if any UI toggles are set
+    const matOverrideEl = dom.get('mat-override');
+    const wireframeEl = dom.get('toggle-wireframe');
+    const envIntensityEl = dom.get('env-intensity');
+    const lightOnlyEl = dom.get('toggle-lightonly');
+
+    const overrideType = matOverrideEl?.value || 'none';
+    const wire = !!(wireframeEl && wireframeEl.checked);
+    const envI = envIntensityEl ? Number(envIntensityEl.value) : 1;
+
+    applyMaterialOverride(model, { overrideType, wire, envIntensity: envI });
+
+    if (lightOnlyEl && lightOnlyEl.checked) setLightOnly(model, true);
+
+    // Apply textures from ZIP if available (fallback)
+    if (zipTextures.size > 0) {
+      try {
+        console.log(`[app] Applying ${zipTextures.size} ZIP textures as fallback to model: ${model.name || model.uuid}...`);
+        applyTexturesFromMap(model, zipTextures);
+        dom.showToast(t('applying_zip_textures', { count: zipTextures.size }) + ' (fallback)');
+      } catch (error) {
+        console.warn('[app] Failed to apply ZIP textures as fallback:', error);
+      }
+    } else {
+      console.log('[app] No ZIP textures available for fallback application');
+    }
+  };
+
+  // Apply settings to the new root and all existing loaded models
+  applySettingsToModel(root);
+  loadedModels.forEach(model => applySettingsToModel(model));
+
+  frameObject(loadedModels); // Frame all loaded models
+  updateStatsUI();
+  sceneMgr.updateBBox(loadedModels); // Update bounding box for all loaded models
+
+  // Collect animations from all loaded models
+  let allClips = [];
+  loadedModels.forEach(model => {
+    if (model.animations && model.animations.length > 0) {
+      allClips = allClips.concat(model.animations);
+    }
+  });
+  // Also add animations from the newly loaded root if it has any and is not already in loadedModels
+  if (root.animations && root.animations.length > 0 && !loadedModels.includes(root)) {
+    allClips = allClips.concat(root.animations);
   }
 
-  frameObject(currentModel);
-  updateStatsUI();
-  sceneMgr.updateBBox(currentModel);
-  // Setup animations
-  const clips = gltf.animations || root.animations || [];
   animMgr.dispose();
-  animMgr.init(root);
-  animMgr.setClips(clips);
+  // Initialize animMgr with the first loaded model that has animations, or the new root if it has animations
+  const modelWithAnimations = loadedModels.find(model => model.animations && model.animations.length > 0) || (root.animations && root.animations.length > 0 ? root : null);
+  if (modelWithAnimations) {
+    animMgr.init(modelWithAnimations);
+  } else {
+    // If no model has animations, initialize with a dummy object or handle gracefully
+    animMgr.init(new THREE.Object3D());
+  }
+  animMgr.setClips(allClips);
   // Show or hide Animations UI depending on whether clips were found
-  try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!(clips && clips.length)); } catch(e) {}
+  try { if (typeof setAnimSectionVisible === 'function') setAnimSectionVisible(!!(allClips && allClips.length)); } catch(e) {}
   // populate animation UI
   const animSelect = dom.get('anim-select');
   const animPlayPause = dom.get('anim-playpause');
@@ -355,12 +390,12 @@ async function postLoad(gltf, sourceType = 'gltf', filename = '') {
 
   if (animSelect) {
     animSelect.innerHTML = '';
-    clips.forEach((clip, i) => {
+    allClips.forEach((clip, i) => {
       const opt = document.createElement('option');
       opt.value = i; opt.textContent = clip.name || ('Clip ' + (i + 1));
       animSelect.appendChild(opt);
     });
-    if (clips.length) {
+    if (allClips.length) {
       animSelect.selectedIndex = 0;
       animMgr.select(0);
     }
@@ -368,9 +403,14 @@ async function postLoad(gltf, sourceType = 'gltf', filename = '') {
 
   if (animPlayPause) {
     animPlayPause.dataset.state = 'stopped';
-    animPlayPause.textContent = t('play');
+    // Update icon based on state
+    const playIcon = animPlayPause.querySelector('i');
+    if (playIcon) {
+      playIcon.classList.remove('fa-pause');
+      playIcon.classList.add('fa-play');
+    }
   }
-  if (animStop) animStop.textContent = t('stop');
+  // No text content for stop button, just icon
   if (animTime) animTime.textContent = `0.00 / ${ (animMgr.getCurrentDuration()||0).toFixed(2) }s`;
 
   if (inspectorApi && typeof inspectorApi.refresh === 'function') inspectorApi.refresh();
@@ -383,33 +423,35 @@ async function postLoad(gltf, sourceType = 'gltf', filename = '') {
 */
 // UV flipping logic
 function flipUVs(flip) {
-  if (!currentModel) return;
+  if (loadedModels.length === 0) return;
 
-  currentModel.traverse(obj => {
-    if (obj.isMesh && obj.geometry && obj.geometry.attributes.uv) {
-      const uvAttribute = obj.geometry.attributes.uv;
-      const uuid = obj.uuid;
+  loadedModels.forEach(model => {
+    model.traverse(obj => {
+      if (obj.isMesh && obj.geometry && obj.geometry.attributes.uv) {
+        const uvAttribute = obj.geometry.attributes.uv;
+        const uuid = obj.uuid;
 
-      if (flip) {
-        // Store original UVs if not already stored
-        if (!originalUVs.has(uuid)) {
-          originalUVs.set(uuid, uvAttribute.array.slice()); // Create a copy
-        }
-        // Apply flip: u = 1 - u
-        for (let i = 0; i < uvAttribute.array.length; i += 2) {
-          uvAttribute.array[i] = 1 - uvAttribute.array[i];
-        }
-      } else {
-        // Restore original UVs if stored
-        if (originalUVs.has(uuid)) {
-          const original = originalUVs.get(uuid);
-          for (let i = 0; i < uvAttribute.array.length; i++) {
-            uvAttribute.array[i] = original[i];
+        if (flip) {
+          // Store original UVs if not already stored
+          if (!originalUVs.has(uuid)) {
+            originalUVs.set(uuid, uvAttribute.array.slice()); // Create a copy
+          }
+          // Apply flip: u = 1 - u
+          for (let i = 0; i < uvAttribute.array.length; i += 2) {
+            uvAttribute.array[i] = 1 - uvAttribute.array[i];
+          }
+        } else {
+          // Restore original UVs if stored
+          if (originalUVs.has(uuid)) {
+            const original = originalUVs.get(uuid);
+            for (let i = 0; i < uvAttribute.array.length; i++) {
+              uvAttribute.array[i] = original[i];
+            }
           }
         }
+        uvAttribute.needsUpdate = true;
       }
-      uvAttribute.needsUpdate = true;
-    }
+    });
   });
   dom.showToast(flip ? t('uvs_flipped') : t('uvs_restored'));
 }
@@ -458,7 +500,7 @@ function resetEnv(){
   const envIntensityVal = dom.get('env-intensity-val');
   const hdriUrlInput = dom.get('hdri-url');
 
-  if (envIntensityEl) { envIntensityEl.value = 1; try { sceneMgr.applyEnvIntensity(1, currentModel || sceneMgr.getScene()); } catch(e){} if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
+  if (envIntensityEl) { envIntensityEl.value = 1; try { sceneMgr.applyEnvIntensity(1, loadedModels.length > 0 ? loadedModels : sceneMgr.getScene()); } catch(e){} if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
   if (hdriUrlInput) { hdriUrlInput.value = ''; }
   try { sceneMgr.setEnvironment(null); } catch(e){}
   _showToast(t('reset_environment'));
@@ -520,7 +562,11 @@ function resetAll(){
   const toggleWireframeEl = dom.get('toggle-wireframe');
   if (matOverrideEl) matOverrideEl.value = 'none';
   if (toggleWireframeEl) toggleWireframeEl.checked = false;
-  try { applyMaterialOverride(currentModel, { overrideType: (matOverrideEl?.value || 'none'), wire: !!toggleWireframeEl?.checked, envIntensity: Number(document.getElementById('env-intensity')?.value || 1) }); } catch(e){}
+  try {
+    loadedModels.forEach(model => {
+      applyMaterialOverride(model, { overrideType: (matOverrideEl?.value || 'none'), wire: !!toggleWireframeEl?.checked, envIntensity: Number(document.getElementById('env-intensity')?.value || 1) });
+    });
+  } catch(e){}
 
   // sections / helpers
   resetRender();
@@ -530,7 +576,7 @@ function resetAll(){
 
   // camera & selection (clear outlines, detach gizmos)
   try { rendererMgr.setOutlineObjects([]); } catch(e){}
-  try { frameObject(currentModel || sceneMgr.getScene()); } catch(e){}
+  try { frameObject(loadedModels.length > 0 ? loadedModels : sceneMgr.getScene()); } catch(e){}
 
   // persist defaults by clearing settings store
   try { settings.clear(); } catch(e){}
@@ -611,7 +657,7 @@ const ui = initUI({
     loader.load(url, (tex) => {
       tex.mapping = THREE.EquirectangularReflectionMapping;
       sceneMgr.setEnvironment(tex);
-      sceneMgr.applyEnvIntensity && sceneMgr.applyEnvIntensity( Number(dom.get('env-intensity')?.value || 1), currentModel || sceneMgr.getScene());
+      sceneMgr.applyEnvIntensity && sceneMgr.applyEnvIntensity( Number(dom.get('env-intensity')?.value || 1), loadedModels.length > 0 ? loadedModels : sceneMgr.getScene());
       hideOverlay();
       dom.showToast(t('hdri_applied'));
     }, undefined, (err) => {
@@ -637,17 +683,19 @@ const ui = initUI({
       // Load textures from the ZIP file
       await loadTexturesFromZIPFile(file);
       
-      // Apply textures to current model if available
-      if (currentModel && zipTextures.size > 0) {
+      // Apply textures to all loaded models if available
+      if (loadedModels.length > 0 && zipTextures.size > 0) {
         try {
-          console.log(`[app] Applying ${zipTextures.size} ZIP textures to current model...`);
-          applyTexturesFromMap(currentModel, zipTextures);
+          console.log(`[app] Applying ${zipTextures.size} ZIP textures to all loaded models...`);
+          loadedModels.forEach(model => {
+            applyTexturesFromMap(model, zipTextures);
+          });
           dom.showToast(t('applying_zip_textures', { count: zipTextures.size }));
         } catch (error) {
           console.warn('[app] Failed to apply ZIP textures:', error);
           dom.showToast(t('error_applying_textures', { message: error.message }));
         }
-      } else if (!currentModel) {
+      } else if (loadedModels.length === 0) {
         dom.showToast(t('load_fbx_before_applying_textures'));
       } else {
         dom.showToast(t('no_textures_found_in_zip'));
@@ -663,7 +711,7 @@ const ui = initUI({
 
   onResetAll: resetAll,
 
-  onFrame: () => { frameObject(currentModel || sceneMgr.getScene()); },
+  onFrame: () => { frameObject(loadedModels.length > 0 ? loadedModels : sceneMgr.getScene()); },
 
   onClearScene: () => { clearScene(); },
   
@@ -728,7 +776,9 @@ try {
       sceneManager: sceneMgr,
       lighting: lighting,
       tControls: tControls,
-      getCurrentModel: () => currentModel,
+      // Pass the entire loadedModels array to the inspector
+      getLoadedModels: () => loadedModels,
+      getCurrentModel: () => selectedObject || (loadedModels.length > 0 ? loadedModels[0] : null),
       onSelect: (obj) => {
         rendererMgr.setOutlineObjects(obj);
         // Handle both single object and array of objects
@@ -744,8 +794,8 @@ try {
     });
   }
 } catch (e) {
-  console.warn('Inspector init error', e);
-  inspectorApi = null;
+ console.warn('Inspector init error', e);
+ inspectorApi = null;
 }
 
 // Inspector open/close bindings (UI buttons)
@@ -804,7 +854,9 @@ function initUIBindings() {
   };
 
   const opts = {
-    getCurrentModel: () => currentModel,
+    // Pass the entire loadedModels array to the inspector
+    getLoadedModels: () => loadedModels,
+    getCurrentModel: () => selectedObject || (loadedModels.length > 0 ? loadedModels[0] : null),
     camera,
     controls,
     inspectorApi,
@@ -859,7 +911,7 @@ if (dirSoftnessEl) dirSoftnessEl.addEventListener('input', () => {
 });
 if (envIntensityEl) envIntensityEl.addEventListener('input', () => {
   const v = Number(envIntensityEl.value || 1);
-  sceneMgr.applyEnvIntensity(v, currentModel || sceneMgr.getScene());
+  sceneMgr.applyEnvIntensity(v, loadedModels.length > 0 ? loadedModels : sceneMgr.getScene());
   const el = dom.get('env-intensity-val');
   if (el) el.textContent = v.toFixed(2);
 });
@@ -894,8 +946,14 @@ if (flipUVToggle) {
 
 // ======= Camera presets =======
 function camPreset(view) {
-  const root = currentModel || sceneMgr.getScene();
-  const box = new THREE.Box3().setFromObject(root);
+  const targetObjects = loadedModels.length > 0 ? loadedModels : [sceneMgr.getScene()];
+  
+  // Calculate bounding box for all target objects
+  const box = new THREE.Box3();
+  targetObjects.forEach(obj => {
+    box.union(new THREE.Box3().setFromObject(obj));
+  });
+
   const sphere = box.getBoundingSphere(new THREE.Sphere());
   const center = sphere.center;
   const fov = THREE.MathUtils.degToRad(camera.fov);
@@ -948,6 +1006,14 @@ function animate() {
   rafId = requestAnimationFrame(animate);
   const dt = clock.getDelta();
   animMgr.update(dt);
+
+  // After animation update, ensure all loaded models' world matrices are updated
+  // This is crucial for attached objects (like the sword) to follow bone animations
+  loadedModels.forEach(model => {
+    if (model) {
+      model.updateMatrixWorld(true); // Force update of world matrix and its children
+    }
+  });
 
   // Update animation UI if an animation is playing
   if (animMgr.activeAction && !animMgr.activeAction.paused) {
@@ -1039,7 +1105,107 @@ function dispose() {
   dom.offResize(onResize);
   dom.offError((e) => {});
   dom.offUnhandledRejection((e) => {});
+  saveAttachmentState(); // Save state on dispose
 }
+
+// --- Attachment State Management ---
+const ATTACHMENT_STATE_KEY = 'threejs_model_attachments';
+
+/**
+ * Saves the current attachment state of objects to localStorage.
+ * Only saves attachments where the parent is a Bone.
+ */
+function saveAttachmentState() {
+  if (loadedModels.length === 0) {
+    localStorage.removeItem(ATTACHMENT_STATE_KEY);
+    return;
+  }
+
+  const attachments = [];
+  loadedModels.forEach(model => {
+    model.traverse(obj => {
+      if (obj.parent && obj.parent.isBone) {
+        // Store UUIDs and local transform
+        attachments.push({
+          childUuid: obj.uuid,
+          parentBoneUuid: obj.parent.uuid,
+          localPosition: obj.position.toArray(),
+          localQuaternion: obj.quaternion.toArray(),
+          localScale: obj.scale.toArray()
+        });
+      }
+    });
+  });
+
+  try {
+    localStorage.setItem(ATTACHMENT_STATE_KEY, JSON.stringify(attachments));
+    console.log('[app] Attachment state saved:', attachments);
+  } catch (e) {
+    console.warn('[app] Failed to save attachment state to localStorage:', e);
+  }
+}
+
+/**
+ * Loads and applies saved attachment state from localStorage.
+ * Should be called after the model is fully loaded.
+ */
+function loadAttachmentState() {
+  if (loadedModels.length === 0) return;
+
+  try {
+    const savedState = localStorage.getItem(ATTACHMENT_STATE_KEY);
+    if (!savedState) return;
+
+    const attachments = JSON.parse(savedState);
+    console.log('[app] Loading attachment state:', attachments);
+
+    attachments.forEach(att => {
+      let childObject = null;
+      let parentBone = null;
+
+      // Search for child and parent in all loaded models
+      for (const model of loadedModels) {
+        childObject = model.getObjectByProperty('uuid', att.childUuid);
+        if (childObject) break;
+      }
+      for (const model of loadedModels) {
+        parentBone = model.getObjectByProperty('uuid', att.parentBoneUuid);
+        if (parentBone) break;
+      }
+
+      if (childObject && parentBone && parentBone.isBone) {
+        // Detach from current parent if any
+        if (childObject.parent) {
+          childObject.parent.remove(childObject);
+        }
+        
+        // Attach to the bone
+        parentBone.add(childObject); // Use add, as attach() would re-calculate world position
+                                    // We want to restore local position relative to bone
+        
+        // Restore local transform
+        childObject.position.fromArray(att.localPosition);
+        childObject.quaternion.fromArray(att.localQuaternion);
+        childObject.scale.fromArray(att.localScale);
+        
+        childObject.updateMatrix();
+        childObject.updateMatrixWorld(true); // Force update world matrix for attached object
+        console.log(`[app] Restored attachment: ${childObject.name} to ${parentBone.name}`);
+      } else {
+        console.warn(`[app] Failed to restore attachment for child ${att.childUuid} to bone ${att.parentBoneUuid}. Objects not found or parent is not a bone.`);
+      }
+    });
+    // After loading all attachments, refresh inspector to reflect new hierarchy
+    if (inspectorApi && typeof inspectorApi.refresh === 'function') inspectorApi.refresh();
+    dom.showToast(t('attachments_loaded'));
+  } catch (e) {
+    console.warn('[app] Failed to load attachment state from localStorage:', e);
+    dom.showToast(t('error_loading_attachments', { message: e.message }));
+  }
+}
+
+// Call saveAttachmentState on page unload
+window.addEventListener('beforeunload', saveAttachmentState);
 
 // Hotkey handling
 // Use window so DOMManager can resolve the global event target

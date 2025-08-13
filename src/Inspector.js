@@ -7,7 +7,7 @@
  */
 import * as THREE from 'three';
 
-export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel, tControls, lighting } = {}) {
+export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel, getLoadedModels, tControls, lighting } = {}) {
   const treeRoot = document.getElementById('tree');
   if (!treeRoot) throw new Error('Inspector: #tree element not found');
 
@@ -146,52 +146,47 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
 
     const rootScene = sceneManager.getScene();
     const rootObjects = rootScene.children.filter(child => {
+        // Get all loaded models from app.js
+        const loadedModels = getLoadedModels(); // Use the new getter
+        // Check if the child is one of the loaded models
+        const isLoadedModel = loadedModels.includes(child);
+
         // Basic filtering for system objects you might not want to see by default
         const isSystemHelper = child.type.includes('Helper') ||
-                               (tControls && child === tControls) ||
+                               (tControls && child === tControls.controls) ||
                                (sceneManager.measure && child === sceneManager.measure.group) ||
                                (lighting && (child === lighting.hemi || child === lighting.dir)) ||
-                               (!showSystemObjects && child.isObject3D && !child.isMesh && !child.isLight && !child.isCamera && child !== getCurrentModel());
+                               (!showSystemObjects && child.isObject3D && !child.isMesh && !child.isLight && !child.isCamera && !isLoadedModel);
 
         return showSystemObjects || !isSystemHelper;
     }).sort((a, b) => {
-        // Sort meshes to the top
-        if (a.isMesh && !b.isMesh) {
-            return -1;
+        // Get all loaded models from app.js for sorting
+        const loadedModels = getLoadedModels(); // Use the new getter
+        const aIsLoadedModel = loadedModels.includes(a);
+        const bIsLoadedModel = loadedModels.includes(b);
+
+        // Calculate system status for sorting
+        const aIsSystem = (a.type.includes('Helper') || (tControls && a === tControls.controls) || (sceneManager.measure && a === sceneManager.measure.group) || (lighting && (a === lighting.hemi || a === lighting.dir)) || (a.isObject3D && !a.isMesh && !a.isLight && !a.isCamera && !aIsLoadedModel));
+        const bIsSystem = (b.type.includes('Helper') || (tControls && b === tControls.controls) || (sceneManager.measure && b === sceneManager.measure.group) || (lighting && (b === lighting.hemi || b === lighting.dir)) || (b.isObject3D && !b.isMesh && !b.isLight && !b.isCamera && !bIsLoadedModel));
+
+        // Primary sort: non-system objects before system objects (only if showSystemObjects is true)
+        if (showSystemObjects) {
+            if (!aIsSystem && bIsSystem) return -1;
+            if (aIsSystem && !bIsSystem) return 1;
         }
-        if (!a.isMesh && b.isMesh) {
-            return 1;
+
+        // Secondary sort: meshes before non-meshes
+        if (a.isMesh && !b.isMesh) return -1;
+        if (!a.isMesh && b.isMesh) return 1;
+
+        // Tertiary sort: alphabetical by name
+        if (a.name && b.name) {
+            return a.name.localeCompare(b.name);
         }
-        // Optional: secondary sort by name for consistency within categories
-        // if (a.name && b.name) {
-        //     return a.name.localeCompare(b.name);
-        // }
         return 0;
     });
 
     if (rootObjects.length > 0) {
-        rootObjects.sort((a, b) => {
-            // Calculate system status for sorting
-            const aIsSystem = (a.type.includes('Helper') || (tControls && a === tControls) || (sceneManager.measure && a === sceneManager.measure.group) || (lighting && (a === lighting.hemi || a === lighting.dir)) || (a.isObject3D && !a.isMesh && !a.isLight && !a.isCamera && a !== getCurrentModel()));
-            const bIsSystem = (b.type.includes('Helper') || (tControls && b === tControls) || (sceneManager.measure && b === sceneManager.measure.group) || (lighting && (b === lighting.hemi || b === lighting.dir)) || (b.isObject3D && !b.isMesh && !b.isLight && !b.isCamera && b !== getCurrentModel()));
-
-            // Primary sort: non-system objects before system objects (only if showSystemObjects is true)
-            if (showSystemObjects) {
-                if (!aIsSystem && bIsSystem) return -1;
-                if (aIsSystem && !bIsSystem) return 1;
-            }
-
-            // Secondary sort: meshes before non-meshes
-            if (a.isMesh && !b.isMesh) return -1;
-            if (!a.isMesh && b.isMesh) return 1;
-
-            // Tertiary sort: alphabetical by name
-            if (a.name && b.name) {
-                return a.name.localeCompare(b.name);
-            }
-            return 0;
-        });
-
         const allObjectsCategory = createCategory('Scene Objects', rootObjects);
         mainContainer.appendChild(allObjectsCategory);
     }
@@ -249,6 +244,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
 
     const li = document.createElement('li');
     li.className = 'tree-node';
+    li.draggable = true; // Make tree nodes draggable
     nodeMap.set(o, li);
 
     const row = document.createElement('div');
@@ -297,6 +293,61 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
             handleSelection(e, o);
         }
         showContextMenu(e.clientX, e.clientY);
+    });
+    
+    // Drag and Drop events
+    li.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        // Store the UUID of the object being dragged
+        e.dataTransfer.setData('text/plain', o.uuid);
+        e.dataTransfer.effectAllowed = 'move';
+        console.log(`[Inspector] Dragging started for: ${o.name} (${o.uuid})`);
+    });
+
+    li.addEventListener('dragover', (e) => {
+        e.preventDefault(); // Allow drop
+        e.stopPropagation();
+        const draggedUuid = e.dataTransfer.getData('text/plain');
+        const draggedObject = sceneManager.getScene().getObjectByProperty('uuid', draggedUuid);
+        
+        // Only allow dropping an object onto a bone or a group/mesh
+        if (draggedObject && o !== draggedObject && (o.isBone || o.isMesh || o.isGroup)) {
+            e.dataTransfer.dropEffect = 'move';
+            li.classList.add('drag-over'); // Visual feedback
+        } else {
+            e.dataTransfer.dropEffect = 'none';
+        }
+    });
+
+    li.addEventListener('dragleave', (e) => {
+        e.stopPropagation();
+        li.classList.remove('drag-over');
+    });
+
+    li.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        li.classList.remove('drag-over');
+
+        const draggedUuid = e.dataTransfer.getData('text/plain');
+        const objectToAttach = sceneManager.getScene().getObjectByProperty('uuid', draggedUuid);
+        const targetParent = o; // The object being dropped onto
+
+        if (objectToAttach && targetParent && objectToAttach !== targetParent && (targetParent.isBone || targetParent.isMesh || targetParent.isGroup)) {
+            // Detach transform controls if attached to the object being moved
+            if (tControls && tControls.controls.object === objectToAttach) {
+                tControls.detach();
+            }
+
+            // Use THREE.Object3D.attach to maintain world position while changing parent
+            targetParent.attach(objectToAttach);
+            console.log(`[Inspector] Dragged and attached ${objectToAttach.name} to ${targetParent.name}`);
+            renderTree();
+            // Clear selection after drop to avoid confusion
+            clearSelection();
+        } else {
+            console.warn('[Inspector] Invalid drop target or object:', objectToAttach, targetParent);
+        }
     });
 
     // --- Children ---
@@ -399,6 +450,8 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
           <button data-action="duplicate">Duplicate</button>
           <button data-action="delete">Delete</button>
           <hr/>
+          <button data-action="attach">Attach Selected Object</button>
+          <hr/>
           <button data-action="isolate">Isolate</button>
           <button data-action="focus">Focus</button>
       `;
@@ -481,6 +534,26 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
         break;
       case 'focus':
         if (onFocus) onFocus(targetObject);
+        break;
+      case 'attach':
+        if (selectedObjects.length === 2) {
+          const objectToAttach = selectedObjects[0];
+          const targetParent = selectedObjects[1];
+
+          // Detach transform controls if attached to the object being moved
+          if (tControls && tControls.controls.object === objectToAttach) {
+            tControls.detach();
+          }
+
+          // Use THREE.Object3D.attach to maintain world position while changing parent
+          // This automatically handles the matrix transformations
+          targetParent.attach(objectToAttach);
+          
+          console.log(`Attached ${objectToAttach.name} to ${targetParent.name}`);
+          renderTree();
+        } else {
+          alert('Please select exactly two objects: the object to attach and the target parent (e.g., a bone).');
+        }
         break;
     }
   }
