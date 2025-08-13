@@ -166,10 +166,12 @@
     .lang-select{ margin-left:auto }
     .theme-switch{
       margin-left:4px;
-      display:inline-flex; align-items:center; gap:6px;
+      display:inline-flex; align-items:center; justify-content: center; gap:6px;
       border:1px solid var(--border); background:var(--bg-panel); padding:6px 8px; border-radius:10px; cursor:pointer;
     }
-    .theme-switch .icon{ width:16px; height:16px; display:inline-block }
+    .theme-switch .icon{ display:inline-block; vertical-align: middle; }
+
+    .theme-dark .theme-switch .icon { color: white; }
 
     /* Accordion (native details) */
     details.section{ border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--bg-panel); }

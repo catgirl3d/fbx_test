@@ -63,7 +63,7 @@ export function initUI({
   function isDark() { return d.body.classList.contains('theme-dark'); }
   function setTheme(theme) {
     d.body.classList.toggle('theme-dark', theme === 'dark');
-    if (themeIcon) themeIcon.textContent = theme === 'dark' ? '🌙' : '🌞';
+    if (themeIcon) { themeIcon.classList.remove('fa-sun', 'fa-moon'); themeIcon.classList.add(theme === 'dark' ? 'fa-moon' : 'fa-sun'); }
     persist();
   }
 

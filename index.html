@@ -38,7 +38,7 @@
         <option value="ru" data-i="lang_ru">Русский</option>
       </select>
       <button id="theme-toggle" class="theme-switch" title="Theme">
-        <span class="icon" id="theme-icon">🌞</span>
+        <i class="fas fa-sun icon" id="theme-icon"></i>
       </button>
     </header>
 
@@ -167,7 +167,7 @@
             </select>
           </div>
           <div class="row">
-            <button id="reset-render" class="btn secondary"><span data-i="btnReset">Reset</span></button>
+            <button id="reset-render" class="btn secondary"><i class="fas fa-undo"></i><span data-i="btnReset">Reset</span></button>
           </div>
         </div>
       </details>
@@ -192,7 +192,7 @@
             <span class="small" id="dir-softness-val">1.0</span>
           </div>
           <div class="row">
-            <button id="reset-dir" class="btn secondary"><span data-i="btnReset">Reset</span></button>
+            <button id="reset-dir" class="btn secondary"><i class="fas fa-undo"></i><span data-i="btnReset">Reset</span></button>
           </div>
         </div>
       </details>
@@ -207,7 +207,7 @@
             <span class="small" id="env-intensity-val">1.00</span>
           </div>
           <div class="row">
-            <button id="reset-env" class="btn secondary"><span data-i="btnReset">Reset</span></button>
+            <button id="reset-env" class="btn secondary"><i class="fas fa-undo"></i><span data-i="btnReset">Reset</span></button>
           </div>
         </div>
       </details>
@@ -236,7 +236,7 @@
             <span class="tag" id="measure-out">—</span>
           </div>
           <div class="row">
-            <button id="reset-gizmos" class="btn secondary"><span data-i="btnReset">Reset</span></button>
+            <button id="reset-gizmos" class="btn secondary"><i class="fas fa-undo"></i><span data-i="btnReset">Reset</span></button>
           </div>
         </div>
       </details>
@@ -302,10 +302,9 @@
 
   <aside id="scene-inspector" class="inspector right-0" aria-label="Scene Inspector">
     <header>
-      <strong data-i="inspectorTitle">Scene</strong>
+      <strong data-i="inspector">Scene</strong>
       <div class="row">
         <span class="tag" id="poly-count">—</span>
-        <span class="tag" id="bbox-size" data-i="bboxSize">bbox: —</span>
         <button class="btn" id="inspector-close" data-i="btnHideInspector">Hide</button>
       </div>
     </header>
