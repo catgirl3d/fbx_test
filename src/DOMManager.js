@@ -40,7 +40,7 @@ function _sanitizeHTML(html) {
  * DOM Manager class
  */
 class DOMManager {
-  constructor() {
+  constructor(options = {}) {
     // Cache storage
     this._cache = new Map();
     
@@ -50,6 +50,9 @@ class DOMManager {
     // Window resize handler
     this._resizeHandler = null;
     this._resizeTimeout = null;
+
+    // i18n function
+    this.t = options.t || ((key) => key);
     
     // Initialize with common elements
     this._initCommonElements();
@@ -845,7 +848,7 @@ class DOMManager {
     if (titleEl) this.setText(titleEl, title);
     if (subtitleEl && subtitle) this.setText(subtitleEl, subtitle);
 
-    this.addClass(overlay, 'visible');
+    this.addClass(overlay, 'show');
   }
 
   /**
@@ -858,7 +861,38 @@ class DOMManager {
       return;
     }
 
-    this.removeClass(overlay, 'visible');
+    this.removeClass(overlay, 'show');
+  }
+
+  /**
+   * Set progress bar percentage
+   * @param {number} p - Progress percentage (0-1)
+   */
+  setProgress(p) {
+    const meter = this.get('meter');
+    const progressSub = this.get('progressSub');
+    if (meter) {
+      this.removeClass(meter, 'indeterminate');
+      const meterBar = meter.firstElementChild;
+      if (meterBar) this.setStyle(meterBar, 'width', `${Math.round(p * 100)}%`);
+    }
+    if (progressSub) this.setText(progressSub, `${Math.round(p * 100)}%`);
+  }
+
+  /**
+   * Set progress bar to indeterminate state
+   */
+  setIndeterminate() {
+    const meter = this.get('meter');
+    const progressSub = this.get('progressSub');
+    if (meter) {
+      this.addClass(meter, 'indeterminate');
+      const meterBar = meter.firstElementChild;
+      if (meterBar) this.setStyle(meterBar, 'width', '40%');
+    }
+    if (progressSub) {
+        this.setText(progressSub, this.t('awaiting_data'));
+    }
   }
 
   /**
@@ -951,8 +985,8 @@ class DOMManager {
 }
 
 // Create factory function
-function createDOMManager() {
-  return new DOMManager();
+function createDOMManager(options) {
+  return new DOMManager(options);
 }
 
 // Create default instance

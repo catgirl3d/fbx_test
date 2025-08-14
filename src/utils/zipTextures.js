@@ -235,87 +235,92 @@ export function matchTexturePath(path, textureMap) {
 }
 
 /**
- * Load textures from a ZIP file
- * @param {File} zipFile - The ZIP file to load textures from
- * @param {Object} threeModule - The THREE module to use for texture loading
- * @returns {Promise<Map<string, THREE.Texture>>} A promise that resolves to a map of texture paths to textures
+ * Load textures from a ZIP file using the zip.js library for streaming.
+ * @param {File} zipFile - The ZIP file to load textures from.
+ * @param {Object} threeModule - The THREE module to use for texture loading.
+ * @param {function(number):void} [onProgress] - Callback for progress updates (0-1).
+ * @returns {Promise<Map<string, THREE.Texture>>} A promise that resolves to a map of texture paths to textures.
  */
-export async function loadTexturesFromZIP(zipFile, threeModule) {
-  if (!zipFile || !threeModule) {
-    throw new Error('ZIP file and THREE module are required');
-  }
-  
-  const textureMap = new Map();
-  const objectUrls = [];
-  
-  try {
-    // Load the ZIP file
-    const zip = await JSZip.loadAsync(zipFile);
-    
-    // Check if zip.files exists and is an object
-    if (!zip || typeof zip.files !== 'object') {
-      console.warn('[zipTextures] ZIP files object is missing or invalid');
-      return textureMap;
+export async function loadTexturesFromZIP(zipFile, threeModule, onProgress) {
+    if (!zipFile || !threeModule) {
+        throw new Error('ZIP file and THREE module are required');
     }
+    if (typeof zip === 'undefined' || typeof zip.BlobReader === 'undefined') {
+        throw new Error('zip.js library is not loaded. Please include it in your HTML.');
+    }
+
+    const textureMap = new Map();
+    const objectUrls = [];
     
-    console.debug('[zipTextures] Starting ZIP file processing');
-    
-    // Process all files in the ZIP
-    const entries = Object.entries(zip.files);
-    console.debug(`[zipTextures] Found ${entries.length} entries in ZIP`);
-    
-    for (const [filename, zipEntry] of entries) {
-      // Skip directories
-      if (zipEntry.dir) {
-        console.debug(`[zipTextures] Skipping directory: ${filename}`);
-        continue;
-      }
-      
-      if (isTextureFile(filename)) {
-        console.debug(`[zipTextures] Processing texture file: ${filename}`);
-        try {
-          // Get the file as blob
-          const blob = await zipEntry.async('blob');
-          
-          // Create object URL for loading
-          const url = URL.createObjectURL(blob);
-          objectUrls.push(url);
-          
-          // Load the texture
-          const texture = await loadTextureFromBlob(blob, filename, threeModule);
-          
-          // Store in map with normalized keys for better matching
-          const filenameLower = filename.toLowerCase();
-          textureMap.set(filenameLower, texture);
-          
-          const basename = getBasename(filename);
-          const dot = basename.lastIndexOf('.');
-          const basenameNoExt = dot > 0 ? basename.substring(0, dot) : basename;
-          const ext = filenameLower.substring(filenameLower.lastIndexOf('.')) || '';
-          
-          textureMap.set(basenameNoExt.toLowerCase(), texture);
-          textureMap.set((basenameNoExt + ext).toLowerCase(), texture);
-          
-          console.log(`[zipTextures] Loaded texture: ${filename} (basename: ${basename})`);
-          console.debug(`[zipTextures] Stored texture keys:`, [filenameLower, basenameNoExt.toLowerCase(), (basenameNoExt + ext).toLowerCase()]);
-        } catch (error) {
-          console.warn(`[zipTextures] Failed to load texture ${filename}:`, error);
+    try {
+        // Use a BlobReader to read the zipFile streamingly
+        const zipReader = new zip.ZipReader(new zip.BlobReader(zipFile));
+        
+        // Get all entries from the zip file
+        const entries = await zipReader.getEntries();
+        const textureEntries = entries.filter(entry => !entry.directory && isTextureFile(entry.filename));
+        
+        console.debug(`[zipTextures] Found ${textureEntries.length} texture entries in ZIP`);
+        if (onProgress) onProgress(0);
+
+        // Calculate total size for accurate progress tracking
+        const totalSize = textureEntries.reduce((acc, entry) => acc + entry.uncompressedSize, 0);
+        let processedSize = 0;
+
+        for (const entry of textureEntries) {
+            const filename = entry.filename;
+            try {
+                // Extract the file data as a Blob
+                const blob = await entry.getData(new zip.BlobWriter());
+                
+                // Load the texture from the blob
+                const texture = await loadTextureFromBlob(blob, filename, threeModule);
+                objectUrls.push(texture.image.src); // Store the URL for later cleanup
+
+                // Store in map with normalized keys for better matching
+                const filenameLower = filename.toLowerCase();
+                textureMap.set(filenameLower, texture);
+
+                const basename = getBasename(filename);
+                const dot = basename.lastIndexOf('.');
+                const basenameNoExt = dot > 0 ? basename.substring(0, dot) : basename;
+                const ext = filenameLower.substring(filenameLower.lastIndexOf('.')) || '';
+
+                textureMap.set(basenameNoExt.toLowerCase(), texture);
+                textureMap.set((basenameNoExt + ext).toLowerCase(), texture);
+
+                console.log(`[zipTextures] Loaded texture: ${filename} (basename: ${basename})`);
+            } catch (error) {
+                console.warn(`[zipTextures] Failed to load texture ${filename}:`, error);
+            } finally {
+                // Update progress based on the size of the processed file
+                processedSize += entry.uncompressedSize;
+                if (onProgress && totalSize > 0) {
+                    onProgress(processedSize / totalSize);
+                }
+            }
         }
-      } else {
-        console.debug(`[zipTextures] Skipping non-texture file: ${filename}`);
-      }
+
+        // Close the zip reader
+        await zipReader.close();
+
+        // Clean up object URLs after a short delay to ensure textures are rendered
+        setTimeout(() => {
+            objectUrls.forEach(url => URL.revokeObjectURL(url));
+            console.log(`[zipTextures] Revoked ${objectUrls.length} object URLs.`);
+        }, 1000);
+
+        console.log(`[zipTextures] Loaded ${textureMap.size} textures from ZIP`);
+        return textureMap;
+
+    } catch (error) {
+        console.error('[zipTextures] Failed to process ZIP file:', error);
+        // Clean up any URLs created before the error
+        objectUrls.forEach(url => URL.revokeObjectURL(url));
+        throw error;
     }
-    
-    console.debug(`[zipTextures] Completed ZIP processing, loaded ${textureMap.size} textures`);
-    
-    console.log(`[zipTextures] Loaded ${textureMap.size} textures from ZIP`);
-    return textureMap;
-    
-  } catch (error) {
-    console.error('[zipTextures] Failed to load ZIP:', error);
-    throw error;
-  }
 }
+
 
 // Export supported texture types for reference
 export const SUPPORTED_TEXTURE_TYPES = TEXTURE_EXTENSIONS;

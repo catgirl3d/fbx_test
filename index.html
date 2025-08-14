@@ -16,8 +16,8 @@
 
   <!-- FontAwesome icon font (used by inspector toggles) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-  <!-- JSZip for ZIP texture loading -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- zip.js for performant, streaming ZIP processing -->
+  <script src="https://unpkg.com/@zip.js/zip.js/dist/zip-full.min.js"></script>
   <!-- TGA-js - standalone TGA loader for browser -->
   <script src="/src/utils/tga-js.js"></script>
   <script>console.debug('[index.html] TGALoader global:', typeof TGALoader !== 'undefined');</script>
@@ -317,9 +317,9 @@
 
   <div class="overlay" id="overlay">
     <div class="progress">
-      <h3 id="progress-title" data-i="loadingTitle">Loading...</h3>
+      <h3 id="progress-title" class="overlay-title" data-i="loadingTitle">Loading...</h3>
       <div class="meter indeterminate" id="meter"><i></i></div>
-      <div class="small" id="progress-sub" data-i="awaitingData">Awaiting data...</div>
+      <div class="small overlay-subtitle" id="progress-sub" data-i="awaitingData">Awaiting data...</div>
     </div>
   </div>
 

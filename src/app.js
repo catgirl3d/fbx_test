@@ -22,7 +22,7 @@ import { loadLanguage, t, getCurrentLanguage } from './i18n.js';
 // This file replaces the monolithic inline script and uses modular building blocks.
 
 // Initialize DOM Manager
-const dom = createDOMManager();
+const dom = createDOMManager({ t });
 
 const canvas = dom.getOrThrow('viewport', 'Canvas #viewport not found');
 
@@ -258,26 +258,26 @@ function createTextureResolver() {
 }
 
 // Load textures from ZIP file
-async function loadTexturesFromZIPFile(zipFile) {
+async function loadTexturesFromZIPFile(zipFile, onProgress) {
   if (!zipFile) {
     throw new Error('No ZIP file provided');
   }
   
   try {
-    showOverlay(t('loading_textures'), t('unzipping_zip'));
+    dom.showOverlay(t('loading_textures'), t('unzipping_zip'));
     
     // Clear previous textures
     clearZipTextures();
     
     // Load new textures
-    zipTextures = await loadTexturesFromZIP(zipFile, THREE);
+    zipTextures = await loadTexturesFromZIP(zipFile, THREE, onProgress);
     currentZipFile = zipFile;
     
     // Save texture map to global for debugging and manual texture application
     window.zipTextureMap = zipTextures;
     console.log('[app] Saved texture map to window.zipTextureMap for debugging');
     
-    hideOverlay();
+    dom.hideOverlay();
     
     if (zipTextures.size > 0) {
       dom.showToast(t('applying_zip_textures', { count: zipTextures.size }));
@@ -288,7 +288,7 @@ async function loadTexturesFromZIPFile(zipFile) {
     
     return zipTextures;
   } catch (error) {
-    hideOverlay();
+    dom.hideOverlay();
     console.error('[app] Failed to load textures from ZIP:', error);
     dom.showToast(t('error_loading_textures_from_zip', { message: error.message }));
     throw error;
@@ -622,12 +622,12 @@ const ui = initUI({
     // Handle ZIP files first
     for (const file of zipFiles) {
       try {
-        showOverlay(t('loading_textures'), file.name);
-        await loadTexturesFromZIPFile(file);
-        hideOverlay();
+        dom.showOverlay(t('loading_textures'), file.name);
+        await loadTexturesFromZIPFile(file, (p) => dom.setProgress(p));
+        dom.hideOverlay();
         dom.showToast(t('textures_loaded_from_zip'));
       } catch (err) {
-        hideOverlay();
+        dom.hideOverlay();
         dom.showToast(t('zip_load_error', { message: err.message || err }));
       }
     }
@@ -636,36 +636,36 @@ const ui = initUI({
     for (const file of modelFiles) {
       const name = file.name.toLowerCase();
       if (name.endsWith('.gltf') || name.endsWith('.glb')) {
-        showOverlay(t('loading_gltf_glb'), file.name);
+        dom.showOverlay(t('loading_gltf_glb'), file.name);
         gltfLoaderWrapper.loadFromFile(file, (evt) => {
-          if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
-          else setIndeterminate();
+          if (evt && evt.lengthComputable) dom.setProgress(evt.loaded / evt.total);
+          else dom.setIndeterminate();
         }, file.name).then(gltf => {
-          hideOverlay();
+          dom.hideOverlay();
           postLoad(gltf, 'gltf', file.name);
         }).catch(err => {
-          hideOverlay();
+          dom.hideOverlay();
           dom.showToast(t('loading_error', { message: err.message || err }));
         });
       } else if (name.endsWith('.fbx')) {
-        showOverlay(t('loading_fbx'), file.name);
+        dom.showOverlay(t('loading_fbx'), file.name);
         let textureResolver = null;
         if (zipTextures.size > 0) {
           textureResolver = createTextureResolver();
         }
         const fbxLoader = new FBXLoaderWrapper(textureResolver);
         fbxLoader.loadFromFile(file, (evt) => {
-          if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
-          else setIndeterminate();
+          if (evt && evt.lengthComputable) dom.setProgress(evt.loaded / evt.total);
+          else dom.setIndeterminate();
         }, file.name).then(obj => {
-          hideOverlay();
+          dom.hideOverlay();
           postLoad(obj, 'fbx', file.name);
         }).catch(err => {
-          hideOverlay();
+          dom.hideOverlay();
           dom.showToast(t('fbx_error', { message: err.message || err }));
         });
       } else if (name.endsWith('.obj')) {
-        showOverlay(t('loading_obj'), file.name);
+        dom.showOverlay(t('loading_obj'), file.name);
         const mtlFileName = file.name.replace(/\.obj$/, '.mtl');
         let mtlFile = null;
 
@@ -676,10 +676,10 @@ const ui = initUI({
         }
 
         objLoaderWrapper.loadFromFile(file, mtlFile).then(obj => {
-          hideOverlay();
+          dom.hideOverlay();
           postLoad(obj, 'obj', file.name);
         }).catch(err => {
-          hideOverlay();
+          dom.hideOverlay();
           dom.showToast(t('obj_error', { message: err.message || err }));
         });
       }
@@ -692,17 +692,17 @@ const ui = initUI({
       dom.showToast(t('hdri_cleared'));
       return;
     }
-    showOverlay(t('hdri'), t('loading_environment'));
+    dom.showOverlay(t('hdri'), t('loading_environment'));
     const loaderModule = await import('https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/RGBELoader.js');
     const loader = new loaderModule.RGBELoader();
     loader.load(url, (tex) => {
       tex.mapping = THREE.EquirectangularReflectionMapping;
       sceneMgr.setEnvironment(tex);
       sceneMgr.applyEnvIntensity && sceneMgr.applyEnvIntensity( Number(dom.get('env-intensity')?.value || 1), loadedModels.length > 0 ? loadedModels : sceneMgr.getScene());
-      hideOverlay();
+      dom.hideOverlay();
       dom.showToast(t('hdri_applied'));
     }, undefined, (err) => {
-      hideOverlay();
+      dom.hideOverlay();
       dom.showToast(t('failed_to_load_hdri'));
     });
   },
@@ -719,10 +719,10 @@ const ui = initUI({
     }
     
     try {
-      showOverlay(t('loading_textures'), file.name);
+      dom.showOverlay(t('loading_textures'), file.name);
       
       // Load textures from the ZIP file
-      await loadTexturesFromZIPFile(file);
+      await loadTexturesFromZIPFile(file, (p) => dom.setProgress(p));
       
       // Apply textures to all loaded models if available
       if (loadedModels.length > 0 && zipTextures.size > 0) {
@@ -742,9 +742,9 @@ const ui = initUI({
         dom.showToast(t('no_textures_found_in_zip'));
       }
       
-      hideOverlay();
+      dom.hideOverlay();
     } catch (error) {
-      hideOverlay();
+      dom.hideOverlay();
       console.error('[app] Failed to load textures from file:', error);
       dom.showToast(t('error_loading_textures', { message: error.message }));
     }
@@ -857,34 +857,9 @@ openInspectorBtn?.addEventListener('click', ()=> setInspectorOpen(true));
 inspectorCloseBtn?.addEventListener('click', ()=> setInspectorOpen(false));
 leftColEl?.addEventListener('dblclick', ()=> setInspectorOpen(true));
 
-// Small overlay helpers (same as original)
-const overlay = dom.get('overlay');
-const meter = dom.get('meter');
-const progressTitle = dom.get('progress-title');
-const progressSub = dom.get('progress-sub');
-
-function showOverlay(title, sub) {
-  if (overlay) overlay.classList.add('show');
-  if (progressTitle) progressTitle.textContent = title || t('loading');
-  if (progressSub) progressSub.textContent = sub || '';
-  setIndeterminate();
-}
-function hideOverlay() { if (overlay) overlay.classList.remove('show'); }
-function setProgress(p) {
-  if (meter) {
-    meter.classList.remove('indeterminate');
-    meter.firstElementChild.style.width = Math.round(p*100) + '%';
-  }
-  if (progressSub) progressSub.textContent = Math.round(p*100) + '%';
-}
-function setIndeterminate() {
-  if (meter) {
-    meter.classList.add('indeterminate');
-    meter.firstElementChild.style.width = '40%';
-  }
-  if (progressSub) progressSub.textContent = t('awaiting_data');
-}
-
+// Overlay helpers are now part of DOMManager.
+// The global functions showOverlay, hideOverlay, setProgress, setIndeterminate are removed.
+// All calls are replaced with dom.showOverlay, dom.hideOverlay, etc.
 // Initialize UI bindings
 let unbindUI = null;
 function initUIBindings() {
@@ -1466,7 +1441,7 @@ async function loadDefaultModel() {
     const arrayBuffer = await response.arrayBuffer();
     const defaultModelFile = new File([arrayBuffer], 'devilgirl.fbx', { type: 'application/octet-stream' });
     
-    showOverlay(t('loading_model'), 'devilgirl.fbx');
+    dom.showOverlay(t('loading_model'), 'devilgirl.fbx');
     
     // Create texture resolver if ZIP textures are available
     let textureResolver = null;
@@ -1479,15 +1454,15 @@ async function loadDefaultModel() {
     const fbxLoader = new FBXLoaderWrapper(textureResolver);
     
     fbxLoader.loadFromFile(defaultModelFile, (evt) => {
-      if (evt && evt.lengthComputable) setProgress(evt.loaded / evt.total);
-      else setIndeterminate();
+      if (evt && evt.lengthComputable) dom.setProgress(evt.loaded / evt.total);
+      else dom.setIndeterminate();
     }).then(obj => {
-      hideOverlay();
+      dom.hideOverlay();
       // FBX returns Object3D — wrap in a simple shape consistent with GLTF handling
       postLoad(obj, 'fbx', 'devilgirl.fbx'); // Pass filename for default model
       console.log('[app] Default model loaded successfully');
     }).catch(err => {
-      hideOverlay();
+      dom.hideOverlay();
       console.error('[app] Failed to load default model:', err);
       dom.showToast(t('error_loading_default_model', { message: err.message || err }));
     });

@@ -74,11 +74,19 @@ export class SceneManager {
   }
 
   applyEnvIntensity(intensity, root = this.scene) {
-    root.traverse(o => {
-      if (o.isMesh) {
-        const mats = Array.isArray(o.material) ? o.material : [o.material];
-        mats.filter(Boolean).forEach(m => {
-          if ('envMapIntensity' in m) { m.envMapIntensity = intensity; m.needsUpdate = true; }
+    const targets = Array.isArray(root) ? root : [root];
+    targets.forEach(target => {
+      if (target && typeof target.traverse === 'function') {
+        target.traverse(o => {
+          if (o.isMesh) {
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            mats.filter(Boolean).forEach(m => {
+              if ('envMapIntensity' in m) {
+                m.envMapIntensity = intensity;
+                m.needsUpdate = true;
+              }
+            });
+          }
         });
       }
     });

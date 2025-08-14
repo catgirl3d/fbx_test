@@ -6,7 +6,7 @@
  * It handles language switching (i18n), theme toggle, basic bindings and settings persistence.
  */
 
-import { t, loadLanguage } from './i18n.js';
+import { t, loadLanguage, enableDiagnostics, getDiagnostics, resetDiagnostics } from './i18n.js';
 import dom from './DOMManager.js'; // Import DOMManager
 
 const LS_KEY = 'viewerSettings.v1';
@@ -32,6 +32,11 @@ function saveSettings(s) {
 export function initUI({
   onLoadFile, onApplyHDRI, onApplyTextures, onResetAll, onFrame, onClearScene, getSettings, setSettings
 } = {}) {
+  // Enable runtime diagnostics for i18n key usage tracking
+  enableDiagnostics(true);
+  
+  // Log initial diagnostic state
+  console.log('[UI] Runtime diagnostics initialized for i18n key tracking.');
   const d = document;
   const fileInput = d.getElementById('file-input');
   const resetCameraBtn = d.getElementById('reset-camera');
@@ -228,10 +233,67 @@ export function initUI({
     });
   }
 
+  // Diagnostic helper functions
+  function logDiagnostics() {
+    const diagnostics = getDiagnostics();
+    console.group('[UI] i18n Key Usage Diagnostics');
+    console.log('Diagnostics enabled:', diagnostics.enabled);
+    console.log('Total keys tracked:', diagnostics.totalKeys);
+    console.log('Used keys:', diagnostics.usedKeys);
+    console.log('Unused keys:', diagnostics.unusedKeys);
+    console.log('Usage rate:', ((diagnostics.usedKeys / diagnostics.totalKeys) * 100).toFixed(1) + '%');
+    
+    // Log keys with usage details
+    if (Object.keys(diagnostics.keyUsage).length > 0) {
+      console.group('Key Usage Details');
+      Object.entries(diagnostics.keyUsage).forEach(([key, usage]) => {
+        console.log(`${key}: ${usage.usageCount} uses, last used: ${usage.lastUsed ? usage.lastUsed.toISOString() : 'never'}`);
+      });
+      console.groupEnd();
+    }
+    console.groupEnd();
+  }
+
+  function exportDiagnostics() {
+    const diagnostics = getDiagnostics();
+    const exportData = {
+      timestamp: new Date().toISOString(),
+      diagnostics: diagnostics,
+      usedKeys: Object.entries(diagnostics.keyUsage)
+        .filter(([_, usage]) => usage.used)
+        .map(([key, usage]) => ({
+          key,
+          usageCount: usage.usageCount,
+          firstUsed: usage.firstUsed,
+          lastUsed: usage.lastUsed
+        })),
+      unusedKeys: Object.entries(diagnostics.keyUsage)
+        .filter(([_, usage]) => !usage.used)
+        .map(([key]) => key)
+    };
+    
+    console.log('[UI] Exported diagnostics data:', exportData);
+    return exportData;
+  }
+
+  function resetUIDiagnostics() {
+    resetDiagnostics();
+    console.log('[UI] i18n diagnostic tracking data reset.');
+  }
+
+  // Log initial diagnostics after a short delay to allow some keys to be used
+  setTimeout(() => {
+    logDiagnostics();
+  }, 2000);
+
   return {
     applyLang,
     setTheme,
     persist,
-    toast: persistedToast
+    toast: persistedToast,
+    // Diagnostic functions
+    logDiagnostics,
+    exportDiagnostics,
+    resetDiagnostics: resetUIDiagnostics
   };
 }
