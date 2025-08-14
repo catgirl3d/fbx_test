@@ -56,20 +56,20 @@ export class GLTFLoaderWrapper {
       const url = URL.createObjectURL(file);
       this.gltfLoader.load(url, (gltf) => {
         // revoke URL and resolve
-        try { URL.revokeObjectURL(url); } catch(e) {}
+        try { URL.revokeObjectURL(url); } catch(e) { console.error(e); }
         resolve(gltf);
       }, (evt) => {
         if (onProgress) onProgress(evt);
       }, (err) => {
-        try { URL.revokeObjectURL(url); } catch(e) {}
+        try { URL.revokeObjectURL(url); } catch(e) { console.error(e); }
         reject(err);
       });
     });
   }
 
   dispose() {
-    try { this.draco?.dispose?.(); } catch(e) {}
-    try { this.ktx2?.dispose?.(); } catch(e) {}
+    try { this.draco?.dispose?.(); } catch(e) { console.error(e); }
+    try { this.ktx2?.dispose?.(); } catch(e) { console.error(e); }
   }
 }
 

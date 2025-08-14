@@ -7,6 +7,7 @@
  */
 
 import { t, loadLanguage, enableDiagnostics, getDiagnostics, resetDiagnostics } from './i18n.js';
+import Logger from './core/Logger.js';
 import dom from './DOMManager.js'; // Import DOMManager
 
 const LS_KEY = 'viewerSettings.v1';
@@ -36,7 +37,7 @@ export function initUI({
   enableDiagnostics(true);
   
   // Log initial diagnostic state
-  console.log('[UI] Runtime diagnostics initialized for i18n key tracking.');
+  Logger.log('[UI] Runtime diagnostics initialized for i18n key tracking.');
   const d = document;
   const fileInput = d.getElementById('file-input');
   const resetCameraBtn = d.getElementById('reset-camera');
@@ -236,22 +237,22 @@ export function initUI({
   // Diagnostic helper functions
   function logDiagnostics() {
     const diagnostics = getDiagnostics();
-    console.group('[UI] i18n Key Usage Diagnostics');
-    console.log('Diagnostics enabled:', diagnostics.enabled);
-    console.log('Total keys tracked:', diagnostics.totalKeys);
-    console.log('Used keys:', diagnostics.usedKeys);
-    console.log('Unused keys:', diagnostics.unusedKeys);
-    console.log('Usage rate:', ((diagnostics.usedKeys / diagnostics.totalKeys) * 100).toFixed(1) + '%');
+    Logger.group('[UI] i18n Key Usage Diagnostics');
+    Logger.log('Diagnostics enabled:', diagnostics.enabled);
+    Logger.log('Total keys tracked:', diagnostics.totalKeys);
+    Logger.log('Used keys:', diagnostics.usedKeys);
+    Logger.log('Unused keys:', diagnostics.unusedKeys);
+    Logger.log('Usage rate:', ((diagnostics.usedKeys / diagnostics.totalKeys) * 100).toFixed(1) + '%');
     
     // Log keys with usage details
     if (Object.keys(diagnostics.keyUsage).length > 0) {
-      console.group('Key Usage Details');
+      Logger.group('Key Usage Details');
       Object.entries(diagnostics.keyUsage).forEach(([key, usage]) => {
-        console.log(`${key}: ${usage.usageCount} uses, last used: ${usage.lastUsed ? usage.lastUsed.toISOString() : 'never'}`);
+        Logger.log(`${key}: ${usage.usageCount} uses, last used: ${usage.lastUsed ? usage.lastUsed.toISOString() : 'never'}`);
       });
-      console.groupEnd();
+      Logger.groupEnd();
     }
-    console.groupEnd();
+    Logger.groupEnd();
   }
 
   function exportDiagnostics() {
@@ -272,13 +273,13 @@ export function initUI({
         .map(([key]) => key)
     };
     
-    console.log('[UI] Exported diagnostics data:', exportData);
+    Logger.log('[UI] Exported diagnostics data:', exportData);
     return exportData;
   }
 
   function resetUIDiagnostics() {
     resetDiagnostics();
-    console.log('[UI] i18n diagnostic tracking data reset.');
+    Logger.log('[UI] i18n diagnostic tracking data reset.');
   }
 
   // Log initial diagnostics after a short delay to allow some keys to be used

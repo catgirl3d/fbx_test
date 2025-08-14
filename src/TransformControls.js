@@ -116,7 +116,7 @@ export class TransformControlsWrapper {
       console.warn('Failed to detach TransformControls:', e);
     }
   }
-  setMode(mode = 'translate') { try { this.controls.setMode(mode); } catch(e){} }
+  setMode(mode = 'translate') { try { this.controls.setMode(mode); } catch(e){ console.error(e); }}
   enable(v) { this.controls.enabled = !!v; }
 
   setTranslationSnap(v) { if (v === null) this.controls.setTranslationSnap(null); else this.controls.setTranslationSnap(Number(v) || 0); }

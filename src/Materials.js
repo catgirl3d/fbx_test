@@ -193,7 +193,7 @@ export function setLightOnly(root, on) {
             saved.color && cm.color?.copy?.(saved.color);
             saved.emissive && cm.emissive?.copy?.(saved.emissive);
             cm.needsUpdate = true;
-          } catch(e){}
+          } catch(e){ console.error(e); }
         });
         savedOriginal.delete(o);
       }

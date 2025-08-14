@@ -764,7 +764,7 @@ class DOMManager {
     }
     
     // Return element.value if it exists, otherwise fallback to attribute 'value'
-    return element.value !== undefined ? element.value : (element.getAttribute('value') || '');
+    return element?.value !== undefined ? element.value : (element?.getAttribute('value') || '');
   }
 
   /**
@@ -779,7 +779,7 @@ class DOMManager {
       return false;
     }
     
-    return element.checked || false;
+    return element?.checked || false;
   }
 
   /**
