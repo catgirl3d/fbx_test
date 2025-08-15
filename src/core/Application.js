@@ -528,6 +528,11 @@ export class Application {
     this.updateStatsUI();
     this.sceneManager?.updateBBox([model]);
 
+    // Refresh the inspector to show the new model
+    if (this.inspectorApi && typeof this.inspectorApi.refresh === 'function') {
+      this.inspectorApi.refresh();
+    }
+
     // Attempt to triangulate geometry and compute normals
     model.traverse((child) => {
       if (child.isMesh && child.geometry) {

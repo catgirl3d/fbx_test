@@ -157,14 +157,16 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
         const isLoadedModel = loadedModels.includes(child);
 
         // Basic filtering for system objects you might not want to see by default
-        const isSystemHelper = child.type.includes('Helper') ||
+        const isSystemHelper = !isLoadedModel && (
+                               child.type.includes('Helper') ||
                                (tControls && child === tControls.controls) ||
                                (sceneManager.measure && child === sceneManager.measure.group) ||
                                (lighting && (child === lighting.hemi || child === lighting.dir)) ||
-                               (!showSystemObjects && child.isObject3D && !child.isMesh && !child.isLight && !child.isCamera && !isLoadedModel);
+                               (child.isObject3D && !child.isMesh && !child.isLight && !child.isCamera)
+                             );
 
         return showSystemObjects || !isSystemHelper;
-    }).sort((a, b) => {
+   }).sort((a, b) => {
         // Get all loaded models from app.js for sorting
         const loadedModels = (typeof getLoadedModels === 'function' ? getLoadedModels() : []) || []; // Use the new getter
         const aIsLoadedModel = loadedModels.includes(a);
