@@ -143,7 +143,10 @@ export class Application {
     
     Logger.log('[Application] Initializing TransformControlsWrapper...');
     this.transformControls = new TransformControlsWrapper(this.camera, this.canvas);
-    this.sceneManager.getScene().add(this.transformControls.controls);
+    const scene = this.sceneManager?.getScene();
+    if (scene) {
+      scene.add(this.transformControls.controls);
+    }
     Logger.log('[Application] TransformControlsWrapper initialized.');
     
     // Wire transform dragging to OrbitControls
@@ -163,20 +166,29 @@ export class Application {
     Logger.log('[Application] RenderSettings initialized.');
     
     Logger.log('[Application] Initializing LightingManager...');
-    this.lightingManager = new LightingManager({
-      scene: this.sceneManager.getScene()
-    });
-    Logger.log('[Application] LightingManager initialized.');
+    const sceneForLighting = this._getSafeScene();
+    if (sceneForLighting) {
+      this.lightingManager = new LightingManager({
+        scene: sceneForLighting
+      });
+      Logger.log('[Application] LightingManager initialized.');
+    } else {
+      Logger.warn('[Application] SceneManager not available, LightingManager not fully initialized.');
+    }
     
-    Logger.log('[Application] Calling initInspector()...');
-    this.initInspector();
-    Logger.log('[Application] initInspector() finished.');
+    if (this.lightingManager) {
+      Logger.log('[Application] Calling initInspector()...');
+      this.initInspector();
+      Logger.log('[Application] initInspector() finished.');
+    } else {
+      Logger.error('[Application] FATAL: LightingManager failed to initialize, Inspector will not be created.');
+    }
     Logger.log('[Application] initManagers() finished.');
   }
 
   initUI() {
     Logger.log('[Application] initUI() started.');
-    // Initialize UI
+    // Initialize external UI components
     Logger.log('[Application] Calling initUI (external)...');
     this.ui = initUI({
       t: t,
@@ -234,7 +246,7 @@ export class Application {
       this.dom,
       this.camera,
       this.controls,
-      this.rendererManager.renderer.domElement
+      this.rendererManager?.renderer?.domElement // Use optional chaining here
     );
 
     // Subscribe to state changes
@@ -395,7 +407,7 @@ export class Application {
       this.sceneManager?.applyEnvIntensity && this.sceneManager?.applyEnvIntensity(
         Number(this.dom?.get('env-intensity')?.value || 1),
         this.stateManager?.getSceneState().models.length > 0 ?
-          this.stateManager?.getSceneState().models : this.sceneManager?.getScene()
+          this.stateManager?.getSceneState().models : this._getSafeScene() || null // Use _getSafeScene
       );
       this.dom?.hideOverlay();
       this.dom?.showToast(t('hdri_applied'));
@@ -441,7 +453,8 @@ export class Application {
 
   handleFrame = () => {
     const models = this.stateManager?.getSceneState().models;
-    this.frameObject(models && models.length > 0 ? models : this.sceneManager?.getScene());
+    const scene = this._getSafeScene(); // Use _getSafeScene
+    this.frameObject(models && models.length > 0 ? models : (scene || null));
   };
 
   handleClearScene = () => {
@@ -559,13 +572,17 @@ export class Application {
   handleContextMenu = ({ clientX, clientY }) => {
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    const rect = this.rendererManager?.renderer.domElement.getBoundingClientRect();
+    const rendererDom = this.rendererManager?.renderer?.domElement;
+    if (!rendererDom) return;
+    const rect = rendererDom.getBoundingClientRect();
 
     mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
 
     raycaster.setFromCamera(mouse, this.camera);
-    const intersects = raycaster.intersectObjects(this.sceneManager.getScene().children, true);
+    const scene = this.sceneManager?.getScene();
+    if (!scene) return;
+    const intersects = raycaster.intersectObjects(scene.children, true);
 
     if (intersects.length > 0) {
       const clickedObject = intersects[0].object;
@@ -696,7 +713,7 @@ export class Application {
           }
           
           // Attach to the bone
-          parentBone.add(childObject); // Use add, as attach() would re-calculate world position
+          parentBone.add(childObject); // Use add, as attach() would recalculate world position.
                                       // We want to restore local position relative to bone
           
           // Restore local transform
@@ -799,8 +816,10 @@ export class Application {
     const objCountEl = this.dom?.get('obj-count');
     
     let tris = 0, objs = 0;
-    this.sceneManager?.getScene().traverse(o => {
-      objs++;
+    const scene = this._getSafeScene(); // Use _getSafeScene
+    if (scene) {
+      scene.traverse(o => {
+        objs++;
       if (o.isMesh && o.geometry) {
         const index = o.geometry.index;
         const pos = o.geometry.attributes.position;
@@ -808,6 +827,7 @@ export class Application {
         else if (pos) tris += pos.count / 3;
       }
     });
+    }
     
     if (polyCountEl) polyCountEl.textContent = new Intl.NumberFormat(getCurrentLanguage()).format(tris) + ' ' + t('tris');
     if (objCountEl) objCountEl.textContent = objs;
@@ -885,7 +905,7 @@ export class Application {
     }
     const loadedModels = this.stateManager?.getSceneState().models;
     loadedModels?.forEach(model => {
-      this.applyModelSettings(model); // Re-apply all model settings
+      this.applyModelSettings(model); // Reapply all model settings
     });
   };
 
@@ -903,7 +923,8 @@ export class Application {
     }
     if (settings.environment) {
       if (settings.environment.intensity !== undefined) {
-        this.sceneManager?.applyEnvIntensity(settings.environment.intensity, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : this.sceneManager?.getScene());
+        const scene = this._getSafeScene(); // Use _getSafeScene
+        this.sceneManager?.applyEnvIntensity(settings.environment.intensity, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null));
       }
     }
   };
@@ -944,7 +965,7 @@ export class Application {
     const envIntensityVal = this.dom?.get('env-intensity-val');
     const hdriUrlInput = this.dom?.get('hdri-url');
 
-    if (envIntensityEl) { envIntensityEl.value = 1; try { this.sceneManager?.applyEnvIntensity(1, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : this.sceneManager?.getScene()); } catch(e){ Logger.error(e); } if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
+    if (envIntensityEl) { envIntensityEl.value = 1; try { const scene = this._getSafeScene(); this.sceneManager?.applyEnvIntensity(1, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error(e); } if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
     if (hdriUrlInput) { hdriUrlInput.value = ''; }
     try { this.sceneManager?.setEnvironment(null); } catch(e){ Logger.error(e); }
     this.dom?.showToast(t('reset_environment'));
@@ -1023,7 +1044,7 @@ export class Application {
 
     // camera & selection (clear outlines, detach gizmos)
     try { this.rendererManager?.setOutlineObjects([]); } catch(e){ Logger.error(e); }
-    try { this.frameObject(this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : this.sceneManager?.getScene()); } catch(e){ Logger.error(e); }
+    try { const scene = this._getSafeScene(); this.frameObject(this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error(e); }
 
     // persist defaults by clearing settings store
     try { this.settings?.clear(); } catch(e){ Logger.error(e); }
@@ -1032,7 +1053,8 @@ export class Application {
 
   handleCameraPreset = (view) => {
     const models = this.stateManager?.getSceneState().models;
-    const targetObjects = models && models.length > 0 ? models : [this.sceneManager?.getScene()];
+    const scene = this._getSafeScene(); // Use _getSafeScene
+    const targetObjects = models && models.length > 0 ? models : (scene ? [scene] : []);
     
     const box = new THREE.Box3();
     targetObjects.forEach(obj => {
@@ -1060,6 +1082,19 @@ export class Application {
     this.camera.position.copy(center.clone().addScaledVector(dirv.normalize(), m));
     this.controls.target.copy(center);
     this.controls.update();
+  };
+
+  /**
+   * Safely gets the THREE.Scene instance from SceneManager.
+   * @returns {THREE.Scene|null} The scene instance or null if not available.
+   * @private
+   */
+  _getSafeScene = () => {
+    if (!this.sceneManager) {
+      Logger.warn('[Application] SceneManager is not initialized when trying to get scene.');
+      return null;
+    }
+    return this.sceneManager.getScene();
   };
 
   clearScene = () => {
@@ -1124,7 +1159,10 @@ export class Application {
     this.controls.update();
     
     // Render
-    this.rendererManager?.render(this.sceneManager?.getScene(), this.camera);
+    const scene = this._getSafeScene(); // Use _getSafeScene
+    if (scene) {
+      this.rendererManager?.render(scene, this.camera);
+    }
     
     // Update FPS
     if (this.dom?.get('fps')) {

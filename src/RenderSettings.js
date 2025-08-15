@@ -10,7 +10,7 @@
  *   rs.applyToneMapping('ACES');
  *   rs.enableFXAA(true);
  *
- * It does not directly bind UI elements — the bootstrap (`src/app.js`) wires UI -> this API.
+ * It does not directly bind UI elements — the Application bootstrap (`src/core/Application.js`) wires UI -> this API.
  */
 
 import * as THREE from 'three';
