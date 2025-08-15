@@ -133,6 +133,8 @@ export class FBXLoaderWrapper {
       this.loader.loadTexture = this._originalLoadTexture;
       this._originalLoadTexture = null;
     }
+    // Also clear the textureResolver reference
+    this.textureResolver = null;
   }
 
   dispose() {
@@ -140,7 +142,7 @@ export class FBXLoaderWrapper {
   }
 }
 
-export async function loadFBXFromFile(file) {
-  const w = new FBXLoaderWrapper();
+export async function loadFBXFromFile(file, textureResolver = null) {
+  const w = new FBXLoaderWrapper(textureResolver);
   return w.loadFromFile(file);
 }

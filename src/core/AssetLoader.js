@@ -48,8 +48,12 @@ export class AssetLoader {
       const textureResolver = this.createTextureResolver();
 
       if (extension === 'fbx') {
-        const fbxLoader = new FBXLoaderWrapper(textureResolver);
-        this.rendererManager?.renderer && fbxLoader.init(this.rendererManager.renderer); // Use the passed renderer
+        // Reuse cached loader created by initLoaders() so lifecycle/cleanup is centralised
+        const fbxLoader = loader; // loader === this.loaders.get(extension) (set earlier)
+        // Attach the per-load texture resolver created from state
+        fbxLoader.textureResolver = textureResolver;
+        // Ensure renderer initialization (no-op if already inited)
+        this.rendererManager?.renderer && fbxLoader.init(this.rendererManager.renderer);
         result = await this.loadWithProgress(fbxLoader, file, options);
       } else {
         result = await this.loadWithProgress(loader, file, options);
