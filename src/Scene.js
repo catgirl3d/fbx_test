@@ -167,6 +167,7 @@ export class SceneManager {
 
   // Add HDRI loading helper
   async loadHDRI(url) {
+    const { RGBELoader } = await import('three/examples/jsm/loaders/RGBELoader.js');
     const loader = new RGBELoader();
     return new Promise((resolve, reject) => {
       loader.load(url, texture => {
