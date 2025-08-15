@@ -21,8 +21,7 @@ export function enhanceMaterial(material) {
       opacity: material.opacity ?? 1,
       transparent: !!material.transparent,
       side: material.side ?? THREE.FrontSide,
-      wireframe: false,
-      flatShading: !!material.flatShading
+      wireframe: false
     });
     if (material.map) { m.map = material.map; if (m.map) m.map.colorSpace = THREE.SRGBColorSpace; }
     m.metalness = material.metalness ?? 0.0;
@@ -194,7 +193,7 @@ export function setLightOnly(root, on) {
             saved.color && cm.color?.copy?.(saved.color);
             saved.emissive && cm.emissive?.copy?.(saved.emissive);
             cm.needsUpdate = true;
-          } catch(e){ console.error(e); }
+          } catch(e){}
         });
         savedOriginal.delete(o);
       }

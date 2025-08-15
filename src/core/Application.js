@@ -538,7 +538,6 @@ export class Application {
         if (child.geometry.index) {
           child.geometry = BufferGeometryUtils.toTrianglesDrawMode(child.geometry, THREE.TriangleStripDrawMode);
         }
-        child.geometry.computeVertexNormals();
         child.geometry.computeBoundingBox();
         child.geometry.computeBoundingSphere();
         Logger.log(`[Application] Processed geometry for mesh: ${child.name || child.uuid}. Triangles: ${child.geometry.index ? child.geometry.index.count / 3 : child.geometry.attributes.position.count / 3}`);
