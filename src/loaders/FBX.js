@@ -36,17 +36,103 @@ export class FBXLoaderWrapper {
     return new Promise((resolve, reject) => {
       if (!file) return reject(new Error('No file provided'));
       
+      // Set up texture resolver if provided
+      if (this.textureResolver) {
+        this._setupTextureResolver();
+      }
+      
       const url = URL.createObjectURL(file);
       this.loader.load(url, (obj) => {
-        try { URL.revokeObjectURL(url); } catch (e) { console.error(e); }
+        // Restore original texture loading method
+        this._restoreTextureResolver();
+        try { URL.revokeObjectURL(url); } catch (e) {}
         resolve(obj);
       }, (evt) => {
         if (onProgress) onProgress(evt);
       }, (err) => {
-        try { URL.revokeObjectURL(url); } catch (e) { console.error(e); }
+        // Restore original texture loading method even on error
+        this._restoreTextureResolver();
+        try { URL.revokeObjectURL(url); } catch (e) {}
         reject(err);
       });
     });
+  }
+
+  /**
+   * Set up the texture resolver hook for the FBX loader
+   * @private
+   */
+  _setupTextureResolver() {
+    if (!this.textureResolver) return;
+    
+    // Check if the FBX loader has a loadTexture method
+    if (typeof this.loader.loadTexture === 'function') {
+      this._originalLoadTexture = this.loader.loadTexture;
+      
+      // Override the loadTexture method
+      this.loader.loadTexture = (path, ...args) => {
+        try {
+          // Try to resolve the texture using our resolver
+          const resolved = this.textureResolver(path);
+          
+          if (resolved) {
+            if (resolved instanceof Promise) {
+              // If it's a promise, wait for it and return the result
+              return resolved.then(texture => {
+                console.log(`[FBXLoader] Texture resolved from ZIP: ${path}`);
+                console.debug(`[FBXLoader] Resolved texture details:`, {
+                  path,
+                  textureName: texture?.name,
+                  textureImage: texture?.image,
+                  textureReady: texture?.image?.complete,
+                  textureWidth: texture?.image?.width,
+                  textureHeight: texture?.image?.height
+                });
+                return texture;
+              }).catch(error => {
+                console.warn(`[FBXLoader] Texture resolver promise failed for ${path}:`, error);
+                // Fallback to original method
+                return this._originalLoadTexture.call(this.loader, path, ...args);
+              });
+            } else if (resolved && resolved.isTexture) {
+              // If it's a texture object, return it directly
+              console.log(`[FBXLoader] Texture resolved from ZIP: ${path}`);
+              console.debug(`[FBXLoader] Resolved texture details:`, {
+                path,
+                textureName: resolved?.name,
+                textureImage: resolved?.image,
+                textureReady: resolved?.image?.complete,
+                textureWidth: resolved?.image?.width,
+                textureHeight: resolved?.image?.height
+              });
+              return resolved;
+            }
+          }
+          
+          // Fallback to original method
+          return this._originalLoadTexture.call(this.loader, path, ...args);
+        } catch (error) {
+          console.warn(`[FBXLoader] Texture resolver failed for ${path}:`, error);
+          // Fallback to original method
+          return this._originalLoadTexture.call(this.loader, path, ...args);
+        }
+      };
+    } else {
+      console.warn('[FBXLoader] FBXLoader does not have a loadTexture method. Texture resolver may not work.');
+      // Alternative approach: post-process materials after loading
+      // This will be handled in the app.js as a fallback
+    }
+  }
+
+  /**
+   * Restore the original texture loading method
+   * @private
+   */
+  _restoreTextureResolver() {
+    if (this._originalLoadTexture && typeof this.loader.loadTexture === 'function') {
+      this.loader.loadTexture = this._originalLoadTexture;
+      this._originalLoadTexture = null;
+    }
   }
 
   dispose() {
