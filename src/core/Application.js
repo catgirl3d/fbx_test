@@ -134,7 +134,7 @@ export class Application {
   initManagers() {
     Logger.log('[Application] initManagers() started.');
     Logger.log('[Application] Initializing SceneManager...');
-    this.sceneManager = new SceneManager();
+    this.sceneManager = new SceneManager({ stateManager: this.stateManager });
     Logger.log('[Application] SceneManager initialized.');
     
     Logger.log('[Application] Initializing AnimationManager...');
@@ -1097,12 +1097,12 @@ export class Application {
   };
 
   clearScene = () => {
-    const models = this.stateManager?.getSceneState().models;
-    models?.forEach(model => {
+    const models = [...(this.stateManager?.getSceneState().models || [])];
+    models.forEach(model => {
       this.sceneManager?.remove(model);
+      this.stateManager?.removeModel(model);
     });
     
-    this.stateManager?.updateSceneState({ models: [] });
     this.assetLoader?.clearTextures();
     this.dom?.showToast(t('scene_cleared'));
   };

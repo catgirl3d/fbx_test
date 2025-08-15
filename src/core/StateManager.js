@@ -101,6 +101,8 @@ export class StateManager {
     if (index > -1) {
       this.#state.scene.models.splice(index, 1);
       this.#notifyListeners('scene', this.#state.scene);
+      // Clear original UVs when a model is removed
+      this.#state.app.originalUVs.clear();
     }
   }
 

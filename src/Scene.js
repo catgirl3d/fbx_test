@@ -7,8 +7,9 @@ import * as THREE from 'three';
  * @param {THREE.HemisphereLight} [opts.hemi] - Optional hemisphere light
  */
 export class SceneManager {
-  constructor({ scene = null } = {}) { // Removed hemi parameter
+  constructor({ scene = null, stateManager = null } = {}) {
     this.scene = scene || new THREE.Scene();
+    this.stateManager = stateManager;
     this.grid = null;
 
     // Removed HemisphereLight creation and addition, as it's handled by LightingManager
