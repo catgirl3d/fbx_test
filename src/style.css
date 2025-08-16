@@ -459,3 +459,9 @@
   border: 2px dashed #fff;
   background-color: rgba(255, 255, 255, 0.1);
 }
+
+/* Debug section styling */
+details.section[data-sec="debug"] .toggle {
+  width: 100%; /* Make the toggle take full width */
+  justify-content: flex-start; /* Align content to the start */
+}

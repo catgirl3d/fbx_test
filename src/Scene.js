@@ -7,8 +7,9 @@ import * as THREE from 'three';
  * @param {THREE.HemisphereLight} [opts.hemi] - Optional hemisphere light
  */
 export class SceneManager {
-  constructor({ scene = null } = {}) { // Removed hemi parameter
+  constructor({ scene = null, stateManager = null } = {}) {
     this.scene = scene || new THREE.Scene();
+    this.stateManager = stateManager;
     this.grid = null;
 
     // Removed HemisphereLight creation and addition, as it's handled by LightingManager
@@ -167,6 +168,7 @@ export class SceneManager {
 
   // Add HDRI loading helper
   async loadHDRI(url) {
+    const { RGBELoader } = await import('three/examples/jsm/loaders/RGBELoader.js');
     const loader = new RGBELoader();
     return new Promise((resolve, reject) => {
       loader.load(url, texture => {

@@ -26,7 +26,7 @@
 </head>
 <body class="preload">
   <div class="viewer-wrap" id="drop-zone" aria-label="3D Viewer">
-    <canvas class="viewer-canvas" id="viewport" tabindex="0"></canvas>
+    <canvas class="viewer-canvas" id="viewport" tabindex="0" data-engine="three.js r152" style="touch-action: none;"></canvas>
   </div>
 
   <aside class="left-col" aria-label="Controls">
@@ -284,7 +284,31 @@
           <div class="small" data-i="animHint">By default animations do not play.</div>
         </div>
       </details>
+
+      <!-- Collapsible: Debug -->
+      <details class="section" data-sec="debug">
+        <summary><span class="summary-title"><i class="fas fa-bug"></i> <span data-i="debugTitle">Debug</span></span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row">
+            <label class="toggle">
+              <input type="checkbox" id="debug-log-toggle" />
+              <i class="fas fa-terminal"></i>
+              <span data-i="toggleDebugLog">Enable Debug Logging</span>
+            </label>
+          </div>
+        </div>
+      </details>
     </div>
+
+    <script type="module">
+      import Logger from './src/core/Logger.js';
+      document.addEventListener('DOMContentLoaded', () => {
+        const debugLogToggle = document.getElementById('debug-log-toggle');
+        if (debugLogToggle) {
+          Logger.setEnabled(debugLogToggle.checked);
+        }
+      });
+    </script>
 
     <div class="split"></div>
 
@@ -328,15 +352,29 @@
     <div class="chip"><b>FPS:</b> <span id="fps">—</span></div>
     <div class="chip"><b data-i="objects">Objects:</b> <span id="obj-count">—</span></div>
   </div>
-<script type="module" src="./src/app.js"></script>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
+    <script type="module">
+        import Logger from './src/core/Logger.js';
+        const toggle = document.getElementById('debug-log-toggle');
+        if (toggle) {
+            Logger.setEnabled(toggle.checked);
+        }
+    </script>
+<script type="module">
+  import { Application } from './src/core/Application.js';
+  import { loadLanguage } from './src/i18n.js';
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const canvas = document.getElementById('viewport');
+    const app = await Application.create(canvas);
+    window.app = app; // Expose for debugging
+
     const langSelect = document.getElementById('lang');
     if (langSelect) {
-      // Set initial language based on browser or saved preference
       const userLang = navigator.language.startsWith('ru') ? 'ru' : 'en';
       langSelect.value = userLang;
-      // The app.js will handle loading the language via ui.applyLang
+      loadLanguage(userLang).then(() => {
+        app.ui.applyLang(userLang);
+      });
     }
   });
 </script>

@@ -112,8 +112,8 @@ export class LightingManager {
     return { hemi: this.hemi, dir: this.dir };
   }
 dispose() {
-  try { this.scene.remove(this.hemi); } catch(e){}
-  try { this.scene.remove(this.dir); } catch(e){}
+  try { this.scene.remove(this.hemi); } catch(e){ console.error(e); }
+  try { this.scene.remove(this.dir); } catch(e){ console.error(e); }
   // Note: three lights do not have many disposable resources, but remove references
   this.hemi = null;
   this.dir = null;

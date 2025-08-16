@@ -37,7 +37,7 @@ export class AnimationManager {
         if (this.root) {
           this.mixer.uncacheRoot(this.root);
         }
-      } catch (e) {}
+      } catch (e) { console.error(e); }
       this.mixer = null;
     }
     this.clips = [];

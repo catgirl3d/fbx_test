@@ -1,5 +1,7 @@
 import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/FBXLoader.js';
 import { DRACOLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/DRACOLoader.js';
+import { TGALoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/TGALoader.js';
+import * as THREE from 'three';
 
 /**
  * FBXLoaderWrapper
@@ -12,13 +14,17 @@ import { DRACOLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples
  */
 export class FBXLoaderWrapper {
   constructor(textureResolver = null) {
-    this.loader = new FBXLoader();
+    this.loadingManager = new THREE.LoadingManager();
+    this.loader = new FBXLoader(this.loadingManager);
     this.draco = new DRACOLoader();
     this.draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/libs/draco/');
     if (this.loader.setDRACOLoader) this.loader.setDRACOLoader(this.draco);
     this._inited = false;
     this.textureResolver = textureResolver;
     this._originalLoadTexture = null;
+
+    // Register TGALoader with the FBXLoader's manager
+    this.loadingManager.addHandler(/\.tga$/i, new TGALoader());
   }
 
   init(renderer) {
@@ -127,14 +133,16 @@ export class FBXLoaderWrapper {
       this.loader.loadTexture = this._originalLoadTexture;
       this._originalLoadTexture = null;
     }
+    // Also clear the textureResolver reference
+    this.textureResolver = null;
   }
 
   dispose() {
-    try { this.draco?.dispose?.(); } catch (e) {}
+    try { this.draco?.dispose?.(); } catch (e) { console.error(e); }
   }
 }
 
-export async function loadFBXFromFile(file) {
-  const w = new FBXLoaderWrapper();
+export async function loadFBXFromFile(file, textureResolver = null) {
+  const w = new FBXLoaderWrapper(textureResolver);
   return w.loadFromFile(file);
 }

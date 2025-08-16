@@ -8,6 +8,10 @@
 import * as THREE from 'three';
 
 export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel, getLoadedModels, tControls, lighting } = {}) {
+  if (!lighting) {
+    console.error('[Inspector] FATAL: `lighting` is null or undefined. Inspector cannot be initialized.');
+    return null; // Return null or an empty API object
+  }
   const treeRoot = document.getElementById('tree');
   if (!treeRoot) throw new Error('Inspector: #tree element not found');
 
@@ -144,24 +148,27 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
     const mainContainer = document.createElement('div');
     listContainer.appendChild(mainContainer);
 
-    const rootScene = sceneManager.getScene();
+    const rootScene = sceneManager?.getScene();
+    if (!rootScene) return []; // Return empty array if sceneManager or scene is null
     const rootObjects = rootScene.children.filter(child => {
         // Get all loaded models from app.js
-        const loadedModels = getLoadedModels(); // Use the new getter
+        const loadedModels = (typeof getLoadedModels === 'function' ? getLoadedModels() : []) || []; // Use the new getter
         // Check if the child is one of the loaded models
         const isLoadedModel = loadedModels.includes(child);
 
         // Basic filtering for system objects you might not want to see by default
-        const isSystemHelper = child.type.includes('Helper') ||
+        const isSystemHelper = !isLoadedModel && (
+                               child.type.includes('Helper') ||
                                (tControls && child === tControls.controls) ||
                                (sceneManager.measure && child === sceneManager.measure.group) ||
                                (lighting && (child === lighting.hemi || child === lighting.dir)) ||
-                               (!showSystemObjects && child.isObject3D && !child.isMesh && !child.isLight && !child.isCamera && !isLoadedModel);
+                               (child.isObject3D && !child.isMesh && !child.isLight && !child.isCamera)
+                             );
 
         return showSystemObjects || !isSystemHelper;
-    }).sort((a, b) => {
+   }).sort((a, b) => {
         // Get all loaded models from app.js for sorting
-        const loadedModels = getLoadedModels(); // Use the new getter
+        const loadedModels = (typeof getLoadedModels === 'function' ? getLoadedModels() : []) || []; // Use the new getter
         const aIsLoadedModel = loadedModels.includes(a);
         const bIsLoadedModel = loadedModels.includes(b);
 
@@ -309,7 +316,9 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
         e.preventDefault(); // Allow drop
         e.stopPropagation();
         const draggedUuid = e.dataTransfer.getData('text/plain');
-        const draggedObject = sceneManager.getScene().getObjectByProperty('uuid', draggedUuid);
+        const scene = sceneManager?.getScene();
+        if (!scene) return null; // Or handle appropriately
+        const draggedObject = scene.getObjectByProperty('uuid', draggedUuid);
         
         // Only allow dropping an object onto a bone or a group/mesh
         if (draggedObject && o !== draggedObject && (o.isBone || o.isMesh || o.isGroup)) {
@@ -331,7 +340,9 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
         li.classList.remove('drag-over');
 
         const draggedUuid = e.dataTransfer.getData('text/plain');
-        const objectToAttach = sceneManager.getScene().getObjectByProperty('uuid', draggedUuid);
+        const scene = sceneManager?.getScene();
+        if (!scene) return; // Or handle appropriately
+        const objectToAttach = scene.getObjectByProperty('uuid', draggedUuid);
         const targetParent = o; // The object being dropped onto
 
         if (objectToAttach && targetParent && objectToAttach !== targetParent && (targetParent.isBone || targetParent.isMesh || targetParent.isGroup)) {
@@ -625,7 +636,8 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
   }
 
   function toggleIsolate() {
-      const scene = sceneManager.getScene();
+      const scene = sceneManager?.getScene();
+      if (!scene) return;
       const isolateBtn = document.getElementById('isolate-btn');
       
       isIsolating = !isIsolating;

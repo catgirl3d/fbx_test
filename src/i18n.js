@@ -1,3 +1,5 @@
+import Logger from './core/Logger.js';
+
 const translations = {};
 let currentLanguage = 'en';
 
@@ -16,13 +18,13 @@ function loadDiagnosticsFromStorage() {
   try {
     const storedData = localStorage.getItem(DIAGNOSTICS_STORAGE_KEY);
     if (!storedData) {
-      console.log('[i18n] No diagnostic data found in localStorage.');
+      Logger.log('[i18n] No diagnostic data found in localStorage.');
       return false;
     }
 
     const parsedData = JSON.parse(storedData);
     if (!parsedData || !Array.isArray(parsedData)) {
-      console.warn('[i18n] Invalid diagnostic data format in localStorage.');
+      Logger.warn('[i18n] Invalid diagnostic data format in localStorage.');
       return false;
     }
 
@@ -37,14 +39,14 @@ function loadDiagnosticsFromStorage() {
         lastUsed: item.lastUsed ? new Date(item.lastUsed) : null
       });
     });
-
-    console.log(`[i18n] Loaded ${keyUsageTracker.size} diagnostic entries from localStorage.`);
-    return true;
-  } catch (error) {
-    console.error('[i18n] Error loading diagnostic data from localStorage:', error);
-    return false;
-  }
-}
+ 
+     Logger.log(`[i18n] Loaded ${keyUsageTracker.size} diagnostic entries from localStorage.`);
+     return true;
+   } catch (error) {
+     Logger.error('[i18n] Error loading diagnostic data from localStorage:', error);
+     return false;
+   }
+ }
 
 /**
  * Saves the current keyUsageTracker data to localStorage.
@@ -61,7 +63,7 @@ function saveDiagnosticsToStorage() {
     }));
     localStorage.setItem(DIAGNOSTICS_STORAGE_KEY, JSON.stringify(dataToStore));
   } catch (error) {
-    console.error('[i18n] Error saving diagnostic data to localStorage:', error);
+    Logger.error('[i18n] Error saving diagnostic data to localStorage:', error);
   }
 }
 
@@ -74,9 +76,9 @@ export function enableDiagnostics(enabled = true) {
   if (enabled) {
     // Load existing diagnostics from storage if enabling
     loadDiagnosticsFromStorage();
-    console.log('[i18n] Runtime diagnostics enabled. Tracking key usage...');
+    Logger.log('[i18n] Runtime diagnostics enabled. Tracking key usage...');
   } else {
-    console.log('[i18n] Runtime diagnostics disabled.');
+    Logger.log('[i18n] Runtime diagnostics disabled.');
   }
 }
 
@@ -147,7 +149,7 @@ export function resetDiagnostics() {
   keyUsageTracker.clear();
   // Also clear the data from localStorage
   saveDiagnosticsToStorage();
-  console.log('[i18n] Diagnostic tracking data reset.');
+  Logger.log('[i18n] Diagnostic tracking data reset.');
 }
 
 /**
@@ -179,9 +181,9 @@ export async function loadLanguage(lang) {
     // After merging, save the potentially updated tracker state to storage
     saveDiagnosticsToStorage();
 
-    console.log(`[i18n] Language '${lang}' loaded successfully. Tracked ${keyUsageTracker.size} keys.`);
+    Logger.log(`[i18n] Language '${lang}' loaded successfully. Tracked ${keyUsageTracker.size} keys.`);
   } catch (error) {
-    console.error(`[i18n] Error loading language '${lang}':`, error);
+    Logger.error(`[i18n] Error loading language '${lang}':`, error);
   }
 }
 
@@ -197,13 +199,13 @@ export function t(key, replacements = {}) {
   
   const langPack = translations[currentLanguage];
   if (!langPack) {
-    console.warn(`[i18n] No language pack loaded for '${currentLanguage}'. Returning key: ${key}`);
+    Logger.warn(`[i18n] No language pack loaded for '${currentLanguage}'. Returning key: ${key}`);
     return key;
   }
 
   let translated = langPack[key];
   if (translated === undefined) {
-    console.warn(`[i18n] Translation key '${key}' not found for language '${currentLanguage}'.`);
+    Logger.warn(`[i18n] Translation key '${key}' not found for language '${currentLanguage}'.`);
     return key;
   }
 

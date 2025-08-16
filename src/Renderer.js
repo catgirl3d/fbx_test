@@ -53,7 +53,7 @@ export class RendererManager {
     // composer and passes
     this.composer = new EffectComposer(this.renderer);
     // ensure composer has initial size matching renderer
-    try { this.composer.setSize(window.innerWidth, window.innerHeight); } catch(e){}
+    try { this.composer.setSize(window.innerWidth, window.innerHeight); } catch(e){ console.error(e); }
     this.renderPass = null; // created on first render when scene/camera are available
     this.outlinePass = null;
     this.fxaaPass = null;
@@ -117,7 +117,9 @@ export class RendererManager {
 
   setOutlineObjects(list) {
     this._outlineTargets = Array.isArray(list) ? list : (list ? [list] : []);
-    if (this.outlinePass) this.outlinePass.selectedObjects = this._outlineTargets;
+    if (this.outlinePass) {
+      this.outlinePass.selectedObjects = this._outlineTargets.filter(o => o instanceof THREE.Object3D);
+    }
   }
 
   render(scene, camera) {
@@ -156,7 +158,7 @@ export class RendererManager {
       this.composer.passes.forEach(p => {
         if (p.dispose) p.dispose();
       });
-    } catch (e) {}
+    } catch (e) { console.error(e); }
     this.renderer.dispose();
 
     // dispose axis scene resources
