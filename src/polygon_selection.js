@@ -340,7 +340,7 @@ export class PolygonSelectionManager {
       return;
     }
     
-    // Clear previous debug markers
+    // Очищаем предыдущие debug маркеры
     if (!this.debugMarkers) this.debugMarkers = [];
     this.debugMarkers.forEach(m => {
       if (m && m.parent) m.parent.remove(m);
@@ -350,58 +350,68 @@ export class PolygonSelectionManager {
     this.debugMarkers = [];
     
     this.selectedObjects = [];
+    const selectedFaces = []; // ✅ НОВОЕ: массив для отдельных полигонов
     
-    // Get all selectable objects from scene
+    // Получаем все выделяемые объекты из сцены
     const selectableObjects = [];
     scene.traverse(obj => {
-      // Only select meshes, lights, and cameras - skip helpers and system objects
       if (obj.isMesh || obj.isLight || obj.isCamera) {
-        // Skip if object is not visible
         if (!obj.visible) return;
-        
         selectableObjects.push(obj);
       }
     });
     
     console.log('[PolygonSelection] performSelection - selectableObjects count:', selectableObjects.length);
     
-    // Convert polygon points to normalized device coordinates
+    // Конвертируем точки полигона в normalized device coordinates
     const polygonNDC = this.polygonPoints.map(point => ({
       x: (point.x / this.canvas.clientWidth) * 2 - 1,
       y: -(point.y / this.canvas.clientHeight) * 2 + 1
     }));
     
-    // Check each object
+    // ✅ НОВОЕ: Проверяем каждый полигон в каждом mesh
     selectableObjects.forEach(obj => {
-      if (this.isObjectInPolygon(obj, polygonNDC)) {
+      if (obj.isMesh && obj.geometry) {
+        const selectedFacesForMesh = this.getPolygonsInPolygon(obj, polygonNDC);
+        if (selectedFacesForMesh.length > 0) {
+          selectedFacesForMesh.forEach(faceIndex => {
+            selectedFaces.push({ mesh: obj, faceIndex });
+          });
+          this.selectedObjects.push(obj); // Добавляем объект если у него есть выделенные полигоны
+        }
+      } else if (this.isObjectInPolygon(obj, polygonNDC)) {
         this.selectedObjects.push(obj);
       }
     });
     
-    console.log(`[PolygonSelection] Selected ${this.selectedObjects.length} objects`);
+    console.log(`[PolygonSelection] Selected ${this.selectedObjects.length} objects and ${selectedFaces.length} polygons`);
     
-    // Provide visible feedback by outlining whole selected objects (lasso mode)
+    // ✅ ИСПРАВЛЕНО: Визуализируем выделенные полигоны
     try {
       if (this.rendererManager) {
-        if (this.selectedObjects.length > 0) {
+        if (selectedFaces.length > 0) {
+          // Показываем контуры отдельных полигонов
+          this.rendererManager.setFaceOutlines(selectedFaces);
+          console.log('[PolygonSelection] setFaceOutlines called for selected faces:', selectedFaces.length);
+        } else if (this.selectedObjects.length > 0) {
+          // Fallback: показываем контуры целых объектов
           this.rendererManager.setOutlineObjects(this.selectedObjects);
-          console.log('[PolygonSelection] setOutlineObjects called for selected objects:', this.selectedObjects.map(o => o.name || o.uuid));
+          console.log('[PolygonSelection] setOutlineObjects called for selected objects:', this.selectedObjects.length);
         } else {
+          // Очищаем выделение
           this.rendererManager.setOutlineObjects([]);
+          this.rendererManager.setFaceOutlines([]);
         }
       }
     } catch (e) {
-      console.warn('[PolygonSelection] Failed to set outline objects via rendererManager', e);
+      console.warn('[PolygonSelection] Failed to set outline objects/faces via rendererManager', e);
     }
     
-    // Update inspector selection if available
+    // Обновляем inspector выделения если доступен
     if (this.inspector && this.inspector.selectObject) {
-      // For multiple selection, we need to handle it appropriately
       if (this.selectedObjects.length === 1) {
         this.inspector.selectObject(this.selectedObjects[0]);
       } else if (this.selectedObjects.length > 1) {
-        // If inspector supports multi-selection, use it
-        // Otherwise, select the first object and log others
         this.inspector.selectObject(this.selectedObjects[0]);
         console.log('[PolygonSelection] Multiple objects selected:', this.selectedObjects.map(o => o.name || o.type));
       } else {
@@ -409,12 +419,78 @@ export class PolygonSelectionManager {
       }
     }
     
-    // Call custom selection callback
+    // Вызываем кастомный callback выделения
     if (this.onSelection) {
-      console.log('[PolygonSelection] Calling onSelection callback with', this.selectedObjects.length, 'objects');
-      this.onSelection(this.selectedObjects);
+      console.log('[PolygonSelection] Calling onSelection callback with', selectedFaces.length, 'faces and', this.selectedObjects.length, 'objects');
+      this.onSelection({
+        objects: this.selectedObjects,
+        faces: selectedFaces // ✅ НОВОЕ: передаем информацию о полигонах
+      });
     }
   }
+
+// ✅ НОВЫЙ МЕТОД: Получить полигоны объекта, попадающие в область выделения
+getPolygonsInPolygon(mesh, polygonNDC) {
+  const selectedFaces = [];
+  
+  if (!mesh.geometry || !mesh.geometry.attributes.position) {
+    return selectedFaces;
+  }
+  
+  const geometry = mesh.geometry;
+  const position = geometry.attributes.position;
+  const index = geometry.index;
+  
+  // Определяем количество треугольников
+  const triangleCount = index ? (index.count / 3) : (position.count / 3);
+  
+  // Проверяем каждый треугольник
+  for (let i = 0; i < triangleCount; i++) {
+    let a, b, c;
+    
+    if (index) {
+      // Indexed geometry
+      a = index.getX(i * 3);
+      b = index.getX(i * 3 + 1);
+      c = index.getX(i * 3 + 2);
+    } else {
+      // Non-indexed geometry
+      a = i * 3;
+      b = i * 3 + 1;
+      c = i * 3 + 2;
+    }
+    
+    // Получаем позиции вершин треугольника
+    const vA = new THREE.Vector3().fromBufferAttribute(position, a);
+    const vB = new THREE.Vector3().fromBufferAttribute(position, b);
+    const vC = new THREE.Vector3().fromBufferAttribute(position, c);
+    
+    // Переводим в мировые координаты
+    vA.applyMatrix4(mesh.matrixWorld);
+    vB.applyMatrix4(mesh.matrixWorld);
+    vC.applyMatrix4(mesh.matrixWorld);
+    
+    // Проецируем в экранные координаты
+    const screenA = vA.clone().project(this.camera);
+    const screenB = vB.clone().project(this.camera);
+    const screenC = vC.clone().project(this.camera);
+    
+    // Проверяем, находится ли треугольник перед камерой
+    if (screenA.z > 1 || screenB.z > 1 || screenC.z > 1) continue;
+    
+    // Проверяем, попадает ли центр треугольника в область выделения
+    const center = new THREE.Vector3()
+      .addVectors(screenA, screenB)
+      .add(screenC)
+      .divideScalar(3);
+    
+    if (this.isPointInPolygon(center.x, center.y, polygonNDC)) {
+      selectedFaces.push(i);
+    }
+  }
+  
+  return selectedFaces;
+}
 
   isObjectInPolygon(obj, polygonNDC) {
     // Get object's position in screen space

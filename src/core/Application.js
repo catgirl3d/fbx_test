@@ -110,7 +110,7 @@ export class Application {
       rendererManager: this.rendererManager,
       inspector: this.inspectorApi,
       inputHandler: this.inputHandler, // Pass the inputHandler instance
-      onSelection: this.handlePolygonSelection.bind(this)
+      onSelection: this.handleLassoSelection.bind(this)
     });
     Logger.log('[Application] PolygonSelectionManager initialized.');
     
@@ -331,7 +331,7 @@ export class Application {
     this.eventSystem.on(EVENTS.UI_RESET_GIZMOS, this.resetGizmos.bind(this));
     this.eventSystem.on(EVENTS.UI_RESET_ALL, this.resetAll.bind(this));
     this.eventSystem.on(EVENTS.CAMERA_PRESET, ({ view }) => this.handleCameraPreset(view));
-    this.eventSystem.on(EVENTS.POLYGON_SELECTED, this.handlePolygonSelection.bind(this));
+    this.eventSystem.on(EVENTS.POLYGON_SELECTED, this.handlePolygonClickSelection.bind(this));
     this.eventSystem.on(EVENTS.POLYGON_SELECTION_CLEARED, this.clearPolygonSelection.bind(this));
     this.eventSystem.on(EVENTS.SELECTION_MODE_CHANGED, this.handleSelectionModeChange.bind(this));
     
@@ -1551,7 +1551,32 @@ export class Application {
   };
 
   // Polygon Selection Methods
-  handlePolygonSelection = (eventData) => {
+  handleLassoSelection = ({ objects, faces }) => {
+    if (!faces || faces.length === 0) {
+      this.clearPolygonSelection();
+      if (objects && objects.length > 0) {
+        // Fallback to object selection if no faces are returned but objects are
+        this.rendererManager?.setOutlineObjects(objects);
+        this.showToast(t('objects_selected', { count: objects.length }));
+      }
+      return;
+    }
+
+    this.clearPolygonSelection(false); // Clear silently
+
+    faces.forEach(({ mesh, faceIndex }) => {
+      if (!this.selectedPolygons.has(mesh.uuid)) {
+        this.selectedPolygons.set(mesh.uuid, new Set());
+      }
+      this.selectedPolygons.get(mesh.uuid).add(faceIndex);
+    });
+
+    this.updatePolygonSelectionVisuals();
+    this.showToast(t('polygons_selected', { count: this.getTotalSelectedPolygonCount() }));
+    Logger.log(`[Application] Lasso selection completed. Selected ${this.getTotalSelectedPolygonCount()} polygons.`);
+  };
+
+  handlePolygonClickSelection = (eventData) => {
     const { x, y, ctrlKey } = eventData;
  
     const rect = this.canvas.getBoundingClientRect();
