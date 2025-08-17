@@ -372,16 +372,16 @@ export function applyTexturesFromMap(rootObject, textureMap) {
   });
 
   // Вывод итоговой информации о сопоставлении
-  Logger.info('[Materials] === Texture Mapping Summary ===');
+  Logger.log('[Materials] === Texture Mapping Summary ===');
   if (mappingSummary.size === 0) {
-    Logger.info('[Materials] No textures were applied. Check material and texture names for mismatches.');
+    Logger.log('[Materials] No textures were applied. Check material and texture names for mismatches.');
   } else {
     for (const [materialName, maps] of mappingSummary) {
       const mapEntries = Array.from(maps.entries()).map(([mapType, textureName]) => `${mapType}: ${textureName}`);
-      Logger.info(`[Materials] ${materialName} -> { ${mapEntries.join(', ')} }`);
+      Logger.log(`[Materials] ${materialName} -> { ${mapEntries.join(', ')} }`);
     }
   }
-  Logger.info('[Materials] === End Mapping Summary ===');
+  Logger.log('[Materials] === End Mapping Summary ===');
 }
 
 // Экспорт поддерживаемых типов карт для справки

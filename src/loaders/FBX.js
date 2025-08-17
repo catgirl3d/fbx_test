@@ -81,7 +81,7 @@ export class FBXLoaderWrapper {
               // If it's a promise, wait for it and return the result
               return resolved.then(texture => {
                 Logger.log(`[FBXLoader] Texture resolved from ZIP: ${path}`);
-                Logger.debug(`[FBXLoader] Resolved texture details:`, {
+                Logger.log(`[FBXLoader] Resolved texture details:`, {
                   path,
                   textureName: texture?.name,
                   textureImage: texture?.image,
@@ -98,7 +98,7 @@ export class FBXLoaderWrapper {
             } else if (resolved && resolved.isTexture) {
               // If it's a texture object, return it directly
               Logger.log(`[FBXLoader] Texture resolved from ZIP: ${path}`);
-              Logger.debug(`[FBXLoader] Resolved texture details:`, {
+              Logger.log(`[FBXLoader] Resolved texture details:`, {
                 path,
                 textureName: resolved?.name,
                 textureImage: resolved?.image,

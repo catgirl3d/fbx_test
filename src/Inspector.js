@@ -6,6 +6,7 @@
  * The module mutates DOM inside element with id="tree".
  */
 import * as THREE from 'three';
+import Logger from './core/Logger.js';
 
 export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel, getLoadedModels, tControls, lighting } = {}) {
   if (!lighting) {

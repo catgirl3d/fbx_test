@@ -5,6 +5,7 @@
  * and resolving texture paths for FBX models.
  */
 
+import Logger from '../core/Logger.js';
 // Supported texture file extensions
 const TEXTURE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tga'];
 
@@ -52,7 +53,7 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
           let loader;
           if (typeof TgaLoader !== 'undefined') {
             // Use local tga-js
-            Logger.debug(`[zipTextures] Local TgaLoader available, using it for TGA: ${filename}`);
+            Logger.log(`[zipTextures] Local TgaLoader available, using it for TGA: ${filename}`);
             const tga = new TgaLoader();
             tga.open(url, () => {
               try {
@@ -260,7 +261,7 @@ export async function loadTexturesFromZIP(zipFile, threeModule, onProgress) {
         const entries = await zipReader.getEntries();
         const textureEntries = entries.filter(entry => !entry.directory && isTextureFile(entry.filename));
         
-        Logger.debug(`[zipTextures] Found ${textureEntries.length} texture entries in ZIP`);
+        Logger.log(`[zipTextures] Found ${textureEntries.length} texture entries in ZIP`);
         if (onProgress) onProgress(0);
 
         // Calculate total size for accurate progress tracking

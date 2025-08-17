@@ -14,6 +14,7 @@
  */
 
 import * as THREE from 'three';
+import Logger from './core/Logger.js';
 
 const TM_MAP = {
   'ACES': THREE.ACESFilmicToneMapping,

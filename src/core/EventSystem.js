@@ -1,3 +1,4 @@
+import Logger from './Logger.js';
 export const EVENTS = {
   // Scene events
   MODEL_LOADED: 'model-loaded',
