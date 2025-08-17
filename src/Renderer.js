@@ -73,6 +73,7 @@ export class RendererManager {
     this.navPad = 12;
 
     this._outlineTargets = [];
+    this.faceOutlines = null;
   }
 
   initPasses(scene, camera) {
@@ -123,6 +124,117 @@ export class RendererManager {
     }
   }
 
+  setFaceOutlines(faces) {
+    this.clearFaceOutlines();
+ 
+    if (!faces || faces.length === 0) return;
+ 
+    const lineVertices = [];
+    faces.forEach(({ mesh, faceIndex }, idx) => {
+        if (!mesh || !mesh.geometry) {
+          Logger.warn('[Renderer] setFaceOutlines: invalid mesh at index', idx);
+          return;
+        }
+        const geometry = mesh.geometry;
+        const position = geometry.attributes && geometry.attributes.position;
+        const index = geometry.index;
+ 
+        if (!position) {
+          Logger.warn('[Renderer] setFaceOutlines: mesh has no position attribute, skipping', mesh.name || mesh.uuid);
+          return;
+        }
+ 
+        if (faceIndex === null || faceIndex === undefined || !Number.isFinite(faceIndex)) {
+          Logger.warn('[Renderer] setFaceOutlines: invalid faceIndex for mesh', mesh.name || mesh.uuid, faceIndex);
+          return;
+        }
+ 
+        let a, b, c;
+ 
+        if (index && index.count) {
+          // Indexed geometry: indices reference vertices in the position attribute
+          const triStart = faceIndex * 3;
+          if (triStart + 2 >= index.count) {
+            Logger.warn('[Renderer] setFaceOutlines: faceIndex out of range, skipping', { mesh: mesh.name || mesh.uuid, faceIndex, indexCount: index.count });
+            return;
+          }
+ 
+          try {
+            // read three indices for the triangle
+            a = index.getX(triStart);
+            b = index.getX(triStart + 1);
+            c = index.getX(triStart + 2);
+          } catch (e) {
+            const arr = index.array;
+            if (arr && arr.length > triStart + 2) {
+              a = arr[triStart];
+              b = arr[triStart + 1];
+              c = arr[triStart + 2];
+            } else {
+              Logger.warn('[Renderer] setFaceOutlines: failed to read indices for mesh', mesh.name || mesh.uuid, e);
+              return;
+            }
+          }
+        } else {
+          // Non-indexed geometry: each triangle's vertices are consecutive in the position attribute
+          const posCount = position.count || (position.array ? position.array.length / 3 : 0);
+          const triStart = faceIndex * 3;
+          if (triStart + 2 >= posCount) {
+            Logger.warn('[Renderer] setFaceOutlines: non-indexed faceIndex out of range, skipping', { mesh: mesh.name || mesh.uuid, faceIndex, posCount });
+            return;
+          }
+          Logger.log('[Renderer] setFaceOutlines: using non-indexed fallback for mesh', mesh.name || mesh.uuid);
+          a = triStart;
+          b = triStart + 1;
+          c = triStart + 2;
+        }
+ 
+        const posCount = position.count || (position.array ? position.array.length / 3 : 0);
+        if (a >= posCount || b >= posCount || c >= posCount) {
+          Logger.warn('[Renderer] setFaceOutlines: vertex index out of range, skipping', { a, b, c, posCount, mesh: mesh.name || mesh.uuid });
+          return;
+        }
+ 
+        const vA = new THREE.Vector3().fromBufferAttribute(position, a);
+        const vB = new THREE.Vector3().fromBufferAttribute(position, b);
+        const vC = new THREE.Vector3().fromBufferAttribute(position, c);
+ 
+        mesh.localToWorld(vA);
+        mesh.localToWorld(vB);
+        mesh.localToWorld(vC);
+ 
+        lineVertices.push(vA, vB, vB, vC, vC, vA);
+    });
+ 
+    if (lineVertices.length === 0) {
+      // Nothing valid to draw
+      return;
+    }
+ 
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints(lineVertices);
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+    this.faceOutlines = new THREE.LineSegments(lineGeometry, lineMaterial);
+    
+    const scene = this.renderPass && this.renderPass.scene;
+    if (scene) {
+        scene.add(this.faceOutlines);
+    } else {
+        Logger.warn('[Renderer] setFaceOutlines: renderPass.scene not available, cannot add face outlines');
+    }
+  }
+
+  clearFaceOutlines() {
+    if (this.faceOutlines) {
+        const scene = this.renderPass.scene;
+        if (scene) {
+            scene.remove(this.faceOutlines);
+        }
+        this.faceOutlines.geometry.dispose();
+        this.faceOutlines.material.dispose();
+        this.faceOutlines = null;
+    }
+  }
+ 
   render(scene, camera) {
     // lazy init passes so we can pass scene/camera from caller
     if (!this.renderPass) this.initPasses(scene, camera);
@@ -162,6 +274,8 @@ export class RendererManager {
     } catch (e) { Logger.error('[Renderer] Error disposing renderer:', e); }
     this.renderer.dispose();
 
+    this.clearFaceOutlines();
+ 
     // dispose axis scene resources
     if (this.axisScene) {
       this.axisScene.traverse(obj => {

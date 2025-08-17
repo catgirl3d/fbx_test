@@ -241,6 +241,37 @@
         </div>
       </details>
 
+      <!-- Collapsible: Polygon Selection -->
+      <details class="section" data-sec="polygon-selection">
+        <summary><span class="summary-title"><i class="fas fa-vector-square"></i> <span data-i="polygonSelectionTitle">Режим выделения</span></span><span class="chev">▾</span></summary>
+        <div class="section-body">
+          <div class="row">
+            <label class="toggle" title="Включить/выключить режим выделения полигонов">
+              <input type="checkbox" id="polygon-selection-mode" />
+              <i class="fas fa-draw-polygon"></i>
+              <span data-i="togglePolygonSelection">Выделение полигонов</span>
+            </label>
+          </div>
+
+          <!-- New: explicit mode selector for polygon selection -->
+          <div class="row small" style="margin-top:6px">
+            <label data-i="polygonModeLabel">Polygon select mode</label>
+            <select id="polygon-select-mode" class="field" title="Select click or lasso mode">
+              <option value="click" selected>Click select (single-face)</option>
+              <option value="lasso">Lasso / Draw select (area)</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <button id="clear-polygon-selection" class="btn secondary">
+              <i class="fas fa-eraser"></i>
+              <span data-i="btnClearPolygonSelection">Очистить выделение</span>
+            </button>
+            <span class="tag" id="selected-polygon-count">0</span>
+          </div>
+        </div>
+      </details>
+
       <!-- Collapsible: Camera -->
       <details class="section" data-sec="camera">
         <summary><span class="summary-title"><i class="fas fa-camera"></i> <span data-i="cameraTitle">Camera</span></span><span class="chev">▾</span></summary>

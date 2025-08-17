@@ -74,7 +74,7 @@ export class InputHandler {
       this.stateManager?.setMouseState(mouseState);
 
       if (mouseState.isLeftMouseDown && mouseState.isRightMouseDown) {
-        this.controls.enabled = false; // Disable OrbitControls
+        this.disableControls(); // Disable OrbitControls
         mouseState.lastMousePosition.x = e.clientX;
         mouseState.lastMousePosition.y = e.clientY;
         this.stateManager?.setMouseState(mouseState);
@@ -101,7 +101,7 @@ export class InputHandler {
       this.stateManager?.setMouseState(mouseState);
 
       if (!mouseState.isLeftMouseDown || !mouseState.isRightMouseDown) {
-        this.controls.enabled = true; // Re-enable OrbitControls
+        this.enableControls(); // Re-enable OrbitControls
       }
       this.eventSystem?.emit(EVENTS.MOUSE_UP, { button: e.button, clientX: e.clientX, clientY: e.clientY });
     });
@@ -135,6 +135,26 @@ export class InputHandler {
 
     // Prevent the default context menu from ever appearing on the canvas
     this.bind(this.rendererDomElement, 'contextmenu', (e) => e.preventDefault());
+  }
+
+  /**
+   * Explicitly enable OrbitControls.
+   */
+  enableControls() {
+    if (this.controls) {
+      this.controls.enabled = true;
+      Logger.log('[InputHandler] OrbitControls enabled.');
+    }
+  }
+
+  /**
+   * Explicitly disable OrbitControls.
+   */
+  disableControls() {
+    if (this.controls) {
+      this.controls.enabled = false;
+      Logger.log('[InputHandler] OrbitControls disabled.');
+    }
   }
 
   dispose() {

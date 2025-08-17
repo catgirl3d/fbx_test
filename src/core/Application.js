@@ -1,4 +1,5 @@
 import { StateManager } from './StateManager.js';
+import PolygonSelectionManager from '../polygon_selection.js';
 import Logger from './Logger.js';
 import { EventSystem, EVENTS } from './EventSystem.js';
 import { AssetLoader } from './AssetLoader.js';
@@ -65,6 +66,8 @@ export class Application {
     this.dom = null;
     this.uiBindings = null;
     this.inputHandler = null;
+    this.polygonSelectionManager = null;
+    this.selectedPolygons = new Map(); // Map<mesh.uuid, Set<faceIndex>>
     
     Logger.log('[Application] Constructor finished.');
   }
@@ -97,6 +100,19 @@ export class Application {
     Logger.log('[Application] Calling initManagers()...');
     this.initManagers();
     Logger.log('[Application] initManagers() finished.');
+
+    // Initialize PolygonSelectionManager
+    Logger.log('[Application] Initializing PolygonSelectionManager...');
+    this.polygonSelectionManager = new PolygonSelectionManager({
+      canvas: this.canvas,
+      camera: this.camera,
+      sceneManager: this.sceneManager,
+      rendererManager: this.rendererManager,
+      inspector: this.inspectorApi,
+      inputHandler: this.inputHandler, // Pass the inputHandler instance
+      onSelection: this.handlePolygonSelection.bind(this)
+    });
+    Logger.log('[Application] PolygonSelectionManager initialized.');
     
     // Initialize UI
     Logger.log('[Application] Calling initUI()...');
@@ -315,6 +331,9 @@ export class Application {
     this.eventSystem.on(EVENTS.UI_RESET_GIZMOS, this.resetGizmos.bind(this));
     this.eventSystem.on(EVENTS.UI_RESET_ALL, this.resetAll.bind(this));
     this.eventSystem.on(EVENTS.CAMERA_PRESET, ({ view }) => this.handleCameraPreset(view));
+    this.eventSystem.on(EVENTS.POLYGON_SELECTED, this.handlePolygonSelection.bind(this));
+    this.eventSystem.on(EVENTS.POLYGON_SELECTION_CLEARED, this.clearPolygonSelection.bind(this));
+    this.eventSystem.on(EVENTS.SELECTION_MODE_CHANGED, this.handleSelectionModeChange.bind(this));
     
     // Animation events
     if (this.eventSystem) {
@@ -759,6 +778,10 @@ export class Application {
         const currentState = this.dom?.isChecked('toggle-transform');
         this.enableTransformControls(!currentState);
         break;
+      case 'KeyP': // P - Toggle polygon selection mode
+        event.preventDefault();
+        this.togglePolygonSelectionMode();
+        break;
     }
   };
 
@@ -792,6 +815,7 @@ export class Application {
     this.stateManager?.setSelectedObject(null);
     this.rendererManager?.setOutlineObjects([]);
     this.sceneManager?.updateBBox(null);
+    this.clearPolygonSelection(); // Clear polygon selection as well
     
     // *** ИСПРАВЛЕНИЕ: Отсоединяем Transform Controls ***
     if (this.transformControls) {
@@ -1451,6 +1475,12 @@ export class Application {
       this.inputHandler.dispose();
       this.inputHandler = null;
     }
+
+    // Clean up PolygonSelectionManager
+    if (this.polygonSelectionManager) {
+      this.polygonSelectionManager.dispose();
+      this.polygonSelectionManager = null;
+    }
     
     // Remove event listeners
     this.dom?.offResize(this.handleResize);
@@ -1518,5 +1548,128 @@ export class Application {
     }
     
     Logger.log(`[Application] Transform Controls ${enabled ? 'enabled' : 'disabled'} in ${mode} mode`);
+  };
+
+  // Polygon Selection Methods
+  handlePolygonSelection = (eventData) => {
+    const { x, y, ctrlKey } = eventData;
+ 
+    const rect = this.canvas.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+        (x / rect.width) * 2 - 1,
+        -(y / rect.height) * 2 + 1
+    );
+ 
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, this.camera);
+ 
+    const models = this.stateManager?.getSceneState().models || [];
+    const intersectableObjects = [];
+    models.forEach(model => {
+        model.traverse(child => {
+            if (child.isMesh) {
+                intersectableObjects.push(child);
+            }
+        });
+    });
+ 
+    if (intersectableObjects.length === 0) return;
+ 
+    const intersects = raycaster.intersectObjects(intersectableObjects, false);
+ 
+    if (intersects.length > 0) {
+        const intersection = intersects[0];
+        const mesh = intersection.object;
+        const faceIndex = intersection.faceIndex;
+ 
+        if (faceIndex !== undefined) {
+            if (!ctrlKey) {
+                // If not multi-selecting, clear previous selection silently
+                this.clearPolygonSelection(false);
+            }
+            this.togglePolygonSelection(mesh, faceIndex);
+            this.updatePolygonSelectionVisuals();
+ // No debug markers here (visual debugging removed).
+ 
+            this.showToast(t('polygons_selected', { count: this.getTotalSelectedPolygonCount() }));
+        }
+    }
+  };
+
+  togglePolygonSelection = (mesh, faceIndex) => {
+    if (!this.selectedPolygons.has(mesh.uuid)) {
+      this.selectedPolygons.set(mesh.uuid, new Set());
+    }
+    const faces = this.selectedPolygons.get(mesh.uuid);
+    if (faces.has(faceIndex)) {
+      faces.delete(faceIndex);
+      if (faces.size === 0) {
+        this.selectedPolygons.delete(mesh.uuid);
+      }
+    } else {
+      faces.add(faceIndex);
+    }
+    Logger.log(`[Application] Toggled polygon selection for mesh ${mesh.uuid}, face ${faceIndex}. Current count: ${this.getTotalSelectedPolygonCount()}`);
+  };
+
+  clearPolygonSelection = (showToast = true) => {
+    Logger.log('[Application] Clearing polygon selection.');
+    this.selectedPolygons.clear();
+    this.updatePolygonSelectionVisuals();
+    this.rendererManager?.clearFaceOutlines(); // Assuming a method to clear face outlines
+    if (showToast) {
+      this.showToast(t('polygon_selection_cleared'));
+    }
+  };
+
+  updatePolygonSelectionVisuals = () => {
+    Logger.log('[Application] Updating polygon selection visuals.');
+    const facesToOutline = [];
+    this.selectedPolygons.forEach((faceIndices, meshUuid) => {
+      const mesh = this.sceneManager?.getScene().getObjectByProperty('uuid', meshUuid);
+      if (mesh) {
+        faceIndices.forEach(faceIndex => {
+          facesToOutline.push({ mesh, faceIndex });
+        });
+      }
+    });
+    this.rendererManager?.setFaceOutlines(facesToOutline); // Assuming a method to set face outlines
+  };
+
+  getTotalSelectedPolygonCount = () => {
+    let count = 0;
+    this.selectedPolygons.forEach(faces => {
+      count += faces.size;
+    });
+    return count;
+  };
+
+  handleSelectionModeChange = ({ mode }) => {
+    Logger.log(`[Application] Selection mode changed to: ${mode}`);
+    if (mode === 'polygon') {
+      this.polygonSelectionManager?.setOrbitControls(this.controls);
+      // Respect explicit polygon select sub-mode (click vs lasso) from UI settings
+      const polygonSelectMode = (this.dom?.get('polygon-select-mode')?.value) || 'click';
+      Logger.log(`[Application] polygonSelectMode = ${polygonSelectMode}`);
+      if (polygonSelectMode === 'lasso') {
+        this.polygonSelectionManager?.activate();
+      } else {
+        // In 'click' mode, keep polygon manager inactive but still allow individual face clicks
+        this.polygonSelectionManager?.deactivate();
+      }
+      this.transformControls?.detach(); // Detach transform controls
+      this.transformControls?.enable(false);
+      this.clearSelection(); // Clear object selection
+    } else {
+      this.polygonSelectionManager?.deactivate();
+      this.controls.enabled = true; // Ensure orbit controls are re-enabled
+    }
+    this.showToast(t('selection_mode_changed', { mode }));
+  };
+
+  togglePolygonSelectionMode = () => {
+    const currentMode = this.polygonSelectionManager?.isActive ? 'polygon' : 'object';
+    const newMode = currentMode === 'polygon' ? 'object' : 'polygon';
+    this.eventSystem.emit(EVENTS.SELECTION_MODE_CHANGED, { mode: newMode });
   };
 }

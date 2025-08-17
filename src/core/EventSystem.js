@@ -5,6 +5,9 @@ export const EVENTS = {
   MODEL_REMOVED: 'model-removed',
   OBJECT_SELECTED: 'object-selected',
   OBJECT_DESELECTED: 'object-deselected',
+  POLYGON_SELECTED: 'polygon_selected',
+  POLYGON_SELECTION_CLEARED: 'polygon_selection_cleared',
+  SELECTION_MODE_CHANGED: 'selection_mode_changed',
   SCENE_CLEARED: 'scene-cleared',
   
   // Texture events
