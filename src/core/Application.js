@@ -77,6 +77,12 @@ export class Application {
 
   async init() {
     Logger.log('[Application] init() started.');
+    
+    // Load the default language pack before initializing UI
+    Logger.log('[Application] Loading default language pack...');
+    await loadLanguage('en'); // Or another default language
+    Logger.log('[Application] Language pack loaded.');
+    
     // Initialize DOM Manager
     Logger.log('[Application] Initializing DOMManager...');
     this.dom = createDOMManager({ t });

@@ -34,7 +34,7 @@ export function initUI({
   onLoadFile, onApplyHDRI, onApplyTextures, onResetAll, onFrame, onClearScene, getSettings, setSettings
 } = {}) {
   // Enable runtime diagnostics for i18n key usage tracking
-  enableDiagnostics(true);
+  enableDiagnostics(false);
   
   // Log initial diagnostic state
   Logger.log('[UI] Runtime diagnostics initialized for i18n key tracking.');
@@ -247,6 +247,8 @@ export function initUI({
   // Diagnostic helper functions
   function logDiagnostics() {
     const diagnostics = getDiagnostics();
+    if (!diagnostics.enabled) return;
+    
     Logger.group('[UI] i18n Key Usage Diagnostics');
     Logger.log('Diagnostics enabled:', diagnostics.enabled);
     Logger.log('Total keys tracked:', diagnostics.totalKeys);

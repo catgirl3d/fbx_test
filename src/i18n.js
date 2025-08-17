@@ -71,7 +71,7 @@ function saveDiagnosticsToStorage() {
  * Enables or disables runtime diagnostics for i18n key usage tracking.
  * @param {boolean} enabled - Whether to enable diagnostics.
  */
-export function enableDiagnostics(enabled = true) {
+export function enableDiagnostics(enabled = false) {
   diagnosticsEnabled = enabled;
   if (enabled) {
     // Load existing diagnostics from storage if enabling
@@ -225,5 +225,4 @@ export function getCurrentLanguage() {
   return currentLanguage;
 }
 
-// Load default language on module load
-loadLanguage(currentLanguage);
+// Default language must be loaded explicitly by the application.
