@@ -190,37 +190,38 @@ export class UIBindings {
   }
 
   bindLighting() {
-    this.bind(this.dom?.get('dir-intensity'), 'input', (e) => {
-      const value = Number(e.target.value);
-      this.dom.setText('dir-intensity-val', value.toFixed(2));
+    this.bind(this.dom?.get('dir-intensity'), 'input', () => {
+      const value = Number(this.dom?.getValue('dir-intensity'));
       this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { intensity: value } });
+      this.dom?.get('dir-intensity-val') && (this.dom.get('dir-intensity-val').textContent = value.toFixed(1));
     });
-    this.bind(this.dom?.get('dir-angle'), 'input', (e) => {
-      const value = Number(e.target.value);
-      this.dom.setText('dir-angle-val', `${value}°`);
+    this.bind(this.dom?.get('dir-angle'), 'input', () => {
+      const value = Number(this.dom?.getValue('dir-angle'));
       this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { angle: value } });
+      this.dom?.get('dir-angle-val') && (this.dom.get('dir-angle-val').textContent = value.toFixed(0));
     });
-    this.bind(this.dom?.get('dir-softness'), 'input', (e) => {
-      const value = Number(e.target.value);
-      this.dom.setText('dir-softness-val', value.toFixed(2));
+    this.bind(this.dom?.get('dir-softness'), 'input', () => {
+      const value = Number(this.dom?.getValue('dir-softness'));
       this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { softness: value } });
+      this.dom?.get('dir-softness-val') && (this.dom.get('dir-softness-val').textContent = value.toFixed(2));
     });
-    this.bind(this.dom?.get('env-intensity'), 'input', (e) => {
-      const value = Number(e.target.value);
-      // Assuming env-intensity-val exists for consistency
-      this.dom.setText('env-intensity-val', value.toFixed(2));
+    this.bind(this.dom?.get('env-intensity'), 'input', () => {
+      const value = Number(this.dom?.getValue('env-intensity'));
       this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { environment: { intensity: value } });
+      this.dom?.get('env-intensity-val') && (this.dom.get('env-intensity-val').textContent = value.toFixed(2));
     });
   }
 
   bindRenderSettings() {
-    this.bind(this.dom?.get('exposure'), 'input', (e) => {
-      const value = Number(e.target.value);
-      this.dom.setText('exposure-val', value.toFixed(2));
+    this.bind(this.dom?.get('exposure'), 'input', () => {
+      const value = Number(this.dom?.getValue('exposure'));
       this.eventSystem?.emit(EVENTS.RENDER_SETTINGS_CHANGED, { exposure: value });
+      this.dom?.get('exposure-val') && (this.dom.get('exposure-val').textContent = value.toFixed(2));
     });
     this.bind(this.dom?.get('tone-mapping'), 'change', () => {
-      this.eventSystem?.emit(EVENTS.RENDER_SETTINGS_CHANGED, { toneMapping: this.dom?.getValue('tone-mapping') });
+      const value = this.dom?.getValue('tone-mapping');
+      this.eventSystem?.emit(EVENTS.RENDER_SETTINGS_CHANGED, { toneMapping: value });
+      this.dom?.get('tone-mapping-val') && (this.dom.get('tone-mapping-val').textContent = value);
     });
   }
 
