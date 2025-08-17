@@ -190,23 +190,34 @@ export class UIBindings {
   }
 
   bindLighting() {
-    this.bind(this.dom?.get('dir-intensity'), 'input', () => {
-      this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { intensity: Number(this.dom?.getValue('dir-intensity')) } });
+    this.bind(this.dom?.get('dir-intensity'), 'input', (e) => {
+      const value = Number(e.target.value);
+      this.dom.setText('dir-intensity-val', value.toFixed(2));
+      this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { intensity: value } });
     });
-    this.bind(this.dom?.get('dir-angle'), 'input', () => {
-      this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { angle: Number(this.dom?.getValue('dir-angle')) } });
+    this.bind(this.dom?.get('dir-angle'), 'input', (e) => {
+      const value = Number(e.target.value);
+      this.dom.setText('dir-angle-val', `${value}°`);
+      this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { angle: value } });
     });
-    this.bind(this.dom?.get('dir-softness'), 'input', () => {
-      this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { softness: Number(this.dom?.getValue('dir-softness')) } });
+    this.bind(this.dom?.get('dir-softness'), 'input', (e) => {
+      const value = Number(e.target.value);
+      this.dom.setText('dir-softness-val', value.toFixed(2));
+      this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { softness: value } });
     });
-    this.bind(this.dom?.get('env-intensity'), 'input', () => {
-      this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { environment: { intensity: Number(this.dom?.getValue('env-intensity')) } });
+    this.bind(this.dom?.get('env-intensity'), 'input', (e) => {
+      const value = Number(e.target.value);
+      // Assuming env-intensity-val exists for consistency
+      this.dom.setText('env-intensity-val', value.toFixed(2));
+      this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { environment: { intensity: value } });
     });
   }
 
   bindRenderSettings() {
-    this.bind(this.dom?.get('exposure'), 'input', () => {
-      this.eventSystem?.emit(EVENTS.RENDER_SETTINGS_CHANGED, { exposure: Number(this.dom?.getValue('exposure')) });
+    this.bind(this.dom?.get('exposure'), 'input', (e) => {
+      const value = Number(e.target.value);
+      this.dom.setText('exposure-val', value.toFixed(2));
+      this.eventSystem?.emit(EVENTS.RENDER_SETTINGS_CHANGED, { exposure: value });
     });
     this.bind(this.dom?.get('tone-mapping'), 'change', () => {
       this.eventSystem?.emit(EVENTS.RENDER_SETTINGS_CHANGED, { toneMapping: this.dom?.getValue('tone-mapping') });
