@@ -97,6 +97,15 @@ export class Application {
     this.initUI();
     Logger.log('[Application] initUI() finished.');
     
+    // Initialize UI bindings
+    Logger.log('[Application] Calling initUIBindings()...');
+    try {
+      this.initUIBindings();
+    } catch (e) {
+      Logger.error('[Application] initUIBindings() failed:', e);
+    }
+    Logger.log('[Application] initUIBindings() finished.');
+    
     // Initialize event listeners
     Logger.log('[Application] Calling initEventListeners()...');
     this.initEventListeners();
@@ -210,8 +219,6 @@ export class Application {
     
     // Initialize UI bindings
     Logger.log('[Application] Calling initUIBindings()...');
-    this.initUIBindings();
-    Logger.log('[Application] initUIBindings() finished.');
     
     // Initialize UI state
     Logger.log('[Application] Calling initUIState()...');
@@ -312,6 +319,7 @@ export class Application {
   }
 
   initUIBindings() {
+    // FIX: This was missing
     this.uiBindings = new UIBindings(this.stateManager, this.eventSystem, this.dom);
   }
 
@@ -493,10 +501,24 @@ export class Application {
     }
   };
 
-  handleObjectSelected = (object) => {
-    // Handle object selection
-    this.rendererManager?.setOutlineObjects(object);
-    this.sceneManager?.updateBBox(object);
+  handleObjectSelected = ({ ndc }) => {
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, this.camera);
+    const intersects = raycaster.intersectObjects(this.sceneManager.getScene().children, true);
+
+    if (intersects.length > 0) {
+      const selectedObject = intersects[0].object;
+      this.rendererManager?.setOutlineObjects([selectedObject]);
+      this.sceneManager?.updateBBox(selectedObject);
+      this.stateManager?.setSelectedObject(selectedObject);
+      if (this.inspectorApi && typeof this.inspectorApi.selectObject === 'function') {
+        this.inspectorApi.selectObject(selectedObject);
+      }
+    } else {
+      this.rendererManager?.setOutlineObjects([]);
+      this.sceneManager?.updateBBox(null);
+      this.stateManager?.setSelectedObject(null);
+    }
   };
 
   handleSceneCleared = () => {

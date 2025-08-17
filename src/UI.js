@@ -209,7 +209,11 @@ export function initUI({
   }
   
   // Initialize the control after settings are restored
-  setTimeout(initMovementSensitivityControl, 100);
+  try {
+    initMovementSensitivityControl();
+  } catch (e) {
+    Logger.error('[UI] initMovementSensitivityControl() failed:', e);
+  }
 
   // Drag and Drop functionality
   if (dropZone) {

@@ -117,7 +117,10 @@ export class TransformControlsWrapper {
     }
   }
   setMode(mode = 'translate') { try { this.controls.setMode(mode); } catch(e){ console.error(e); }}
-  enable(v) { this.controls.enabled = !!v; }
+  enable(v) {
+    this.controls.enabled = !!v;
+    this.controls.visible = !!v;
+  }
 
   setTranslationSnap(v) { if (v === null) this.controls.setTranslationSnap(null); else this.controls.setTranslationSnap(Number(v) || 0); }
   setRotationSnap(v) { if (v === null) this.controls.setRotationSnap(null); else this.controls.setRotationSnap(Number(v) || 0); }

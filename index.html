@@ -363,18 +363,27 @@
   import { Application } from './src/core/Application.js';
   import { loadLanguage } from './src/i18n.js';
 
-  document.addEventListener('DOMContentLoaded', async () => {
+  window.addEventListener('load', async () => {
     const canvas = document.getElementById('viewport');
-    const app = await Application.create(canvas);
-    window.app = app; // Expose for debugging
+    try {
+      const app = await Application.create(canvas);
+      window.app = app; // Expose for debugging
 
-    const langSelect = document.getElementById('lang');
-    if (langSelect) {
-      const userLang = navigator.language.startsWith('ru') ? 'ru' : 'en';
-      langSelect.value = userLang;
-      loadLanguage(userLang).then(() => {
-        app.ui.applyLang(userLang);
-      });
+      const langSelect = document.getElementById('lang');
+      if (langSelect) {
+        const userLang = navigator.language.startsWith('ru') ? 'ru' : 'en';
+        langSelect.value = userLang;
+        loadLanguage(userLang).then(() => {
+          app.ui.applyLang(userLang);
+        });
+      }
+    } catch (e) {
+      console.error('Failed to initialize application:', e);
+      const overlay = document.getElementById('overlay');
+      if (overlay) {
+        overlay.innerHTML = `<div class="error-fullpage"><h2>Application failed to load</h2><p>${e.message}</p></div>`;
+        overlay.style.display = 'flex';
+      }
     }
   });
 </script>

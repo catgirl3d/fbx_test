@@ -148,15 +148,43 @@ export class UIBindings {
   }
 
   bindPicking() {
-    this.bind(this.dom?.get('canvas'), 'mousedown', (e) => {
+    const canvas = this.dom?.get('canvas');
+    if (!canvas) return;
+
+    let isDragging = false;
+    const startPos = new THREE.Vector2();
+    const dragThreshold = 5;
+
+    const onMouseDown = (e) => {
       if (e.button !== 0) return;
-      const rect = this.dom?.get('canvas')?.getBoundingClientRect();
-      const ndc = {
-        x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        y: -((e.clientY - rect.top) / rect.height) * 2 + 1
-      };
-      this.eventSystem?.emit(EVENTS.OBJECT_SELECTED, { ndc });
-    });
+      isDragging = false;
+      startPos.set(e.clientX, e.clientY);
+
+      canvas.addEventListener('mousemove', onMouseMove);
+      canvas.addEventListener('mouseup', onMouseUp);
+    };
+
+    const onMouseMove = (e) => {
+      if (startPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > dragThreshold) {
+        isDragging = true;
+      }
+    };
+
+    const onMouseUp = (e) => {
+      canvas.removeEventListener('mousemove', onMouseMove);
+      canvas.removeEventListener('mouseup', onMouseUp);
+
+      if (!isDragging) {
+        const rect = canvas.getBoundingClientRect();
+        const ndc = {
+          x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          y: -((e.clientY - rect.top) / rect.height) * 2 + 1,
+        };
+        this.eventSystem?.emit(EVENTS.OBJECT_SELECTED, { ndc });
+      }
+    };
+
+    this.bind(canvas, 'mousedown', onMouseDown);
   }
 
   bindLighting() {
