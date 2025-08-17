@@ -10,7 +10,7 @@ import Logger from './core/Logger.js';
 
 export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel, getLoadedModels, tControls, lighting } = {}) {
   if (!lighting) {
-    Logger.error('[Inspector] FATAL: `lighting` is null or undefined. Inspector cannot be initialized.');
+    Logger.error('[Inspector] FATAL: lighting is null');
     return null; // Return null or an empty API object
   }
   const treeRoot = document.getElementById('tree');
@@ -359,7 +359,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
             // Clear selection after drop to avoid confusion
             clearSelection();
         } else {
-            Logger.warn('[Inspector] Invalid drop target or object:', objectToAttach, targetParent);
+            Logger.warn('[Inspector] Invalid drop target');
         }
     });
 
@@ -595,7 +595,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
           // This automatically handles the matrix transformations
           targetParent.attach(objectToAttach);
           
-          Logger.log(`Attached ${objectToAttach.name} to ${targetParent.name}`);
+          Logger.log(`[Inspector] Attached ${objectToAttach.name}`);
           renderTree();
         } else {
           alert(t('alert_select_two_objects'));
@@ -631,7 +631,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
           });
           if (firstMesh) {
               transformTarget = firstMesh;
-              Logger.log('Group selected, using first mesh for transform:', firstMesh.name);
+              Logger.log('Group selected');
           }
       }
       

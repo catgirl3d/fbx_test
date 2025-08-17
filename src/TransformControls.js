@@ -58,13 +58,13 @@ export class TransformControlsWrapper {
     try {
       // Validate object before attaching
       if (!obj || typeof obj.updateMatrixWorld !== 'function' || !obj.type || !obj.parent) {
-        Logger.warn('Invalid object for TransformControls attach:', obj);
+        Logger.warn('[TransformControls] Invalid object for TransformControls attach:', obj);
         return;
       }
       
       // Validate object before attaching
       if (!obj || typeof obj.updateMatrixWorld !== 'function' || !obj.type || !obj.parent) {
-        Logger.warn('Invalid object for TransformControls attach:', obj);
+        Logger.warn('[TransformControls] Invalid object for TransformControls attach:', obj);
         return;
       }
       
@@ -106,14 +106,14 @@ export class TransformControlsWrapper {
       }
       
     } catch(e) {
-      Logger.warn('Failed to attach TransformControls:', e);
+      Logger.warn('[TransformControls] Failed to attach TransformControls:', e);
     }
   }
   detach() {
     try {
       this.controls.detach();
     } catch(e) {
-      Logger.warn('Failed to detach TransformControls:', e);
+      Logger.warn('[TransformControls] Failed to detach TransformControls:', e);
     }
   }
   setMode(mode = 'translate') { try { this.controls.setMode(mode); } catch(e){ Logger.error('[TransformControls] Failed to set mode:', e); }}

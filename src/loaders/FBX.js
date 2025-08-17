@@ -46,14 +46,14 @@ export class FBXLoaderWrapper {
       this.loader.load(url, (obj) => {
         // Restore original texture loading method
         this._restoreTextureResolver();
-        try { URL.revokeObjectURL(url); } catch (e) { Logger.warn('Failed to revoke object URL on success:', e); }
+        try { URL.revokeObjectURL(url); } catch (e) { Logger.warn('[FBXLoader] Failed to revoke object URL on success:', e); }
         resolve(obj);
       }, (evt) => {
         if (onProgress) onProgress(evt);
       }, (err) => {
         // Restore original texture loading method even on error
         this._restoreTextureResolver();
-        try { URL.revokeObjectURL(url); } catch (e) { Logger.warn('Failed to revoke object URL on error:', e); }
+        try { URL.revokeObjectURL(url); } catch (e) { Logger.warn('[FBXLoader] Failed to revoke object URL on error:', e); }
         reject(err);
       });
     });

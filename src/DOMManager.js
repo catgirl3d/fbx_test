@@ -122,7 +122,7 @@ class DOMManager {
    */
   get(selectorOrId) {
     if (typeof selectorOrId !== 'string') {
-      Logger.error('get() requires a string selector or ID');
+      Logger.error('[DOMManager] get() requires a string selector or ID');
       return null;
     }
 
@@ -162,7 +162,7 @@ class DOMManager {
    */
   query(selector) {
     if (typeof selector !== 'string') {
-      Logger.error('query() requires a string selector');
+      Logger.error('[DOMManager] query() requires a string selector');
       return null;
     }
     return document.querySelector(selector);
@@ -175,7 +175,7 @@ class DOMManager {
    */
   queryAll(selector) {
     if (typeof selector !== 'string') {
-      Logger.error('queryAll() requires a string selector');
+      Logger.error('[DOMManager] queryAll() requires a string selector');
       return [];
     }
     return document.querySelectorAll(selector);
@@ -221,7 +221,7 @@ class DOMManager {
     const childEl = this._resolveElement(child);
     
     if (!parentEl || !childEl) {
-      Logger.error('append() requires valid parent and child elements');
+      Logger.error('[DOMManager] append() requires valid parent and child elements');
       return null;
     }
     
@@ -236,7 +236,7 @@ class DOMManager {
   remove(element) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('remove() requires a valid element');
+      Logger.error('[DOMManager] remove() requires a valid element');
       return;
     }
     
@@ -258,7 +258,7 @@ class DOMManager {
   setHTML(element, html, opts = { sanitize: true }) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('setHTML() requires a valid element');
+      Logger.error('[DOMManager] setHTML() requires a valid element');
       return;
     }
     
@@ -274,7 +274,7 @@ class DOMManager {
   getHTML(element) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('getHTML() requires a valid element');
+      Logger.error('[DOMManager] getHTML() requires a valid element');
       return '';
     }
     return el.innerHTML;
@@ -288,7 +288,7 @@ class DOMManager {
   setText(element, text) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('setText() requires a valid element');
+      Logger.error('[DOMManager] setText() requires a valid element');
       return;
     }
     el.textContent = text;
@@ -302,7 +302,7 @@ class DOMManager {
   getText(element) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('getText() requires a valid element');
+      Logger.error('[DOMManager] getText() requires a valid element');
       return '';
     }
     return el.textContent;
@@ -316,7 +316,7 @@ class DOMManager {
   addClass(element, className) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('addClass() requires a valid element');
+      Logger.error('[DOMManager] addClass() requires a valid element');
       return;
     }
     el.classList.add(className);
@@ -330,7 +330,7 @@ class DOMManager {
   removeClass(element, className) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('removeClass() requires a valid element');
+      Logger.error('[DOMManager] removeClass() requires a valid element');
       return;
     }
     el.classList.remove(className);
@@ -345,7 +345,7 @@ class DOMManager {
   toggleClass(element, className) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('toggleClass() requires a valid element');
+      Logger.error('[DOMManager] toggleClass() requires a valid element');
       return false;
     }
     return el.classList.toggle(className);
@@ -360,7 +360,7 @@ class DOMManager {
   hasClass(element, className) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('hasClass() requires a valid element');
+      Logger.error('[DOMManager] hasClass() requires a valid element');
       return false;
     }
     return el.classList.contains(className);
@@ -375,7 +375,7 @@ class DOMManager {
   setStyle(element, prop, value) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('setStyle() requires a valid element');
+      Logger.error('[DOMManager] setStyle() requires a valid element');
       return;
     }
     el.style[prop] = value;
@@ -390,7 +390,7 @@ class DOMManager {
   getStyle(element, prop) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('getStyle() requires a valid element');
+      Logger.error('[DOMManager] getStyle() requires a valid element');
       return '';
     }
     return el.style[prop];
@@ -405,7 +405,7 @@ class DOMManager {
   setData(element, key, value) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('setData() requires a valid element');
+      Logger.error('[DOMManager] setData() requires a valid element');
       return;
     }
     el.dataset[key] = value;
@@ -420,7 +420,7 @@ class DOMManager {
   getData(element, key) {
     const el = this._resolveElement(element);
     if (!el) {
-      Logger.error('getData() requires a valid element');
+      Logger.error('[DOMManager] getData() requires a valid element');
       return '';
     }
     return el.dataset[key];
@@ -437,7 +437,7 @@ class DOMManager {
   on(elementOrSelectorOrWindow, event, handler, opts) {
     const target = this._resolveEventTarget(elementOrSelectorOrWindow);
     if (!target) {
-      Logger.error('on() requires a valid target');
+      Logger.error('[DOMManager] on() requires a valid target');
       return () => {};
     }
 
@@ -468,7 +468,7 @@ class DOMManager {
   off(elementOrSelectorOrWindow, event, handler, opts) {
     const target = this._resolveEventTarget(elementOrSelectorOrWindow);
     if (!target) {
-      Logger.error('off() requires a valid target');
+      Logger.error('[DOMManager] off() requires a valid target');
       return;
     }
 
@@ -747,7 +747,7 @@ class DOMManager {
   getValue(elementOrId) {
     const element = this._resolveElement(elementOrId);
     if (!element) {
-      Logger.warn('getValue() element not found:', elementOrId);
+      Logger.warn('[DOMManager] getValue() element not found:', elementOrId);
       return '';
     }
     
@@ -763,7 +763,7 @@ class DOMManager {
   isChecked(elementOrId) {
     const element = this._resolveElement(elementOrId);
     if (!element) {
-      Logger.warn('isChecked() element not found:', elementOrId);
+      Logger.warn('[DOMManager] isChecked() element not found:', elementOrId);
       return false;
     }
     
@@ -777,7 +777,7 @@ class DOMManager {
    */
   setGlobal(name, value) {
     if (typeof name !== 'string' || name.trim() === '') {
-      Logger.error('setGlobal() requires a non-empty string name');
+      Logger.error('[DOMManager] setGlobal() requires a non-empty string name');
       return;
     }
     
@@ -797,7 +797,7 @@ class DOMManager {
   showToast(message, opts = { duration: 3000, type: 'info' }) {
     const toast = this.get('toast') || this.get('#toast');
     if (!toast) {
-      Logger.warn('Toast element not found');
+      Logger.warn('[DOMManager] Toast element not found');
       return;
     }
 
@@ -826,7 +826,7 @@ class DOMManager {
   showOverlay(title, subtitle) {
     const overlay = this.get('overlay') || this.get('#overlay');
     if (!overlay) {
-      Logger.warn('Overlay element not found');
+      Logger.warn('[DOMManager] Overlay element not found');
       return;
     }
 
@@ -845,7 +845,7 @@ class DOMManager {
   hideOverlay() {
     const overlay = this.get('overlay') || this.get('#overlay');
     if (!overlay) {
-      Logger.warn('Overlay element not found');
+      Logger.warn('[DOMManager] Overlay element not found');
       return;
     }
 
@@ -941,19 +941,6 @@ class DOMManager {
     }
   }
 
-  /**
-   * Enable debug logging
-   */
-  enableDebug() {
-    debugEnabled = true;
-  }
-
-  /**
-   * Disable debug logging
-   */
-  disableDebug() {
-    debugEnabled = false;
-  }
 
   /**
    * Get document body element

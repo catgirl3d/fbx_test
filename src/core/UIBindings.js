@@ -4,6 +4,7 @@ import Logger from './Logger.js';
 
 export class UIBindings {
   constructor(stateManager, eventSystem, dom) {
+    Logger.log('[UIBindings] UIBindings constructor called');
     this.stateManager = stateManager;
     this.eventSystem = eventSystem;
     this.dom = dom;
@@ -27,6 +28,7 @@ export class UIBindings {
   }
 
   bind(element, event, handler) {
+    Logger.log(`[UIBindings] Binding event "${event}" to element`, element);
     if (element) {
       element.addEventListener(event, handler);
       this.listeners.push({ element, event, handler });
