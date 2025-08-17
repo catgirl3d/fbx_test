@@ -169,15 +169,6 @@ export class UIBindings {
     const startPos = new THREE.Vector2();
     const dragThreshold = 5;
 
-    const onMouseDown = (e) => {
-      if (e.button !== 0) return;
-      isDragging = false;
-      startPos.set(e.clientX, e.clientY);
-
-      canvas.addEventListener('mousemove', onMouseMove);
-      canvas.addEventListener('mouseup', onMouseUp);
-    };
-
     const onMouseMove = (e) => {
       if (startPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > dragThreshold) {
         isDragging = true;
@@ -189,12 +180,6 @@ export class UIBindings {
       canvas.removeEventListener('mouseup', onMouseUp);
 
       if (!isDragging) {
-        // Do not emit object selection while polygon selection mode is active
-        if (this.dom?.isChecked && this.dom.isChecked('polygon-selection-mode')) {
-          Logger.log('[UIBindings] Skipping OBJECT_SELECTED because polygon-selection-mode is active');
-          return;
-        }
-
         const rect = canvas.getBoundingClientRect();
         const ndc = {
           x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -204,7 +189,17 @@ export class UIBindings {
       }
     };
 
-    this.bind(canvas, 'mousedown', onMouseDown);
+    const onMouseDown = (e) => {
+      if (e.button !== 0) return;
+      isDragging = false;
+      startPos.set(e.clientX, e.clientY);
+
+      canvas.addEventListener('mousemove', onMouseMove);
+      canvas.addEventListener('mouseup', onMouseUp);
+    };
+
+    // Store the handler to be able to bind/unbind it dynamically
+    this.onMouseDownHandler = onMouseDown;
   }
 
   bindLighting() {
@@ -262,21 +257,21 @@ export class UIBindings {
     if (!canvas) return;
  
     // Use explicit ID selectors to avoid cache/lookup timing issues
-    const polygonSelectionModeCheckbox = this.dom?.get('#polygon-selection-mode');
-    const polygonSelectionModeSelect = this.dom?.get('#polygon-select-mode'); // new select
+    const polygonSelectionModeCheckbox = this.dom?.get('polygon-selection-mode');
+    const polygonSelectionModeSelect = this.dom?.get('polygon-select-mode'); // new select
     const clearPolygonSelectionButton = this.dom?.get('#clear-polygon-selection');
  
     const onCanvasClick = (e) => {
       if (!polygonSelectionModeCheckbox?.checked) return;
- 
+
       // If user selected 'click' mode, treat canvas clicks as polygon face selection
       const mode = polygonSelectionModeSelect ? (polygonSelectionModeSelect.value || 'click') : 'click';
       if (mode !== 'click') return; // ignore clicks in lasso mode (handled by PolygonSelectionManager)
- 
+
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
- 
+
       this.eventSystem?.emit(EVENTS.POLYGON_SELECTED, { x, y, ctrlKey: e.ctrlKey || e.metaKey });
     };
  
@@ -298,9 +293,20 @@ export class UIBindings {
  
     // When checkbox toggled, switch overall selection mode (object vs polygon)
     this.bind(polygonSelectionModeCheckbox, 'change', () => {
+      const isPolygonMode = polygonSelectionModeCheckbox?.checked;
       this.eventSystem?.emit(EVENTS.SELECTION_MODE_CHANGED, {
-        mode: polygonSelectionModeCheckbox?.checked ? 'polygon' : 'object'
+        mode: isPolygonMode ? 'polygon' : 'object'
       });
+
+      // Mutually exclusive listeners: bind one, unbind the other
+      if (isPolygonMode) {
+        this.unbind(canvas, 'mousedown', this.onMouseDownHandler);
+        Logger.log('[UIBindings] Object picking (mousedown) unbound.');
+      } else {
+        this.bind(canvas, 'mousedown', this.onMouseDownHandler);
+        Logger.log('[UIBindings] Object picking (mousedown) bound.');
+      }
+
       updateCanvasClickHandler(); // Update click handler state immediately
     });
  
@@ -314,7 +320,11 @@ export class UIBindings {
       });
     }
  
-    // Initial setup of the canvas click handler
+    // Initial setup: bind object picking by default, polygon click handler is managed by its own logic
+    if (!polygonSelectionModeCheckbox?.checked) {
+      this.bind(canvas, 'mousedown', this.onMouseDownHandler);
+      Logger.log('[UIBindings] Initial bind of object picking (mousedown).');
+    }
     updateCanvasClickHandler();
   }
 
