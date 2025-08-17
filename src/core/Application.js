@@ -160,12 +160,15 @@ export class Application {
     
     // Wire transform dragging to OrbitControls
     this.transformControls.on('dragging-changed', (isDragging) => {
+      Logger.log(`[Application] dragging-changed event: ${isDragging}`);
       this.controls.enabled = !isDragging;
     });
     
     Logger.log('[Application] Initializing Settings...');
     this.settings = new Settings();
     Logger.log('[Application] Settings initialized.');
+    // Ensure gizmo is always disabled on load
+    this.settings.set('transform', { enabled: false });
     
     Logger.log('[Application] Initializing RenderSettings...');
     this.renderSettings = new RenderSettings({
@@ -501,16 +504,26 @@ export class Application {
     }
   };
 
+  attachTransformControls = (object) => {
+    if (object) {
+      this.transformControls.attach(object);
+    } else {
+      this.transformControls.detach();
+    }
+  };
+
   handleObjectSelected = ({ ndc }) => {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(ndc, this.camera);
     const intersects = raycaster.intersectObjects(this.sceneManager.getScene().children, true);
 
-    if (intersects.length > 0) {
-      const selectedObject = intersects[0].object;
+    const selectedObject = intersects.find(i => !i.object.type.includes('TransformControls'))?.object;
+
+    if (selectedObject) {
       this.rendererManager?.setOutlineObjects([selectedObject]);
       this.sceneManager?.updateBBox(selectedObject);
       this.stateManager?.setSelectedObject(selectedObject);
+      this.attachTransformControls(selectedObject);
       if (this.inspectorApi && typeof this.inspectorApi.selectObject === 'function') {
         this.inspectorApi.selectObject(selectedObject);
       }
@@ -518,6 +531,7 @@ export class Application {
       this.rendererManager?.setOutlineObjects([]);
       this.sceneManager?.updateBBox(null);
       this.stateManager?.setSelectedObject(null);
+      this.attachTransformControls(null);
     }
   };
 
@@ -899,16 +913,24 @@ export class Application {
     }
     if (settings.transform) {
       if (settings.transform.enabled !== undefined) {
-        this.transformControls?.enable(settings.transform.enabled);
+        this.transformControls.enable(settings.transform.enabled);
+        if (settings.transform.enabled) {
+          const selectedObject = this.stateManager.getSceneState().selectedObject;
+          if (selectedObject) {
+            this.attachTransformControls(selectedObject);
+          }
+        } else {
+          this.attachTransformControls(null);
+        }
       }
       if (settings.transform.mode) {
-        this.transformControls?.setMode(settings.transform.mode);
+        this.transformControls.setMode(settings.transform.mode);
       }
       if (settings.transform.snap) {
         const { enabled, translation, rotation, scale } = settings.transform.snap;
-        this.transformControls?.setTranslationSnap(enabled ? translation : null);
-        this.transformControls?.setRotationSnap(enabled ? rotation : null);
-        this.transformControls?.setScaleSnap(enabled ? scale : null);
+        this.transformControls.setTranslationSnap(enabled ? translation : null);
+        this.transformControls.setRotationSnap(enabled ? rotation : null);
+        this.transformControls.setScaleSnap(enabled ? scale : null);
       }
     }
     if (settings.gridVisible !== undefined) {
