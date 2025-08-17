@@ -798,7 +798,6 @@ export class Application {
       this.transformControls.detach();
     }
     
-    this.setInspectorOpen(false);
     
     if (this.inspectorApi?.refresh) {
       this.inspectorApi.refresh();
