@@ -377,6 +377,39 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
       });
       
       o.children.forEach(c => addNode(c, childUl));
+
+      // NEW: Add bones if the object is a SkinnedMesh
+      if (o.isSkinnedMesh && o.skeleton && o.skeleton.bones.length > 0) {
+        const bonesUl = document.createElement('ul');
+        bonesUl.className = 'tree-list nested';
+        li.appendChild(bonesUl); // Append bones under the SkinnedMesh node
+
+        const bonesHeader = document.createElement('div');
+        bonesHeader.className = 'category-header';
+        bonesHeader.innerHTML = '<i class="fa-solid fa-chevron-right toggle-icon chev"></i> <span>Bones</span>';
+        bonesUl.appendChild(bonesHeader);
+
+        const bonesContent = document.createElement('div');
+        bonesContent.className = 'category-content';
+        bonesUl.appendChild(bonesContent);
+
+        const boneListUl = document.createElement('ul');
+        boneListUl.className = 'tree-list';
+        bonesContent.appendChild(boneListUl);
+
+        o.skeleton.bones.forEach(bone => {
+          addNode(bone, boneListUl); // Recursively add each bone
+        });
+
+        let bonesExpanded = false;
+        const setBonesExpanded = (v) => {
+          bonesExpanded = !!v;
+          bonesHeader.querySelector('.chev').classList.toggle('fa-rotate-180', bonesExpanded);
+          bonesContent.style.display = bonesExpanded ? 'block' : 'none';
+        };
+        bonesHeader.addEventListener('click', () => setBonesExpanded(!bonesExpanded));
+        setBonesExpanded(false); // Start collapsed
+      }
     }
   }
 

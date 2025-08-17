@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EVENTS } from './EventSystem.js';
+import Logger from './Logger.js';
 
 export class InputHandler {
   constructor(stateManager, eventSystem, dom, camera, controls, rendererDomElement) {
@@ -36,12 +37,17 @@ export class InputHandler {
   bindKeyboardEvents() {
     this.bind(window, 'keydown', (e) => {
       const code = e.code;
-      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(code)) {
-        this.stateManager?.addPressedKey(code);
+      // Prevent default for specific keys that might interfere with app functionality
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'Tab', 'Space'].includes(code)) {
         e.preventDefault();
       }
+      
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(code)) {
+        this.stateManager?.addPressedKey(code);
+      }
       // Emit general keydown event for other hotkeys
-      this.eventSystem?.emit(EVENTS.KEY_PRESS, { code: e.code, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey });
+      Logger.log(`[InputHandler] Emitting KEY_PRESS for code: ${e.code}`);
+      this.eventSystem?.emit(EVENTS.KEY_PRESS, e); // Pass the full event object
     });
 
     this.bind(window, 'keyup', (e) => {

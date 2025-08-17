@@ -1,4 +1,5 @@
 import { TransformControls } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/TransformControls.js';
+import Logger from './core/Logger.js';
 
 /**
  * TransformControlsWrapper
@@ -61,15 +62,16 @@ export class TransformControlsWrapper {
         return;
       }
       
-      console.log('TransformControls attaching to:', obj.name || obj.type, obj);
+      // Validate object before attaching
+      if (!obj || typeof obj.updateMatrixWorld !== 'function' || !obj.type || !obj.parent) {
+        console.warn('Invalid object for TransformControls attach:', obj);
+        return;
+      }
       
       // Special handling for SkinnedMesh objects
       if (obj.isSkinnedMesh) {
-        console.log('SkinnedMesh detected, ensuring proper matrix updates');
-        
         // For SkinnedMesh, we need to ensure the skeleton is also updated
         if (obj.skeleton && obj.skeleton.bones) {
-          console.log('SkinnedMesh has', obj.skeleton.bones.length, 'bones');
         }
         
         // Ensure the mesh is not bound to a skeleton that would override transformations
@@ -102,8 +104,6 @@ export class TransformControlsWrapper {
           this.controls.object.parent.updateMatrixWorld();
         }
       }
-      
-      console.log('TransformControls attached successfully');
       
     } catch(e) {
       console.warn('Failed to attach TransformControls:', e);

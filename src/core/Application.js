@@ -152,17 +152,44 @@ export class Application {
     
     Logger.log('[Application] Initializing TransformControlsWrapper...');
     this.transformControls = new TransformControlsWrapper(this.camera, this.canvas);
+    
+    // Добавляем в сцену
     const scene = this.sceneManager?.getScene();
     if (scene) {
       scene.add(this.transformControls.controls);
+      Logger.log('[Application] Transform Controls added to scene');
+    } else {
+      Logger.error('[Application] Cannot add Transform Controls - scene not available');
     }
-    Logger.log('[Application] TransformControlsWrapper initialized.');
     
-    // Wire transform dragging to OrbitControls
+    // *** ИСПРАВЛЕНИЕ: Улучшенная связь с OrbitControls ***
     this.transformControls.on('dragging-changed', (isDragging) => {
-      Logger.log(`[Application] dragging-changed event: ${isDragging}`);
+      // Отключаем OrbitControls во время трансформации
       this.controls.enabled = !isDragging;
+      
+      // Дополнительно отключаем damping во время драга для лучшей отзывчивости
+      if (isDragging) {
+        this.controls.enableDamping = false;
+      } else {
+        this.controls.enableDamping = true;
+      }
+      
+      Logger.log(`[Application] Transform dragging: ${isDragging}, OrbitControls enabled: ${!isDragging}`);
     });
+    
+    // *** ИСПРАВЛЕНИЕ: Подписка на события Transform Controls ***
+    this.transformControls.on('change', () => {
+      // Уведомляем об изменениях для обновления UI/Inspector
+      const selectedObject = this.stateManager?.getSceneState().selectedObject;
+      if (selectedObject && this.inspectorApi?.refresh) {
+        this.inspectorApi.refresh();
+      }
+    });
+    
+    // По умолчанию Transform Controls выключены
+    this.transformControls.enable(false);
+    
+    Logger.log('[Application] TransformControlsWrapper initialized.');
     
     Logger.log('[Application] Initializing Settings...');
     this.settings = new Settings();
@@ -505,33 +532,100 @@ export class Application {
   };
 
   attachTransformControls = (object) => {
-    if (object) {
+    Logger.log(`[Application] attachTransformControls called with object: ${object?.name || object?.uuid || 'null'}`);
+    if (!this.transformControls) {
+      Logger.warn('[Application] attachTransformControls: transformControls is not initialized.');
+      return;
+    }
+
+    // Проверяем, включены ли Transform Controls в UI
+    const transformEnabled = this.dom?.isChecked('toggle-transform');
+    Logger.log(`[Application] attachTransformControls: transformEnabled from UI: ${transformEnabled}`);
+
+    if (transformEnabled && object) {
       this.transformControls.attach(object);
+      // Устанавливаем режим из UI
+      const mode = this.dom?.getValue('transform-mode') || 'translate';
+      try { this.transformControls.setMode(mode); } catch(e){ Logger.error(e); }
+      Logger.log(`[Application] Transform Controls attached to ${object.name || object.uuid} in ${mode} mode`);
     } else {
-      this.transformControls.detach();
+      // Если Transform Controls выключены или объект null, отсоединяем
+      try { this.transformControls.detach(); } catch(e){ Logger.error(e); }
+      Logger.log('[Application] Transform Controls detached (either disabled or object is null).');
     }
   };
 
-  handleObjectSelected = ({ ndc }) => {
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(ndc, this.camera);
-    const intersects = raycaster.intersectObjects(this.sceneManager.getScene().children, true);
-
-    const selectedObject = intersects.find(i => !i.object.type.includes('TransformControls'))?.object;
-
-    if (selectedObject) {
-      this.rendererManager?.setOutlineObjects([selectedObject]);
-      this.sceneManager?.updateBBox(selectedObject);
-      this.stateManager?.setSelectedObject(selectedObject);
-      this.attachTransformControls(selectedObject);
-      if (this.inspectorApi && typeof this.inspectorApi.selectObject === 'function') {
-        this.inspectorApi.selectObject(selectedObject);
+  handleObjectSelected = (data) => {
+    if (data && data.ndc) {
+      const { ndc } = data;
+      Logger.log('[Application] handleObjectSelected called with ndc:', ndc);
+      
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2(ndc.x, ndc.y);
+      
+      raycaster.setFromCamera(mouse, this.camera);
+      
+      const scene = this._getSafeScene();
+      if (!scene) return;
+      
+      const models = this.stateManager?.getSceneState().models || [];
+      const intersectableObjects = [];
+      
+      models.forEach(model => {
+        model.traverse(child => {
+          if (child.isMesh) {
+            intersectableObjects.push(child);
+          }
+        });
+      });
+      
+      if (intersectableObjects.length === 0) return;
+      
+      const intersects = raycaster.intersectObjects(intersectableObjects, false);
+      
+      if (intersects.length > 0) {
+        const selectedObject = intersects[0].object;
+        Logger.log('[Application] Object selected by raycast:', selectedObject.name || selectedObject.uuid);
+        
+        // Обновляем состояние
+        this.stateManager?.setSelectedObject(selectedObject);
+        
+        // Устанавливаем outline
+        this.rendererManager?.setOutlineObjects([selectedObject]);
+        
+        // Обновляем bounding box
+        this.sceneManager?.updateBBox(selectedObject);
+        
+        // *** ИСПРАВЛЕНИЕ: Привязываем Transform Controls ***
+        this.attachTransformControls(selectedObject);
+        
+        // Открываем инспектор и выделяем объект
+        if (this.inspectorApi && this.inspectorApi.selectObject) {
+          this.inspectorApi.selectObject(selectedObject);
+        }
+        
+        this.setInspectorOpen(true);
+        
+        Logger.log('[Application] Object selected:', selectedObject.name || selectedObject.uuid);
+      } else {
+        this.clearSelection();
+        Logger.log('[Application] No object selected, clearing selection');
       }
-    } else {
-      this.rendererManager?.setOutlineObjects([]);
-      this.sceneManager?.updateBBox(null);
-      this.stateManager?.setSelectedObject(null);
-      this.attachTransformControls(null);
+    } else if (data && (data.isMesh || data.isObject3D)) {
+      // Если получили готовый объект
+      Logger.log('[Application] handleObjectSelected called with direct object:', data.name || data.uuid);
+      this.stateManager?.setSelectedObject(data);
+      this.rendererManager?.setOutlineObjects([data]);
+      this.sceneManager?.updateBBox(data);
+      
+      // *** ИСПРАВЛЕНИЕ: Привязываем Transform Controls ***
+      this.attachTransformControls(data);
+      
+      if (this.inspectorApi && this.inspectorApi.selectObject) {
+        this.inspectorApi.selectObject(data);
+      }
+      
+      this.setInspectorOpen(true);
     }
   };
 
@@ -549,6 +643,9 @@ export class Application {
     this.stateManager?.addModel(model);
     
     Logger.log('[Application] Model added to scene and state:', model);
+    
+    // *** ИСПРАВЛЕНИЕ: Устанавливаем загруженную модель как выделенный объект ***
+    this.stateManager?.setSelectedObject(model);
     
     // Update filename display
     this.updateFilenameDisplay(source);
@@ -568,6 +665,9 @@ export class Application {
     if (this.inspectorApi && typeof this.inspectorApi.refresh === 'function') {
       this.inspectorApi.refresh();
     }
+
+    // *** ИСПРАВЛЕНИЕ: Привязываем Transform Controls к загруженной модели ***
+    this.attachTransformControls(model);
 
     // Attempt to triangulate geometry and compute normals
     model.traverse((child) => {
@@ -589,22 +689,43 @@ export class Application {
     this.loadAttachmentState();
   };
 
-  handleKeyPress = ({ code }) => {
+  handleKeyPress = (event) => {
+    const { code } = event;
     switch(code) {
       case 'KeyF':
         const selectedObject = this.stateManager.getSceneState().selectedObject;
         if (selectedObject) {
-          this.frameObject(selectedObject);
+          this.frameObject([selectedObject]);
+        } else {
+          this.handleFrame();
         }
         break;
       case 'KeyR':
-        // Reset camera to initial transform
         this.camera.position.set(2, 1.2, 3);
         this.controls.target.set(0, 0.8, 0);
         this.controls.update();
         break;
       case 'Delete':
+      case 'Backspace':
         this.clearSelection();
+        break;
+      case 'Escape':
+        this.clearSelection();
+        break;
+      // *** НОВОЕ: Горячие клавиши для Transform Controls ***
+      case 'KeyG': // G - Move (Grab)
+        this.enableTransformControls(true, 'translate');
+        break;
+      case 'KeyS': // S - Scale
+        this.enableTransformControls(true, 'scale');
+        break;
+      case 'KeyE': // E - Rotate
+        this.enableTransformControls(true, 'rotate');
+        break;
+      case 'Tab': // Tab - Toggle transform controls
+        event.preventDefault(); // Предотвращаем стандартное поведение Tab
+        const currentState = this.dom?.isChecked('toggle-transform');
+        this.enableTransformControls(!currentState);
         break;
     }
   };
@@ -639,7 +760,19 @@ export class Application {
     this.stateManager?.setSelectedObject(null);
     this.rendererManager?.setOutlineObjects([]);
     this.sceneManager?.updateBBox(null);
-    if(this.inspectorApi?.refresh) this.inspectorApi.refresh();
+    
+    // *** ИСПРАВЛЕНИЕ: Отсоединяем Transform Controls ***
+    if (this.transformControls) {
+      this.transformControls.detach();
+    }
+    
+    this.setInspectorOpen(false);
+    
+    if (this.inspectorApi?.refresh) {
+      this.inspectorApi.refresh();
+    }
+    
+    Logger.log('[Application] Selection cleared');
   };
 
   updateFilenameDisplay = (filename) => {
@@ -908,30 +1041,37 @@ export class Application {
   };
 
   handleSettingsChanged = (settings) => {
-    if (settings.flipUV !== undefined) {
-      this.flipUVs(settings.flipUV);
-    }
     if (settings.transform) {
       if (settings.transform.enabled !== undefined) {
-        this.transformControls.enable(settings.transform.enabled);
+        this.transformControls?.enable(settings.transform.enabled);
+        
+        // При включении Transform Controls привязываем к выделенному объекту
         if (settings.transform.enabled) {
-          const selectedObject = this.stateManager.getSceneState().selectedObject;
+          const selectedObject = this.stateManager?.getSceneState().selectedObject;
           if (selectedObject) {
             this.attachTransformControls(selectedObject);
           }
         } else {
-          this.attachTransformControls(null);
+          // При выключении отсоединяем
+          this.transformControls?.detach();
         }
       }
+      
       if (settings.transform.mode) {
-        this.transformControls.setMode(settings.transform.mode);
+        this.transformControls?.setMode(settings.transform.mode);
       }
+      
       if (settings.transform.snap) {
         const { enabled, translation, rotation, scale } = settings.transform.snap;
-        this.transformControls.setTranslationSnap(enabled ? translation : null);
-        this.transformControls.setRotationSnap(enabled ? rotation : null);
-        this.transformControls.setScaleSnap(enabled ? scale : null);
+        this.transformControls?.setTranslationSnap(enabled ? translation : null);
+        this.transformControls?.setRotationSnap(enabled ? rotation : null);
+        this.transformControls?.setScaleSnap(enabled ? scale : null);
       }
+    }
+    
+    // Остальные настройки...
+    if (settings.flipUV !== undefined) {
+      this.flipUVs(settings.flipUV);
     }
     if (settings.gridVisible !== undefined) {
       this.sceneManager?.setGridVisible(settings.gridVisible);
@@ -1296,5 +1436,36 @@ export class Application {
     } catch (e) {
       Logger.warn('[Application] Failed to save attachment state to localStorage:', e);
     }
+  };
+  // 6. Программный метод для включения Transform Controls
+  enableTransformControls = (enabled = true, mode = 'translate') => {
+    if (!this.transformControls) return;
+    
+    // Обновляем UI
+    const toggleEl = this.dom?.get('toggle-transform');
+    if (toggleEl) {
+      toggleEl.checked = enabled;
+    }
+    
+    const modeEl = this.dom?.get('transform-mode');
+    if (modeEl) {
+      modeEl.value = mode;
+    }
+    
+    // Применяем настройки
+    this.transformControls.enable(enabled);
+    this.transformControls.setMode(mode);
+    
+    // Если есть выделенный объект, привязываем к нему
+    if (enabled) {
+      const selectedObject = this.stateManager?.getSceneState().selectedObject;
+      if (selectedObject) {
+        this.attachTransformControls(selectedObject);
+      }
+    } else {
+      this.transformControls.detach();
+    }
+    
+    Logger.log(`[Application] Transform Controls ${enabled ? 'enabled' : 'disabled'} in ${mode} mode`);
   };
 }

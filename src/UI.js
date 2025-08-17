@@ -95,6 +95,12 @@ export function initUI({
     langSelect.value = lang;
     await loadLanguage(lang);
     applyLang();
+
+    // Ensure gizmo toggle is off on load
+    const toggleTransformEl = d.getElementById('toggle-transform');
+    if (toggleTransformEl) {
+      toggleTransformEl.checked = false;
+    }
   })();
 
   // Bind file input
