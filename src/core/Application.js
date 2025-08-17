@@ -324,6 +324,10 @@ export class Application {
       this.eventSystem.on(EVENTS.ANIMATION_TIME_UPDATE, ({ progress }) => this.animationManager?.setTime(progress));
     }
 
+    // Обработчики событий инспектора
+    this.eventSystem.on(EVENTS.INSPECTOR_OPEN, () => this.setInspectorOpen(true));
+    this.eventSystem.on(EVENTS.INSPECTOR_CLOSE, () => this.setInspectorOpen(false));
+
     this.handleResize();
   }
 
@@ -388,6 +392,10 @@ export class Application {
     if (this.dom) {
       this.setAnimSectionVisible(false);
     }
+    
+    // ВАЖНО: Инспектор должен быть ОТКРЫТ при загрузке
+    this.setInspectorOpen(true);
+    this.stateManager?.updateUIState({ isInspectorOpen: true });
   }
 
   // Event handlers
@@ -716,7 +724,18 @@ export class Application {
         this.clearSelection();
         break;
       case 'Escape':
-        this.clearSelection();
+        // Закрывать инспектор по ESC
+        const uiState = this.stateManager?.getUIState();
+        if (uiState?.isInspectorOpen) {
+          this.setInspectorOpen(false);
+        } else {
+          this.clearSelection();
+        }
+        break;
+      case 'KeyI':
+        // Переключение инспектора по клавише I
+        const currentInspectorState = this.stateManager?.getUIState()?.isInspectorOpen;
+        this.setInspectorOpen(!currentInspectorState);
         break;
       // *** НОВОЕ: Горячие клавиши для Transform Controls ***
       case 'KeyG': // G - Move (Grab)
@@ -1030,9 +1049,27 @@ export class Application {
 
   setInspectorOpen = (open) => {
     const inspectorEl = this.dom?.get('scene-inspector');
+    const openBtn = this.dom?.get('open-inspector');
+    
     if (!inspectorEl) return;
-    inspectorEl.classList.toggle('right-0', !!open);
-    inspectorEl.classList.toggle('right-[-360px]', !open);
+    
+    if (open) {
+      inspectorEl.classList.add('right-0');
+      inspectorEl.style.right = '0';
+      // Скрываем кнопку открытия
+      if (openBtn) {
+        openBtn.style.opacity = '0';
+        openBtn.style.pointerEvents = 'none';
+      }
+    } else {
+      inspectorEl.classList.remove('right-0');
+      inspectorEl.style.right = 'calc(-1 * var(--panel-w))';
+      // Показываем кнопку открытия
+      if (openBtn) {
+        openBtn.style.opacity = '1';
+        openBtn.style.pointerEvents = 'auto';
+      }
+    }
     
     this.stateManager?.updateUIState({ isInspectorOpen: open });
   };

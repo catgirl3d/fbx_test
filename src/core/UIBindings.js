@@ -25,6 +25,7 @@ export class UIBindings {
     this.bindRenderSettings();
     this.bindResetButtons();
     this.bindFlipUV();
+    this.bindInspectorButtons();
   }
 
   bind(element, event, handler) {
@@ -236,6 +237,20 @@ export class UIBindings {
   bindFlipUV() {
     this.bind(this.dom?.get('toggle-flipuv'), 'change', () => {
       this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, { flipUV: this.dom?.isChecked('toggle-flipuv') });
+    });
+  }
+
+  bindInspectorButtons() {
+    // Кнопка открытия инспектора
+    const openInspectorBtn = this.dom?.get('open-inspector');
+    this.bind(openInspectorBtn, 'click', () => {
+      this.eventSystem?.emit(EVENTS.INSPECTOR_OPEN);
+    });
+
+    // Кнопка закрытия инспектора
+    const closeInspectorBtn = this.dom?.get('inspector-close');
+    this.bind(closeInspectorBtn, 'click', () => {
+      this.eventSystem?.emit(EVENTS.INSPECTOR_CLOSE);
     });
   }
 

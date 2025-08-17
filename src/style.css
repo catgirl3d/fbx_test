@@ -88,14 +88,24 @@
     .kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:var(--chip-bg); border:1px solid var(--chip-bd); border-radius:6px; padding:1px 6px; font-size:11px; color:var(--chip-tx) }
 
     /* Inspector */
-    .inspector{
-      position: fixed; top:0; right: calc(-1 * var(--panel-w)); bottom:0; width: var(--panel-w);
+    .inspector {
+      position: fixed;
+      top: 0;
+      right: calc(-1 * var(--panel-w)); /* Скрыт по умолчанию */
+      bottom: 0;
+      width: var(--panel-w);
       background: var(--bg-panel);
-      border-left:1px solid var(--border);
-      transition: right .25s ease;
-      z-index: 40; display:flex; flex-direction:column; box-shadow: 0 0 30px rgba(0,0,0,.06);
+      border-left: 1px solid var(--border);
+      transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 30px rgba(0,0,0,.06);
     }
-    .inspector.right-0{ right: 0 }
+
+    .inspector.right-0 {
+      right: 0 !important;
+    }
     .inspector header{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; gap:8px; border-bottom:1px solid var(--border) }
     .inspector .tree{ flex:1; overflow:auto; padding: 10px 8px; }
     .tag{ font-size:11px; padding: 2px 6px; border-radius: 999px; background:var(--chip-bg); border:1px solid var(--chip-bd); color:var(--chip-tx) }
@@ -156,11 +166,25 @@
     }
     .chip{ pointer-events:auto; background:var(--chip-bg); border:1px solid var(--chip-bd); border-radius: 999px; padding: 6px 10px; font-size:12px; color:var(--chip-tx) }
     .chip b{ color:var(--text) }
-    .open-inspector-tab{
-      position: fixed; top: 50%; right: 0; transform: translateY(-50%);
-      z-index: 35; padding: 8px 10px; border-radius: 10px 0 0 10px;
-      background:var(--bg-panel); border:1px solid var(--border); border-right: none; cursor: pointer;
+    .open-inspector-tab {
+      position: fixed;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      z-index: 35;
+      padding: 8px 10px;
+      border-radius: 10px 0 0 10px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-right: none;
+      cursor: pointer;
       box-shadow: 0 4px 16px rgba(0,0,0,.08);
+      transition: all 0.3s ease;
+    }
+
+    .open-inspector-tab:hover {
+      transform: translateY(-50%) translateX(-3px);
+      box-shadow: 0 6px 20px rgba(0,0,0,.15);
     }
     .range{ width: auto; } /* Allow sliders to take up remaining space */
     .lang-select{ margin-left:auto }
