@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import Logger from './core/Logger.js';
 
 /**
  * AnimationManager
@@ -37,7 +38,7 @@ export class AnimationManager {
         if (this.root) {
           this.mixer.uncacheRoot(this.root);
         }
-      } catch (e) { console.error(e); }
+      } catch (e) { Logger.error('[Animation] Error disposing mixer:', e); }
       this.mixer = null;
     }
     this.clips = [];

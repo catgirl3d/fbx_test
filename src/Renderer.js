@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import Logger from './core/Logger.js';
 import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/postprocessing/RenderPass.js';
 import { OutlinePass } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/postprocessing/OutlinePass.js';
@@ -53,7 +54,7 @@ export class RendererManager {
     // composer and passes
     this.composer = new EffectComposer(this.renderer);
     // ensure composer has initial size matching renderer
-    try { this.composer.setSize(window.innerWidth, window.innerHeight); } catch(e){ console.error(e); }
+    try { this.composer.setSize(window.innerWidth, window.innerHeight); } catch(e){ Logger.error('[Renderer] Failed to set composer size:', e); }
     this.renderPass = null; // created on first render when scene/camera are available
     this.outlinePass = null;
     this.fxaaPass = null;
@@ -149,7 +150,7 @@ export class RendererManager {
   // convenience API to set exposure centrally
   setExposure(v){
     this.exposure = Number(v) || 1;
-    try { this.renderer.toneMappingExposure = this.exposure; } catch(e){ console.warn('setExposure failed', e); }
+    try { this.renderer.toneMappingExposure = this.exposure; } catch(e){ Logger.warn('[Renderer] Failed to set exposure:', e); }
   }
 
   dispose() {
@@ -158,7 +159,7 @@ export class RendererManager {
       this.composer.passes.forEach(p => {
         if (p.dispose) p.dispose();
       });
-    } catch (e) { console.error(e); }
+    } catch (e) { Logger.error('[Renderer] Error disposing renderer:', e); }
     this.renderer.dispose();
 
     // dispose axis scene resources

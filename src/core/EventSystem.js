@@ -98,7 +98,7 @@ export class EventSystem {
         try {
           callback(data);
         } catch (error) {
-          console.error(`Error in event callback for ${eventType}:`, error);
+          Logger.error(`Error in event callback for ${eventType}:`, error);
         }
       });
     }
@@ -110,7 +110,7 @@ export class EventSystem {
         try {
           callback(data);
         } catch (error) {
-          console.error(`Error in one-time event callback for ${eventType}:`, error);
+          Logger.error(`Error in one-time event callback for ${eventType}:`, error);
         }
       });
       // Clear one-time callbacks after execution

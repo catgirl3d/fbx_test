@@ -546,11 +546,11 @@ export class Application {
       this.transformControls.attach(object);
       // Устанавливаем режим из UI
       const mode = this.dom?.getValue('transform-mode') || 'translate';
-      try { this.transformControls.setMode(mode); } catch(e){ Logger.error(e); }
+      try { this.transformControls.setMode(mode); } catch(e){ Logger.error('[Application] Failed to set transform controls mode:', e); }
       Logger.log(`[Application] Transform Controls attached to ${object.name || object.uuid} in ${mode} mode`);
     } else {
       // Если Transform Controls выключены или объект null, отсоединяем
-      try { this.transformControls.detach(); } catch(e){ Logger.error(e); }
+      try { this.transformControls.detach(); } catch(e){ Logger.error('[Application] Failed to detach transform controls:', e); }
       Logger.log('[Application] Transform Controls detached (either disabled or object is null).');
     }
   };
@@ -1121,14 +1121,14 @@ export class Application {
     const exposureEl = this.dom?.get('exposure');
     if (exposureEl) {
       exposureEl.value = 1;
-      try { this.renderSettings?.applyExposure(1); } catch(e){ Logger.error(e); }
+      try { this.renderSettings?.applyExposure(1); } catch(e){ Logger.error('[Application] Failed to reset exposure:', e); }
       const exposureValEl = this.dom?.get('exposure-val');
       if (exposureValEl) exposureValEl.textContent = (1).toFixed(2);
     }
     const toneMappingEl = this.dom?.get('tone-mapping');
     if (toneMappingEl) {
       toneMappingEl.value = 'ACES';
-      try { this.renderSettings?.applyToneMapping('ACES'); } catch(e){ Logger.error(e); }
+      try { this.renderSettings?.applyToneMapping('ACES'); } catch(e){ Logger.error('[Application] Failed to reset tone mapping:', e); }
     }
     this.dom?.showToast(t('reset_render'));
   };
@@ -1141,9 +1141,9 @@ export class Application {
     const dirAngleVal = this.dom?.get('dir-angle-val');
     const dirSoftnessVal = this.dom?.get('dir-softness-val');
  
-     if (dirIntensityEl) { dirIntensityEl.value = 0.9; try { this.lightingManager?.setDirIntensity(0.9); } catch(e){ Logger.error(e); } if (dirIntensityVal) dirIntensityVal.textContent = (0.9).toFixed(2); }
-     if (dirAngleEl) { dirAngleEl.value = 34; try { this.lightingManager?.setDirFromAngle(34); } catch(e){ Logger.error(e); } if (dirAngleVal) dirAngleVal.textContent = `${Math.round(34)}°`; }
-     if (dirSoftnessEl) { dirSoftnessEl.value = 1; try { this.lightingManager?.setDirSoftness(1); } catch(e){ Logger.error(e); } if (dirSoftnessVal) dirSoftnessVal.textContent = (1).toFixed(1); }
+     if (dirIntensityEl) { dirIntensityEl.value = 0.9; try { this.lightingManager?.setDirIntensity(0.9); } catch(e){ Logger.error('[Application] Failed to reset directional intensity:', e); } if (dirIntensityVal) dirIntensityVal.textContent = (0.9).toFixed(2); }
+     if (dirAngleEl) { dirAngleEl.value = 34; try { this.lightingManager?.setDirFromAngle(34); } catch(e){ Logger.error('[Application] Failed to reset directional angle:', e); } if (dirAngleVal) dirAngleVal.textContent = `${Math.round(34)}°`; }
+     if (dirSoftnessEl) { dirSoftnessEl.value = 1; try { this.lightingManager?.setDirSoftness(1); } catch(e){ Logger.error('[Application] Failed to reset directional softness:', e); } if (dirSoftnessVal) dirSoftnessVal.textContent = (1).toFixed(1); }
  
      this.dom?.showToast(t('reset_directional_light'));
   };
@@ -1153,9 +1153,9 @@ export class Application {
     const envIntensityVal = this.dom?.get('env-intensity-val');
     const hdriUrlInput = this.dom?.get('hdri-url');
 
-    if (envIntensityEl) { envIntensityEl.value = 1; try { const scene = this._getSafeScene(); this.sceneManager?.applyEnvIntensity(1, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error(e); } if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
+    if (envIntensityEl) { envIntensityEl.value = 1; try { const scene = this._getSafeScene(); this.sceneManager?.applyEnvIntensity(1, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error('[Application] Failed to reset environment intensity:', e); } if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
     if (hdriUrlInput) { hdriUrlInput.value = ''; }
-    try { this.sceneManager?.setEnvironment(null); } catch(e){ Logger.error(e); }
+    try { this.sceneManager?.setEnvironment(null); } catch(e){ Logger.error('[Application] Failed to reset environment:', e); }
     this.dom?.showToast(t('reset_environment'));
   };
 
@@ -1170,16 +1170,16 @@ export class Application {
     const measureOutEl = this.dom?.get('measure-out');
 
     if (toggleTransformEl) { toggleTransformEl.checked = false; }
-    try { this.transformControls?.enable(false); this.transformControls?.detach(); } catch(e){ Logger.error(e); }
+    try { this.transformControls?.enable(false); this.transformControls?.detach(); } catch(e){ Logger.error('[Application] Failed to disable/detach transform controls:', e); }
     if (transformModeEl) transformModeEl.value = 'translate';
     if (toggleSnapEl) toggleSnapEl.checked = false;
-    try { this.transformControls?.setTranslationSnap(null); this.transformControls?.setRotationSnap(null); this.transformControls?.setScaleSnap(null); } catch(e){ Logger.error(e); }
+    try { this.transformControls?.setTranslationSnap(null); this.transformControls?.setRotationSnap(null); this.transformControls?.setScaleSnap(null); } catch(e){ Logger.error('[Application] Failed to reset transform snap settings:', e); }
 
     if (snapPosEl) snapPosEl.value = 0.1;
     if (snapRotEl) snapRotEl.value = 15;
     if (snapScaleEl) snapScaleEl.value = 0.1;
 
-    try { this.sceneManager?.clearMeasure(); } catch(e){ Logger.error(e); }
+    try { this.sceneManager?.clearMeasure(); } catch(e){ Logger.error('[Application] Failed to clear measure:', e); }
     if (measureToggleEl) measureToggleEl.classList.remove('ok');
     if (measureOutEl) measureOutEl.textContent = '—';
 
@@ -1206,9 +1206,9 @@ export class Application {
     const hdriUrlInput = this.dom?.get('hdri-url');
     if (bgSelectEl) { bgSelectEl.value = 'white'; }
     if (bgColorEl) { bgColorEl.value = '#ffffff'; }
-    try { this.sceneManager?.setBackground('#ffffff'); } catch(e){ Logger.error(e); }
+    try { this.sceneManager?.setBackground('#ffffff'); } catch(e){ Logger.error('[Application] Failed to reset background color:', e); }
     if (hdriUrlInput) hdriUrlInput.value = '';
-    try { this.sceneManager?.setEnvironment(null); } catch(e){ Logger.error(e); }
+    try { this.sceneManager?.setEnvironment(null); } catch(e){ Logger.error('[Application] Failed to reset environment:', e); }
 
     // materials
     const matOverrideEl = this.dom?.get('mat-override');
@@ -1222,7 +1222,7 @@ export class Application {
           applyMaterialOverride(model, { overrideType: (matOverrideEl?.value || 'none'), wire: !!toggleWireframeEl?.checked, envIntensity: Number(document.getElementById('env-intensity')?.value || 1) });
         });
       });
-    } catch(e){ Logger.error(e); }
+    } catch(e){ Logger.error('[Application] Failed to apply material override on reset:', e); }
 
     // sections / helpers
     this.resetRender();
@@ -1231,11 +1231,11 @@ export class Application {
     this.resetGizmos();
 
     // camera & selection (clear outlines, detach gizmos)
-    try { this.rendererManager?.setOutlineObjects([]); } catch(e){ Logger.error(e); }
-    try { const scene = this._getSafeScene(); this.frameObject(this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error(e); }
+    try { this.rendererManager?.setOutlineObjects([]); } catch(e){ Logger.error('[Application] Failed to clear outline objects:', e); }
+    try { const scene = this._getSafeScene(); this.frameObject(this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error('[Application] Failed to frame object on reset:', e); }
 
     // persist defaults by clearing settings store
-    try { this.settings?.clear(); } catch(e){ Logger.error(e); }
+    try { this.settings?.clear(); } catch(e){ Logger.error('[Application] Failed to clear settings:', e); }
     this.dom?.showToast(t('settings_reset_to_defaults'));
   };
 
@@ -1302,7 +1302,7 @@ export class Application {
         this.dom.showToast(msg);
         return;
       }
-    } catch(e){ Logger.error(e); }
+    } catch(e){ Logger.error('[Application] Error showing toast (fallback):', e); }
     
     const toastEl = this.dom.get('toast');
     if (toastEl){
@@ -1322,7 +1322,7 @@ export class Application {
         toastEl.classList.add('show');
         setTimeout(()=> toastEl.classList.remove('show'), 6000);
       }
-    } catch(e){ Logger.error(e); }
+    } catch(e){ Logger.error('[Application] Error reporting runtime error (fallback):', e); }
   };
 
   // Animation loop

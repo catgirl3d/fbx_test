@@ -9,7 +9,7 @@ import * as THREE from 'three';
 
 export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel, getLoadedModels, tControls, lighting } = {}) {
   if (!lighting) {
-    console.error('[Inspector] FATAL: `lighting` is null or undefined. Inspector cannot be initialized.');
+    Logger.error('[Inspector] FATAL: `lighting` is null or undefined. Inspector cannot be initialized.');
     return null; // Return null or an empty API object
   }
   const treeRoot = document.getElementById('tree');
@@ -309,7 +309,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
         // Store the UUID of the object being dragged
         e.dataTransfer.setData('text/plain', o.uuid);
         e.dataTransfer.effectAllowed = 'move';
-        console.log(`[Inspector] Dragging started for: ${o.name} (${o.uuid})`);
+        Logger.log(`[Inspector] Dragging started for: ${o.name} (${o.uuid})`);
     });
 
     li.addEventListener('dragover', (e) => {
@@ -353,12 +353,12 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
 
             // Use THREE.Object3D.attach to maintain world position while changing parent
             targetParent.attach(objectToAttach);
-            console.log(`[Inspector] Dragged and attached ${objectToAttach.name} to ${targetParent.name}`);
+            Logger.log(`[Inspector] Dragged and attached ${objectToAttach.name} to ${targetParent.name}`);
             renderTree();
             // Clear selection after drop to avoid confusion
             clearSelection();
         } else {
-            console.warn('[Inspector] Invalid drop target or object:', objectToAttach, targetParent);
+            Logger.warn('[Inspector] Invalid drop target or object:', objectToAttach, targetParent);
         }
     });
 
@@ -594,7 +594,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
           // This automatically handles the matrix transformations
           targetParent.attach(objectToAttach);
           
-          console.log(`Attached ${objectToAttach.name} to ${targetParent.name}`);
+          Logger.log(`Attached ${objectToAttach.name} to ${targetParent.name}`);
           renderTree();
         } else {
           alert(t('alert_select_two_objects'));
@@ -630,7 +630,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
           });
           if (firstMesh) {
               transformTarget = firstMesh;
-              console.log('Group selected, using first mesh for transform:', firstMesh.name);
+              Logger.log('Group selected, using first mesh for transform:', firstMesh.name);
           }
       }
       

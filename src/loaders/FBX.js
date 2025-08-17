@@ -2,6 +2,7 @@ import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/j
 import { DRACOLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/DRACOLoader.js';
 import { TGALoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/TGALoader.js';
 import * as THREE from 'three';
+import Logger from '../core/Logger.js';
 
 /**
  * FBXLoaderWrapper
@@ -45,14 +46,14 @@ export class FBXLoaderWrapper {
       this.loader.load(url, (obj) => {
         // Restore original texture loading method
         this._restoreTextureResolver();
-        try { URL.revokeObjectURL(url); } catch (e) {}
+        try { URL.revokeObjectURL(url); } catch (e) { Logger.warn('Failed to revoke object URL on success:', e); }
         resolve(obj);
       }, (evt) => {
         if (onProgress) onProgress(evt);
       }, (err) => {
         // Restore original texture loading method even on error
         this._restoreTextureResolver();
-        try { URL.revokeObjectURL(url); } catch (e) {}
+        try { URL.revokeObjectURL(url); } catch (e) { Logger.warn('Failed to revoke object URL on error:', e); }
         reject(err);
       });
     });
@@ -79,8 +80,8 @@ export class FBXLoaderWrapper {
             if (resolved instanceof Promise) {
               // If it's a promise, wait for it and return the result
               return resolved.then(texture => {
-                console.log(`[FBXLoader] Texture resolved from ZIP: ${path}`);
-                console.debug(`[FBXLoader] Resolved texture details:`, {
+                Logger.log(`[FBXLoader] Texture resolved from ZIP: ${path}`);
+                Logger.debug(`[FBXLoader] Resolved texture details:`, {
                   path,
                   textureName: texture?.name,
                   textureImage: texture?.image,
@@ -90,14 +91,14 @@ export class FBXLoaderWrapper {
                 });
                 return texture;
               }).catch(error => {
-                console.warn(`[FBXLoader] Texture resolver promise failed for ${path}:`, error);
+                Logger.warn(`[FBXLoader] Texture resolver promise failed for ${path}:`, error);
                 // Fallback to original method
                 return this._originalLoadTexture.call(this.loader, path, ...args);
               });
             } else if (resolved && resolved.isTexture) {
               // If it's a texture object, return it directly
-              console.log(`[FBXLoader] Texture resolved from ZIP: ${path}`);
-              console.debug(`[FBXLoader] Resolved texture details:`, {
+              Logger.log(`[FBXLoader] Texture resolved from ZIP: ${path}`);
+              Logger.debug(`[FBXLoader] Resolved texture details:`, {
                 path,
                 textureName: resolved?.name,
                 textureImage: resolved?.image,
@@ -112,13 +113,13 @@ export class FBXLoaderWrapper {
           // Fallback to original method
           return this._originalLoadTexture.call(this.loader, path, ...args);
         } catch (error) {
-          console.warn(`[FBXLoader] Texture resolver failed for ${path}:`, error);
+          Logger.warn(`[FBXLoader] Texture resolver failed for ${path}:`, error);
           // Fallback to original method
           return this._originalLoadTexture.call(this.loader, path, ...args);
         }
       };
     } else {
-      console.warn('[FBXLoader] FBXLoader does not have a loadTexture method. Texture resolver may not work.');
+      Logger.warn('[FBXLoader] FBXLoader does not have a loadTexture method. Texture resolver may not work.');
       // Alternative approach: post-process materials after loading
       // This will be handled in the app.js as a fallback
     }
@@ -138,7 +139,7 @@ export class FBXLoaderWrapper {
   }
 
   dispose() {
-    try { this.draco?.dispose?.(); } catch (e) { console.error(e); }
+    try { this.draco?.dispose?.(); } catch (e) { Logger.error('[FBXLoader] Failed to dispose DracoLoader:', e); }
   }
 }
 

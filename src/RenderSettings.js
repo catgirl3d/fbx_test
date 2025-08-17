@@ -60,7 +60,7 @@ export class RenderSettings {
         this.rendererMgr.renderer.toneMappingExposure = val;
       }
     } catch (e) {
-      console.warn('[RenderSettings] applyExposure failed', e);
+      Logger.warn('[RenderSettings] applyExposure failed', e);
     }
     this._save();
   }
@@ -73,7 +73,7 @@ export class RenderSettings {
         this.rendererMgr.renderer.toneMapping = tm;
       }
     } catch (e) {
-      console.warn('[RenderSettings] applyToneMapping failed', e);
+      Logger.warn('[RenderSettings] applyToneMapping failed', e);
     }
     this._tone = k;
     this._save();
@@ -84,7 +84,7 @@ export class RenderSettings {
     try {
       if (this.rendererMgr) this.rendererMgr.enableFXAA(this._fxaa);
     } catch (e) {
-      console.warn('[RenderSettings] enableFXAA failed', e);
+      Logger.warn('[RenderSettings] enableFXAA failed', e);
     }
     this._save();
   }

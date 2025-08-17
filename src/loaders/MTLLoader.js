@@ -10,6 +10,7 @@ import {
 	TextureLoader,
 	Vector2
 } from 'three';
+import Logger from '../core/Logger.js';
 
 class MTLLoader extends Loader {
 
@@ -56,7 +57,7 @@ class MTLLoader extends Loader {
 
 				} else {
 
-					console.error( e );
+					Logger.error('[MTLLoader] Error parsing MTL file:', e);
 
 				}
 

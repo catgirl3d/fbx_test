@@ -64,10 +64,10 @@ export class AssetLoader {
         source: file.name,
         type: extension
       });
-      console.log('[AssetLoader] Fired MODEL_LOADED event');
+      Logger.log('[AssetLoader] Fired MODEL_LOADED event');
       return result;
     } catch (error) {
-      console.error('[AssetLoader] Error loading model:', error);
+      Logger.error('[AssetLoader] Error loading model:', error);
       this.eventSystem?.emit(EVENTS.ASSET_LOAD_ERROR, {
         file,
         error: error.message,
@@ -110,10 +110,10 @@ export class AssetLoader {
       const texture = matchTexturePath(path, zipTextures);
       
       if (texture) {
-        console.log(`[AssetLoader] Texture resolver found: ${path} -> ${texture.name}`);
+        Logger.log(`[AssetLoader] Texture resolver found: ${path} -> ${texture.name}`);
         return texture;
       } else {
-        console.warn(`[AssetLoader] Texture resolver failed to find: ${path}`);
+        Logger.warn(`[AssetLoader] Texture resolver failed to find: ${path}`);
         return null;
       }
     };
@@ -153,7 +153,7 @@ export class AssetLoader {
     
     if (zipTextures && zipTextures.size > 0) {
       try {
-        console.log(`[AssetLoader] Applying ${zipTextures.size} ZIP textures to model: ${model.name || model.uuid}`);
+        Logger.log(`[AssetLoader] Applying ${zipTextures.size} ZIP textures to model: ${model.name || model.uuid}`);
         
         // Import the applyTexturesFromMap function
         import('../Materials.js').then(({ applyTexturesFromMap }) => {
@@ -165,7 +165,7 @@ export class AssetLoader {
         });
         
       } catch (error) {
-        console.warn('[AssetLoader] Failed to apply ZIP textures:', error);
+        Logger.warn('[AssetLoader] Failed to apply ZIP textures:', error);
         this.eventSystem?.emit(EVENTS.ASSET_LOAD_ERROR, {
           model,
           error: error.message,

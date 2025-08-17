@@ -12,6 +12,8 @@
 
 const DEFAULT_KEY = 'viewerSettings.v1';
 
+import Logger from './core/Logger.js';
+
 export class Settings {
   constructor(lsKey = DEFAULT_KEY, defaults = {}) {
     this.key = lsKey;
@@ -26,7 +28,7 @@ export class Settings {
       if (!raw) return null;
       return JSON.parse(raw);
     } catch (e) {
-      console.warn('[Settings] failed to parse', e);
+      Logger.warn('[Settings] failed to parse', e);
       return null;
     }
   }
@@ -40,7 +42,7 @@ export class Settings {
     try {
       localStorage.setItem(this.key, JSON.stringify(this.store));
     } catch (e) {
-      console.warn('[Settings] save failed', e);
+      Logger.warn('[Settings] save failed', e);
     }
   }
 
@@ -58,7 +60,7 @@ export class Settings {
   // Setter for movement sensitivity
   setMovementSensitivity(value) {
     if (typeof value !== 'number' || isNaN(value)) {
-      console.warn('[Settings] Invalid movementSensitivity value:', value);
+      Logger.warn('[Settings] Invalid movementSensitivity value:', value);
       return;
     }
     this.set('movementSensitivity', Math.max(0.1, Math.min(50, value)));
@@ -90,7 +92,7 @@ export class Settings {
 
   _emit(key, value) {
     this.listeners.forEach(cb => {
-      try { cb(key, value); } catch (e) { console.warn('[Settings] listener error', e); }
+      try { cb(key, value); } catch (e) { Logger.warn('[Settings] Listener error:', e); }
     });
   }
 }

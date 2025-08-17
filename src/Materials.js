@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import Logger from './core/Logger.js';
 
 // Утилиты для работы с материалами
 const savedOriginal = new WeakMap();
@@ -194,7 +195,7 @@ export function setLightOnly(root, on) {
             saved.color && cm.color?.copy?.(saved.color);
             saved.emissive && cm.emissive?.copy?.(saved.emissive);
             cm.needsUpdate = true;
-          } catch(e){ console.error(e); }
+          } catch(e){ Logger.error('[Materials] Error updating material color:', e); }
         });
         savedOriginal.delete(o);
       }
@@ -306,15 +307,15 @@ function buildMaterialTextureIndex(textureMap) {
 export function applyTexturesFromMap(rootObject, textureMap) {
   if (!rootObject || !textureMap || textureMap.size === 0) return;
 
-  console.log('[Materials] Applying textures from map...');
+  Logger.log('[Materials] Applying textures from map...');
   const materialIndex = buildMaterialTextureIndex(textureMap);
 
   if (materialIndex.size === 0) {
-    console.warn('[Materials] Texture index is empty. No textures will be applied. Check texture naming.');
+    Logger.warn('[Materials] Texture index is empty. No textures will be applied. Check texture naming.');
     return;
   }
   
-  console.log(`[Materials] Built material-texture index with ${materialIndex.size} materials.`);
+  Logger.log(`[Materials] Built material-texture index with ${materialIndex.size} materials.`);
   
   const mappingSummary = new Map();
 
@@ -371,16 +372,16 @@ export function applyTexturesFromMap(rootObject, textureMap) {
   });
 
   // Вывод итоговой информации о сопоставлении
-  console.info('[Materials] === Texture Mapping Summary ===');
+  Logger.info('[Materials] === Texture Mapping Summary ===');
   if (mappingSummary.size === 0) {
-    console.info('[Materials] No textures were applied. Check material and texture names for mismatches.');
+    Logger.info('[Materials] No textures were applied. Check material and texture names for mismatches.');
   } else {
     for (const [materialName, maps] of mappingSummary) {
       const mapEntries = Array.from(maps.entries()).map(([mapType, textureName]) => `${mapType}: ${textureName}`);
-      console.info(`[Materials] ${materialName} -> { ${mapEntries.join(', ')} }`);
+      Logger.info(`[Materials] ${materialName} -> { ${mapEntries.join(', ')} }`);
     }
   }
-  console.info('[Materials] === End Mapping Summary ===');
+  Logger.info('[Materials] === End Mapping Summary ===');
 }
 
 // Экспорт поддерживаемых типов карт для справки

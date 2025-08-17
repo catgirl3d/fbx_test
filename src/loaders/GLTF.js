@@ -1,4 +1,5 @@
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/GLTFLoader.js';
+import Logger from '../core/Logger.js';
 import { DRACOLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'https://cdn.jsdelivr.net/npm/meshoptimizer@0.20.0/meshopt_decoder.module.js';
@@ -56,20 +57,20 @@ export class GLTFLoaderWrapper {
       const url = URL.createObjectURL(file);
       this.gltfLoader.load(url, (gltf) => {
         // revoke URL and resolve
-        try { URL.revokeObjectURL(url); } catch(e) { console.error(e); }
+        try { URL.revokeObjectURL(url); } catch(e) { Logger.error('[GLTFLoader] Failed to revoke object URL on success:', e); }
         resolve(gltf);
       }, (evt) => {
         if (onProgress) onProgress(evt);
       }, (err) => {
-        try { URL.revokeObjectURL(url); } catch(e) { console.error(e); }
+        try { URL.revokeObjectURL(url); } catch(e) { Logger.error('[GLTFLoader] Failed to revoke object URL on error:', e); }
         reject(err);
       });
     });
   }
 
   dispose() {
-    try { this.draco?.dispose?.(); } catch(e) { console.error(e); }
-    try { this.ktx2?.dispose?.(); } catch(e) { console.error(e); }
+    try { this.draco?.dispose?.(); } catch(e) { Logger.error('[GLTFLoader] Failed to dispose DracoLoader:', e); }
+    try { this.ktx2?.dispose?.(); } catch(e) { Logger.error('[GLTFLoader] Failed to dispose KTX2Loader:', e); }
   }
 }
 

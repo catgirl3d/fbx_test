@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import Logger from './core/Logger.js';
 
 /**
  * LightingManager
@@ -112,8 +113,8 @@ export class LightingManager {
     return { hemi: this.hemi, dir: this.dir };
   }
 dispose() {
-  try { this.scene.remove(this.hemi); } catch(e){ console.error(e); }
-  try { this.scene.remove(this.dir); } catch(e){ console.error(e); }
+  try { this.scene.remove(this.hemi); } catch(e){ Logger.error('[Lighting] Failed to remove hemispheric light:', e); }
+  try { this.scene.remove(this.dir); } catch(e){ Logger.error('[Lighting] Failed to remove directional light:', e); }
   // Note: three lights do not have many disposable resources, but remove references
   this.hemi = null;
   this.dir = null;

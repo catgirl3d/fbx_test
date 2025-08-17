@@ -35,13 +35,13 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
   return new Promise((resolve, reject) => {
     try {
       const url = URL.createObjectURL(blob);
-      console.log(`[zipTextures] Loading texture: ${filename} from blob URL: ${url}`);
+      Logger.log(`[zipTextures] Loading texture: ${filename} from blob URL: ${url}`);
       
       // Use TGALoader for .tga files if available, otherwise use TextureLoader
       if (filename.toLowerCase().endsWith('.tga')) {
-        console.log(`[zipTextures] TGA file detected: ${filename}`);
-        console.log(`[zipTextures] TGA loader available:`, hasTGALoader);
-        console.debug(`[zipTextures] Available loaders:`, {
+        Logger.log(`[zipTextures] TGA file detected: ${filename}`);
+        Logger.log(`[zipTextures] TGA loader available:`, hasTGALoader);
+        Logger.debug(`[zipTextures] Available loaders:`, {
           TgaLoader: typeof TgaLoader,
           TGA: typeof TGA,
           TGALoader: typeof TGALoader,
@@ -52,7 +52,7 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
           let loader;
           if (typeof TgaLoader !== 'undefined') {
             // Use local tga-js
-            console.debug(`[zipTextures] Local TgaLoader available, using it for TGA: ${filename}`);
+            Logger.debug(`[zipTextures] Local TgaLoader available, using it for TGA: ${filename}`);
             const tga = new TgaLoader();
             tga.open(url, () => {
               try {
@@ -64,21 +64,21 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
                 texture.flipY = false;
                 texture.needsUpdate = true;
                 URL.revokeObjectURL(url);
-                console.log(`[zipTextures] TGA texture loaded successfully with local TgaLoader: ${filename}`);
+                Logger.log(`[zipTextures] TGA texture loaded successfully with local TgaLoader: ${filename}`);
                 resolve(texture);
               } catch (textureError) {
-                console.error(`[zipTextures] Error creating texture from TGA data:`, textureError);
+                Logger.error(`[zipTextures] Error creating texture from TGA data:`, textureError);
                 URL.revokeObjectURL(url);
                 reject(textureError);
               }
             }, (error) => {
-              console.error(`[zipTextures] Local TgaLoader loading error:`, error);
+              Logger.error(`[zipTextures] Local TgaLoader loading error:`, error);
               URL.revokeObjectURL(url);
               reject(error);
             });
           } else if (typeof TGA !== 'undefined') {
             // Use tga-js (fallback)
-            console.log(`[zipTextures] Using fallback tga-js for TGA: ${filename}`);
+            Logger.log(`[zipTextures] Using fallback tga-js for TGA: ${filename}`);
             loader = new TGA();
             loader.open(url, (tgaData) => {
               try {
@@ -89,25 +89,25 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
                 texture.flipY = false;
                 texture.needsUpdate = true;
                 URL.revokeObjectURL(url);
-                console.log(`[zipTextures] TGA texture loaded successfully with tga-js: ${filename}`);
+                Logger.log(`[zipTextures] TGA texture loaded successfully with tga-js: ${filename}`);
                 resolve(texture);
               } catch (textureError) {
-                console.error(`[zipTextures] Error creating texture from TGA data:`, textureError);
+                Logger.error(`[zipTextures] Error creating texture from TGA data:`, textureError);
                 URL.revokeObjectURL(url);
                 reject(textureError);
               }
             }, (error) => {
-              console.error(`[zipTextures] tga-js loading error:`, error);
+              Logger.error(`[zipTextures] tga-js loading error:`, error);
               URL.revokeObjectURL(url);
               reject(error);
             });
           } else if (typeof TGALoader !== 'undefined') {
             // Use global TGALoader
-            console.log(`[zipTextures] Using global TGALoader: ${filename}`);
+            Logger.log(`[zipTextures] Using global TGALoader: ${filename}`);
             loader = new TGALoader();
             loader.load(url,
               (texture) => {
-                console.log(`[zipTextures] TGA texture loaded successfully with TGALoader: ${filename}`);
+                Logger.log(`[zipTextures] TGA texture loaded successfully with TGALoader: ${filename}`);
                 texture.name = filename;
                 // Remove forced sRGB encoding for all textures - let Materials.js handle encoding by type
                 // texture.encoding = threeModule.sRGBEncoding;
@@ -117,18 +117,18 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
               },
               undefined,
               (error) => {
-                console.error(`[zipTextures] TGALoader loading error:`, error);
+                Logger.error(`[zipTextures] TGALoader loading error:`, error);
                 URL.revokeObjectURL(url);
                 reject(error);
               }
             );
           } else if (typeof threeModule.TGALoader !== 'undefined') {
             // Use THREE.TGALoader
-            console.log(`[zipTextures] Using THREE.TGALoader: ${filename}`);
+            Logger.log(`[zipTextures] Using THREE.TGALoader: ${filename}`);
             loader = new threeModule.TGALoader();
             loader.load(url,
               (texture) => {
-                console.log(`[zipTextures] TGA texture loaded successfully with THREE.TGALoader: ${filename}`);
+                Logger.log(`[zipTextures] TGA texture loaded successfully with THREE.TGALoader: ${filename}`);
                 texture.name = filename;
                 // Remove forced sRGB encoding for all textures - let Materials.js handle encoding by type
                 // texture.encoding = threeModule.sRGBEncoding;
@@ -138,7 +138,7 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
               },
               undefined,
               (error) => {
-                console.error(`[zipTextures] THREE.TGALoader loading error:`, error);
+                Logger.error(`[zipTextures] THREE.TGALoader loading error:`, error);
                 URL.revokeObjectURL(url);
                 reject(error);
               }
@@ -147,8 +147,8 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
             throw new Error('No TGA loader available');
           }
         } catch (tgaError) {
-          console.error(`[zipTextures] TGA loader initialization error:`, tgaError);
-          console.log(`[zipTextures] Falling back to TextureLoader for TGA: ${filename}`);
+          Logger.error(`[zipTextures] TGA loader initialization error:`, tgaError);
+          Logger.log(`[zipTextures] Falling back to TextureLoader for TGA: ${filename}`);
           // Fallback to TextureLoader
           const loader = new threeModule.TextureLoader();
           loader.load(url, (texture) => {
@@ -164,7 +164,7 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
           });
         }
       } else {
-        console.log(`[zipTextures] Loading non-TGA texture: ${filename} with TextureLoader`);
+        Logger.log(`[zipTextures] Loading non-TGA texture: ${filename} with TextureLoader`);
         const loader = new threeModule.TextureLoader();
         
         loader.load(url, (texture) => {
@@ -175,15 +175,15 @@ export function loadTextureFromBlob(blob, filename, threeModule) {
           URL.revokeObjectURL(url);
           resolve(texture);
         }, (progress) => {
-          console.log(`[zipTextures] Non-TGA loading progress:`, progress);
+          Logger.log(`[zipTextures] Non-TGA loading progress:`, progress);
         }, (error) => {
-          console.error(`[zipTextures] Non-TGA loading error:`, error);
+          Logger.error(`[zipTextures] Non-TGA loading error:`, error);
           URL.revokeObjectURL(url);
           reject(error);
         });
       }
     } catch (error) {
-      console.error(`[zipTextures] Blob creation or general error:`, error);
+      Logger.error(`[zipTextures] Blob creation or general error:`, error);
       reject(error);
     }
   });
@@ -260,7 +260,7 @@ export async function loadTexturesFromZIP(zipFile, threeModule, onProgress) {
         const entries = await zipReader.getEntries();
         const textureEntries = entries.filter(entry => !entry.directory && isTextureFile(entry.filename));
         
-        console.debug(`[zipTextures] Found ${textureEntries.length} texture entries in ZIP`);
+        Logger.debug(`[zipTextures] Found ${textureEntries.length} texture entries in ZIP`);
         if (onProgress) onProgress(0);
 
         // Calculate total size for accurate progress tracking
@@ -289,9 +289,9 @@ export async function loadTexturesFromZIP(zipFile, threeModule, onProgress) {
                 textureMap.set(basenameNoExt.toLowerCase(), texture);
                 textureMap.set((basenameNoExt + ext).toLowerCase(), texture);
 
-                console.log(`[zipTextures] Loaded texture: ${filename} (basename: ${basename})`);
+                Logger.log(`[zipTextures] Loaded texture: ${filename} (basename: ${basename})`);
             } catch (error) {
-                console.warn(`[zipTextures] Failed to load texture ${filename}:`, error);
+                Logger.warn(`[zipTextures] Failed to load texture ${filename}:`, error);
             } finally {
                 // Update progress based on the size of the processed file
                 processedSize += entry.uncompressedSize;
@@ -307,14 +307,14 @@ export async function loadTexturesFromZIP(zipFile, threeModule, onProgress) {
         // Clean up object URLs after a short delay to ensure textures are rendered
         setTimeout(() => {
             objectUrls.forEach(url => URL.revokeObjectURL(url));
-            console.log(`[zipTextures] Revoked ${objectUrls.length} object URLs.`);
+            Logger.log(`[zipTextures] Revoked ${objectUrls.length} object URLs.`);
         }, 1000);
 
-        console.log(`[zipTextures] Loaded ${textureMap.size} textures from ZIP`);
+        Logger.log(`[zipTextures] Loaded ${textureMap.size} textures from ZIP`);
         return textureMap;
 
     } catch (error) {
-        console.error('[zipTextures] Failed to process ZIP file:', error);
+        Logger.error('[zipTextures] Failed to process ZIP file:', error);
         // Clean up any URLs created before the error
         objectUrls.forEach(url => URL.revokeObjectURL(url));
         throw error;
