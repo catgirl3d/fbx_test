@@ -241,13 +241,13 @@ export class UIBindings {
   }
 
   bindInspectorButtons() {
-    // Кнопка открытия инспектора
-    const openInspectorBtn = this.dom?.get('open-inspector');
-    this.bind(openInspectorBtn, 'click', () => {
-      this.eventSystem?.emit(EVENTS.INSPECTOR_OPEN);
+    const toggleInspectorBtn = this.dom?.get('open-inspector');
+    this.bind(toggleInspectorBtn, 'click', () => {
+      const currentState = toggleInspectorBtn?.getAttribute('data-state') === 'open';
+      this.eventSystem?.emit(currentState ? EVENTS.INSPECTOR_CLOSE : EVENTS.INSPECTOR_OPEN);
     });
 
-    // Кнопка закрытия инспектора
+    // Keep the existing "Hide" button inside the inspector (optional secondary control)
     const closeInspectorBtn = this.dom?.get('inspector-close');
     this.bind(closeInspectorBtn, 'click', () => {
       this.eventSystem?.emit(EVENTS.INSPECTOR_CLOSE);

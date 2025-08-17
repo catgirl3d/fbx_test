@@ -1,6 +1,7 @@
     :root{
       /* Light theme (default) */
       --panel-w: 400px;
+      --inspector-transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       --bg-page: #f5f7fc;
       --bg-panel: #ffffff;
       --text: #0b1220;
@@ -96,7 +97,7 @@
       width: var(--panel-w);
       background: var(--bg-panel);
       border-left: 1px solid var(--border);
-      transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: var(--inspector-transition);
       z-index: 40;
       display: flex;
       flex-direction: column;
@@ -169,23 +170,33 @@
     .open-inspector-tab {
       position: fixed;
       top: 50%;
-      right: 0;
+      right: 0; /* Start position when closed */
       transform: translateY(-50%);
-      z-index: 35;
+      z-index: 45;
       padding: 8px 10px;
       border-radius: 10px 0 0 10px;
       background: var(--bg-panel);
       border: 1px solid var(--border);
       border-right: none;
       cursor: pointer;
-      box-shadow: 0 4px 16px rgba(0,0,0,.08);
-      transition: all 0.3s ease;
+      transition: var(--inspector-transition), transform 0.2s ease;
     }
 
-    .open-inspector-tab:hover {
-      transform: translateY(-50%) translateX(-3px);
-      box-shadow: 0 6px 20px rgba(0,0,0,.15);
+    /* Position when inspector is open */
+    .inspector.right-0 ~ .open-inspector-tab {
+	right: calc(var(--panel-w) - -1px);
     }
+
+    .open-inspector-tab[data-state="closed"] {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 10%, var(--bg-panel));
+    }
+
+    .open-inspector-tab[data-state="open"] {
+      border-color: var(--danger);
+      background: color-mix(in srgb, var(--danger) 10%, var(--bg-panel));
+    }
+
     .range{ width: auto; } /* Allow sliders to take up remaining space */
     .lang-select{ margin-left:auto }
     .theme-switch{
@@ -488,4 +499,18 @@
 details.section[data-sec="debug"] .toggle {
   width: 100%; /* Make the toggle take full width */
   justify-content: flex-start; /* Align content to the start */
+}
+
+@media (max-width: 768px) {
+  :root {
+    --panel-w: 90vw;
+  }
+  
+  .open-inspector-tab {
+    right: calc(-90vw - 1px);
+  }
+  
+  .inspector.right-0 ~ .open-inspector-tab {
+    right: calc(90vw - 1px);
+  }
 }

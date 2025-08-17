@@ -393,9 +393,16 @@ export class Application {
       this.setAnimSectionVisible(false);
     }
     
-    // ВАЖНО: Инспектор должен быть ОТКРЫТ при загрузке
+    // Inspector should be open by default
     this.setInspectorOpen(true);
-    this.stateManager?.updateUIState({ isInspectorOpen: true });
+
+    // Initialize button state
+    const toggleBtn = this.dom?.get('open-inspector');
+    if (toggleBtn) {
+      toggleBtn.setAttribute('data-state', 'open');
+      toggleBtn.innerHTML = '<span class="icon">✕</span>';
+      toggleBtn.title = 'Close Inspector (I)';
+    }
   }
 
   // Event handlers
@@ -1049,25 +1056,27 @@ export class Application {
 
   setInspectorOpen = (open) => {
     const inspectorEl = this.dom?.get('scene-inspector');
-    const openBtn = this.dom?.get('open-inspector');
+    const toggleBtn = this.dom?.get('open-inspector');
     
     if (!inspectorEl) return;
     
     if (open) {
       inspectorEl.classList.add('right-0');
       inspectorEl.style.right = '0';
-      // Скрываем кнопку открытия
-      if (openBtn) {
-        openBtn.style.opacity = '0';
-        openBtn.style.pointerEvents = 'none';
+      
+      if (toggleBtn) {
+        toggleBtn.setAttribute('data-state', 'open');
+        toggleBtn.innerHTML = '<span class="icon">✕</span>';
+        toggleBtn.title = 'Close Inspector (I)';
       }
     } else {
       inspectorEl.classList.remove('right-0');
       inspectorEl.style.right = 'calc(-1 * var(--panel-w))';
-      // Показываем кнопку открытия
-      if (openBtn) {
-        openBtn.style.opacity = '1';
-        openBtn.style.pointerEvents = 'auto';
+      
+      if (toggleBtn) {
+        toggleBtn.setAttribute('data-state', 'closed');
+        toggleBtn.innerHTML = '<span class="icon">☰</span>';
+        toggleBtn.title = 'Open Inspector (I)';
       }
     }
     
