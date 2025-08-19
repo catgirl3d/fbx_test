@@ -987,9 +987,8 @@ export class Application {
 
   loadDefaultModel = async () => {
     try {
-      Logger.log('[Application] Loading default model: model/devilgirl.fbx');
-      
-      const defaultModelPath = 'model/devilgirl.fbx';
+      const defaultModelPath = 'model/Y_Bot.fbx';
+      Logger.log(`[Application] Loading default model: ${defaultModelPath}`);
       const response = await fetch(defaultModelPath);
       
       if (!response.ok) {
@@ -997,9 +996,9 @@ export class Application {
       }
       
       const arrayBuffer = await response.arrayBuffer();
-      const defaultModelFile = new File([arrayBuffer], 'devilgirl.fbx', { type: 'application/octet-stream' });
+      const defaultModelFile = new File([arrayBuffer], defaultModelPath.split('/').pop(), { type: 'application/octet-stream' });
       
-      this.dom?.showOverlay(t('loading_model'), 'devilgirl.fbx');
+      this.dom?.showOverlay(t('loading_model'), defaultModelFile.name);
       
       const model = await this.loadModel(defaultModelFile);
       this.dom?.hideOverlay();

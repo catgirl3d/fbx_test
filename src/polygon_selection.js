@@ -16,6 +16,23 @@ export class PolygonSelectionManager {
     inputHandler = null, // New: inputHandler instance
     onSelection = null
   } = {}) {
+    if (!canvas) {
+      Logger.error('[PolygonSelection] Constructor: "canvas" parameter is required.');
+      throw new Error('PolygonSelectionManager: canvas parameter is required.');
+    }
+    if (!camera) {
+      Logger.error('[PolygonSelection] Constructor: "camera" parameter is required.');
+      throw new Error('PolygonSelectionManager: camera parameter is required.');
+    }
+    if (!sceneManager) {
+      Logger.error('[PolygonSelection] Constructor: "sceneManager" parameter is required.');
+      throw new Error('PolygonSelectionManager: sceneManager parameter is required.');
+    }
+    if (!rendererManager) {
+      Logger.error('[PolygonSelection] Constructor: "rendererManager" parameter is required.');
+      throw new Error('PolygonSelectionManager: rendererManager parameter is required.');
+    }
+
     this.canvas = canvas;
     this.camera = camera;
     this.sceneManager = sceneManager;
@@ -125,7 +142,7 @@ export class PolygonSelectionManager {
     this.selectionOverlay.style.display = 'none'; // Hide overlay when inactive
     Logger.log('[PolygonSelection] Overlay pointer-events set to "none" and display "none" on deactivate.');
     
-    this.canvas.removeEventListener('mousedown', this.boundMouseDown);
+    this.selectionOverlay.removeEventListener('mousedown', this.boundMouseDown);
     this.selectionOverlay.removeEventListener('mousemove', this.boundMouseMove);
     this.selectionOverlay.removeEventListener('mouseup', this.boundMouseUp);
     
@@ -145,7 +162,7 @@ export class PolygonSelectionManager {
   onMouseDown(event) {
     if (!this.isActive || event.button !== 0) return; // Only left mouse button
     
-    console.log('[PolygonSelection] onMouseDown. event:', { button: event.button, clientX: event.clientX, clientY: event.clientY });
+    Logger.log('[PolygonSelection] onMouseDown. event:', { button: event.button, clientX: event.clientX, clientY: event.clientY });
     event.preventDefault();
     event.stopPropagation();
     
@@ -157,12 +174,12 @@ export class PolygonSelectionManager {
       this.canvas.style.pointerEvents = 'none';
       if (this.rendererManager?.renderer?.domElement) {
         this.rendererManager.renderer.domElement.style.pointerEvents = 'none';
-        console.log('[PolygonSelection] Canvas and renderer.domElement pointer-events disabled for drawing');
+        Logger.log('[PolygonSelection] Canvas and renderer.domElement pointer-events disabled for drawing');
       } else {
-        console.log('[PolygonSelection] Canvas pointer-events disabled for drawing');
+        Logger.log('[PolygonSelection] Canvas pointer-events disabled for drawing');
       }
     } catch(e) {
-      console.warn('[PolygonSelection] Failed to disable canvas/renderer pointer-events', e);
+      Logger.warn('[PolygonSelection] Failed to disable canvas/renderer pointer-events', e);
     }
     
     this.isDrawing = true;
@@ -170,11 +187,11 @@ export class PolygonSelectionManager {
     // Update canvas rect based on the main canvas (overlay uses same positioning)
     this.canvasRect = this.canvas.getBoundingClientRect();
     if (this.inputHandler) {
-      console.log('[PolygonSelection] Disabling OrbitControls via InputHandler for drawing');
+      Logger.log('[PolygonSelection] Disabling OrbitControls via InputHandler for drawing');
       this.inputHandler.disableControls();
     } else if (this.controls) {
       // Fallback if inputHandler is not provided
-      console.log('[PolygonSelection] Disabling OrbitControls directly for drawing (no InputHandler)');
+      Logger.log('[PolygonSelection] Disabling OrbitControls directly for drawing (no InputHandler)');
       this.controls.enabled = false;
     }
     
@@ -182,7 +199,7 @@ export class PolygonSelectionManager {
     this.polygonPoints.push(point);
     
     this.clearCanvas();
-    console.log('[PolygonSelection] Started drawing. initial point:', point);
+    Logger.log('[PolygonSelection] Started drawing. initial point:', point);
   }
 
   onMouseMove(event) {
@@ -196,14 +213,14 @@ export class PolygonSelectionManager {
     this.drawPolygon();
     // Log a sampled set to avoid flooding console
     if (this.polygonPoints.length % 10 === 0) {
-      console.log('[PolygonSelection] onMouseMove - points collected:', this.polygonPoints.length);
+      Logger.log('[PolygonSelection] onMouseMove - points collected:', this.polygonPoints.length);
     }
   }
 
   onMouseUp(event) {
     if (!this.isActive || !this.isDrawing || event.button !== 0) return;
     
-    console.log('[PolygonSelection] onMouseUp. event:', { button: event.button, clientX: event.clientX, clientY: event.clientY });
+    Logger.log('[PolygonSelection] onMouseUp. event:', { button: event.button, clientX: event.clientX, clientY: event.clientY });
     event.preventDefault();
     event.stopPropagation();
     
@@ -216,26 +233,26 @@ export class PolygonSelectionManager {
       this.canvas.style.pointerEvents = '';
       if (this.rendererManager?.renderer?.domElement) {
         this.rendererManager.renderer.domElement.style.pointerEvents = '';
-        console.log('[PolygonSelection] Canvas and renderer.domElement pointer-events restored after drawing');
+        Logger.log('[PolygonSelection] Canvas and renderer.domElement pointer-events restored after drawing');
       } else {
-        console.log('[PolygonSelection] Canvas pointer-events restored after drawing');
+        Logger.log('[PolygonSelection] Canvas pointer-events restored after drawing');
       }
     } catch(e) {
-      console.warn('[PolygonSelection] Failed to restore canvas/renderer pointer-events', e);
+      Logger.warn('[PolygonSelection] Failed to restore canvas/renderer pointer-events', e);
     }
     
     if (this.inputHandler) {
-      console.log('[PolygonSelection] Re-enabling OrbitControls via InputHandler after drawing');
+      Logger.log('[PolygonSelection] Re-enabling OrbitControls via InputHandler after drawing');
       this.inputHandler.enableControls();
     } else if (this.controls) {
       // Fallback if inputHandler is not provided
-      console.log('[PolygonSelection] Re-enabling OrbitControls directly after drawing (no InputHandler)');
+      Logger.log('[PolygonSelection] Re-enabling OrbitControls directly after drawing (no InputHandler)');
       this.controls.enabled = true;
     }
     
     // Minimum polygon size check
     if (this.polygonPoints.length < 3) {
-      console.log('[PolygonSelection] Polygon too small, cancelling');
+      Logger.log('[PolygonSelection] Polygon too small, cancelling');
       this.clearPolygon();
       return;
     }
@@ -328,15 +345,15 @@ export class PolygonSelectionManager {
   }
 
   performSelection() {
-    console.log('[PolygonSelection] performSelection() called. polygonPoints:', this.polygonPoints.length);
+    Logger.log('[PolygonSelection] performSelection() called. polygonPoints:', this.polygonPoints.length);
     if (!this.sceneManager || this.polygonPoints.length < 3) {
-      console.log('[PolygonSelection] performSelection aborted - no sceneManager or insufficient points');
+      Logger.log('[PolygonSelection] performSelection aborted - no sceneManager or insufficient points');
       return;
     }
     
     const scene = this.sceneManager.getScene();
     if (!scene) {
-      console.log('[PolygonSelection] performSelection aborted - no scene returned by sceneManager');
+      Logger.log('[PolygonSelection] performSelection aborted - no scene returned by sceneManager');
       return;
     }
     
@@ -361,7 +378,7 @@ export class PolygonSelectionManager {
       }
     });
     
-    console.log('[PolygonSelection] performSelection - selectableObjects count:', selectableObjects.length);
+    Logger.log('[PolygonSelection] performSelection - selectableObjects count:', selectableObjects.length);
     
     // Конвертируем точки полигона в normalized device coordinates
     const polygonNDC = this.polygonPoints.map(point => ({
@@ -384,7 +401,7 @@ export class PolygonSelectionManager {
       }
     });
     
-    console.log(`[PolygonSelection] Selected ${this.selectedObjects.length} objects and ${selectedFaces.length} polygons`);
+    Logger.log(`[PolygonSelection] Selected ${this.selectedObjects.length} objects and ${selectedFaces.length} polygons`);
     
     // ✅ ИСПРАВЛЕНО: Визуализируем выделенные полигоны
     try {
@@ -392,11 +409,11 @@ export class PolygonSelectionManager {
         if (selectedFaces.length > 0) {
           // Показываем контуры отдельных полигонов
           this.rendererManager.setFaceOutlines(selectedFaces);
-          console.log('[PolygonSelection] setFaceOutlines called for selected faces:', selectedFaces.length);
+          Logger.log('[PolygonSelection] setFaceOutlines called for selected faces:', selectedFaces.length);
         } else if (this.selectedObjects.length > 0) {
           // Fallback: показываем контуры целых объектов
           this.rendererManager.setOutlineObjects(this.selectedObjects);
-          console.log('[PolygonSelection] setOutlineObjects called for selected objects:', this.selectedObjects.length);
+          Logger.log('[PolygonSelection] setOutlineObjects called for selected objects:', this.selectedObjects.length);
         } else {
           // Очищаем выделение
           this.rendererManager.setOutlineObjects([]);
@@ -404,7 +421,7 @@ export class PolygonSelectionManager {
         }
       }
     } catch (e) {
-      console.warn('[PolygonSelection] Failed to set outline objects/faces via rendererManager', e);
+      Logger.warn('[PolygonSelection] Failed to set outline objects/faces via rendererManager', e);
     }
     
     // Обновляем inspector выделения если доступен
@@ -413,7 +430,7 @@ export class PolygonSelectionManager {
         this.inspector.selectObject(this.selectedObjects[0]);
       } else if (this.selectedObjects.length > 1) {
         this.inspector.selectObject(this.selectedObjects[0]);
-        console.log('[PolygonSelection] Multiple objects selected:', this.selectedObjects.map(o => o.name || o.type));
+        Logger.log('[PolygonSelection] Multiple objects selected:', this.selectedObjects.map(o => o.name || o.type));
       } else {
         this.inspector.selectObject(null);
       }
@@ -421,7 +438,7 @@ export class PolygonSelectionManager {
     
     // Вызываем кастомный callback выделения
     if (this.onSelection) {
-      console.log('[PolygonSelection] Calling onSelection callback with', selectedFaces.length, 'faces and', this.selectedObjects.length, 'objects');
+      Logger.log('[PolygonSelection] Calling onSelection callback with', selectedFaces.length, 'faces and', this.selectedObjects.length, 'objects');
       this.onSelection({
         objects: this.selectedObjects,
         faces: selectedFaces // ✅ НОВОЕ: передаем информацию о полигонах
@@ -433,60 +450,68 @@ export class PolygonSelectionManager {
 getPolygonsInPolygon(mesh, polygonNDC) {
   const selectedFaces = [];
   
-  if (!mesh.geometry || !mesh.geometry.attributes.position) {
+  if (!mesh.geometry || !mesh.geometry.attributes || !mesh.geometry.attributes.position) {
+    Logger.warn('[PolygonSelection] getPolygonsInPolygon aborted - mesh missing geometry or position attributes.');
     return selectedFaces;
   }
   
-  const geometry = mesh.geometry;
-  const position = geometry.attributes.position;
-  const index = geometry.index;
-  
-  // Определяем количество треугольников
-  const triangleCount = index ? (index.count / 3) : (position.count / 3);
-  
-  // Проверяем каждый треугольник
-  for (let i = 0; i < triangleCount; i++) {
-    let a, b, c;
+  try {
+    const geometry = mesh.geometry;
+    const position = geometry.attributes.position;
+    const index = geometry.index;
     
-    if (index) {
-      // Indexed geometry
-      a = index.getX(i * 3);
-      b = index.getX(i * 3 + 1);
-      c = index.getX(i * 3 + 2);
-    } else {
-      // Non-indexed geometry
-      a = i * 3;
-      b = i * 3 + 1;
-      c = i * 3 + 2;
+    // Определяем количество треугольников
+    const triangleCount = index ? (index.count / 3) : (position.count / 3);
+    
+    // Обновляем матрицу мира перед использованием
+    mesh.updateMatrixWorld();
+    
+    // Проверяем каждый треугольник
+    for (let i = 0; i < triangleCount; i++) {
+      let a, b, c;
+      
+      if (index) {
+        // Indexed geometry
+        a = index.getX(i * 3);
+        b = index.getX(i * 3 + 1);
+        c = index.getX(i * 3 + 2);
+      } else {
+        // Non-indexed geometry
+        a = i * 3;
+        b = i * 3 + 1;
+        c = i * 3 + 2;
+      }
+      
+      // Получаем позиции вершин треугольника
+      const vA = new THREE.Vector3().fromBufferAttribute(position, a);
+      const vB = new THREE.Vector3().fromBufferAttribute(position, b);
+      const vC = new THREE.Vector3().fromBufferAttribute(position, c);
+      
+      // Переводим в мировые координаты
+      vA.applyMatrix4(mesh.matrixWorld);
+      vB.applyMatrix4(mesh.matrixWorld);
+      vC.applyMatrix4(mesh.matrixWorld);
+      
+      // Проецируем в экранные координаты
+      const screenA = new THREE.Vector3().copy(vA).project(this.camera);
+      const screenB = new THREE.Vector3().copy(vB).project(this.camera);
+      const screenC = new THREE.Vector3().copy(vC).project(this.camera);
+      
+      // Проверяем, находится ли треугольник перед камерой
+      if (screenA.z > 1 || screenB.z > 1 || screenC.z > 1) continue;
+      
+      // Проверяем, попадает ли центр треугольника в область выделения
+      const center = new THREE.Vector3()
+        .addVectors(screenA, screenB)
+        .add(screenC)
+        .divideScalar(3);
+      
+      if (this.isPointInPolygon(center.x, center.y, polygonNDC)) {
+        selectedFaces.push(i);
+      }
     }
-    
-    // Получаем позиции вершин треугольника
-    const vA = new THREE.Vector3().fromBufferAttribute(position, a);
-    const vB = new THREE.Vector3().fromBufferAttribute(position, b);
-    const vC = new THREE.Vector3().fromBufferAttribute(position, c);
-    
-    // Переводим в мировые координаты
-    vA.applyMatrix4(mesh.matrixWorld);
-    vB.applyMatrix4(mesh.matrixWorld);
-    vC.applyMatrix4(mesh.matrixWorld);
-    
-    // Проецируем в экранные координаты
-    const screenA = vA.clone().project(this.camera);
-    const screenB = vB.clone().project(this.camera);
-    const screenC = vC.clone().project(this.camera);
-    
-    // Проверяем, находится ли треугольник перед камерой
-    if (screenA.z > 1 || screenB.z > 1 || screenC.z > 1) continue;
-    
-    // Проверяем, попадает ли центр треугольника в область выделения
-    const center = new THREE.Vector3()
-      .addVectors(screenA, screenB)
-      .add(screenC)
-      .divideScalar(3);
-    
-    if (this.isPointInPolygon(center.x, center.y, polygonNDC)) {
-      selectedFaces.push(i);
-    }
+  } catch (e) {
+    Logger.error('[PolygonSelection] Error in getPolygonsInPolygon:', e);
   }
   
   return selectedFaces;
@@ -498,7 +523,9 @@ getPolygonsInPolygon(mesh, polygonNDC) {
     
     // For meshes, use the center of the bounding box
     if (obj.isMesh && obj.geometry) {
-      obj.geometry.computeBoundingBox();
+      if (!obj.geometry.boundingBox) { // Check if bounding box is already computed
+        obj.geometry.computeBoundingBox();
+      }
       if (obj.geometry.boundingBox) {
         obj.geometry.boundingBox.getCenter(objectPosition);
         objectPosition.applyMatrix4(obj.matrixWorld);
@@ -534,15 +561,21 @@ getPolygonsInPolygon(mesh, polygonNDC) {
 
   setOrbitControls(controls) {
     this.controls = controls;
-    console.log('[PolygonSelection] setOrbitControls called. controls set:', !!controls);
+    Logger.log('[PolygonSelection] setOrbitControls called. controls set:', !!controls);
   }
 
   // Additional selection methods
   selectObjectsInBox(startPoint, endPoint) {
-    if (!this.sceneManager) return [];
+    if (!this.sceneManager) {
+      Logger.warn('[PolygonSelection] selectObjectsInBox aborted - no sceneManager.');
+      return [];
+    }
     
     const scene = this.sceneManager.getScene();
-    if (!scene) return [];
+    if (!scene) {
+      Logger.warn('[PolygonSelection] selectObjectsInBox aborted - no scene returned by sceneManager.');
+      return [];
+    }
     
     const selected = [];
     const box = {
