@@ -108,7 +108,7 @@ export class RendererManager {
     this.composer.setSize(w, h);
     if (this.outlinePass) this.outlinePass.setSize(w, h);
     if (this.fxaaPass) this.fxaaPass.material.uniforms['resolution'].value.set(1 / w, 1 / h);
-    Logger.log(`[Renderer] setSize called with: ${w}x${h}. Canvas actual size: ${this.canvas.offsetWidth}x${this.canvas.offsetHeight}`);
+    Logger.log(`[Renderer] setSize called with: ${w}x${h}`);
   }
 
   setPixelRatio(r) {
@@ -246,7 +246,6 @@ export class RendererManager {
 
     // ensure full viewport for main composer
     const w = window.innerWidth, h = window.innerHeight;
-    Logger.log(`[Renderer] Render loop window dimensions: ${w}x${h}`);
     this.renderer.setViewport(0,0,w,h);
     this.renderer.setScissorTest(false);
     this.renderer.clear();

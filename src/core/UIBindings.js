@@ -30,7 +30,6 @@ export class UIBindings {
   }
 
   bind(element, event, handler) {
-    Logger.log(`[UIBindings] Binding event "${event}" to element`, element);
     if (element) {
       element.addEventListener(event, handler);
       this.listeners.push({ element, event, handler });
@@ -38,7 +37,6 @@ export class UIBindings {
   }
 
   unbind(element, event, handler) {
-    Logger.log(`[UIBindings] Unbinding event "${event}" from element`, element);
     if (element) {
       element.removeEventListener(event, handler);
       this.listeners = this.listeners.filter(
