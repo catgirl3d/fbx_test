@@ -122,13 +122,16 @@ export function initUI({
     }
   });
   clearSceneBtn?.addEventListener('click', () => {
+    Logger.log('[UI] clear-scene button clicked - calling onClearScene()');
     onClearScene && onClearScene();
     persistedToast(t('sceneCleared'));
     persist();
     // Also trigger the same logic as the Delete hotkey - clear selection
     if (typeof window !== 'undefined' && window.clearSelection) {
+      Logger.log('[UI] Calling window.clearSelection() after scene clear');
       window.clearSelection();
     }
+    Logger.log('[UI] clear-scene button click completed');
   });
 
   resetAllBtn?.addEventListener('click', () => {

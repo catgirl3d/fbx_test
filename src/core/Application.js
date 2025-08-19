@@ -670,10 +670,32 @@ export class Application {
   };
 
   handleSceneCleared = () => {
-    // Handle scene cleared
-    this.animationManager?.dispose();
+    Logger.log('[Application] handleSceneCleared() called - processing scene cleanup');
+    
+    // Handle scene cleared - dispose animations first
+    try {
+      if (this.animationManager && typeof this.animationManager.dispose === 'function') {
+        this.animationManager.dispose();
+        Logger.log('[Application] handleSceneCleared() - animation manager disposed');
+      }
+    } catch (error) {
+      Logger.error('[Application] handleSceneCleared() - error disposing animation manager:', error);
+    }
+    
+    // Refresh inspector to show empty scene
     if (this.inspectorApi && typeof this.inspectorApi.refresh === 'function') {
-      this.inspectorApi.refresh();
+      Logger.log('[Application] Calling inspectorApi.refresh() from handleSceneCleared()');
+      try {
+        this.inspectorApi.refresh();
+        Logger.log('[Application] handleSceneCleared() - inspector refresh completed');
+      } catch (error) {
+        Logger.error('[Application] handleSceneCleared() - error calling inspectorApi.refresh():', error);
+      }
+    } else {
+      Logger.warn('[Application] inspectorApi.refresh() not available in handleSceneCleared()', {
+        inspectorApi: !!this.inspectorApi,
+        hasRefreshMethod: this.inspectorApi && typeof this.inspectorApi.refresh === 'function'
+      });
     }
   };
 
@@ -1360,14 +1382,53 @@ export class Application {
   };
 
   clearScene = () => {
+    Logger.log('[Application] clearScene() started - clearing scene models and textures');
+    
     const models = [...(this.stateManager?.getSceneState().models || [])];
+    Logger.log(`[Application] Found ${models.length} models to remove from scene`);
+    
     models.forEach(model => {
       this.sceneManager?.remove(model);
       this.stateManager?.removeModel(model);
     });
     
     this.assetLoader?.clearTextures();
+    
+    // Обновляем инспектор после очистки сцены
+    if (this.inspectorApi && typeof this.inspectorApi.refresh === 'function') {
+      Logger.log('[Application] clearScene() - calling inspectorApi.refresh() directly');
+      try {
+        this.inspectorApi.refresh();
+        Logger.log('[Application] clearScene() - inspectorApi.refresh() completed successfully');
+      } catch (error) {
+        Logger.error('[Application] clearScene() - error calling inspectorApi.refresh():', error);
+      }
+    } else {
+      Logger.warn('[Application] clearScene() - inspectorApi.refresh() not available', {
+        inspectorApi: !!this.inspectorApi,
+        hasRefreshMethod: this.inspectorApi && typeof this.inspectorApi.refresh === 'function'
+      });
+    }
+    
+    // Эмитируем событие очистки сцены для дополнительной обработки
+    if (this.eventSystem && typeof this.eventSystem.emit === 'function') {
+      Logger.log('[Application] clearScene() - emitting SCENE_CLEARED event');
+      try {
+        this.eventSystem.emit(EVENTS.SCENE_CLEARED);
+        Logger.log('[Application] clearScene() - SCENE_CLEARED event emitted successfully');
+      } catch (error) {
+        Logger.error('[Application] clearScene() - error emitting SCENE_CLEARED event:', error);
+      }
+    } else {
+      Logger.warn('[Application] clearScene() - eventSystem.emit not available', {
+        eventSystem: !!this.eventSystem,
+        hasEmitMethod: this.eventSystem && typeof this.eventSystem.emit === 'function'
+      });
+    }
+    
     this.dom?.showToast(t('scene_cleared'));
+    
+    Logger.log('[Application] clearScene() completed - inspector updated');
   };
 
   showToast = (msg) => {
