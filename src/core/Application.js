@@ -100,19 +100,6 @@ export class Application {
     Logger.log('[Application] Calling initManagers()...');
     this.initManagers();
     Logger.log('[Application] initManagers() finished.');
-
-    // Initialize PolygonSelectionManager
-    Logger.log('[Application] Initializing PolygonSelectionManager...');
-    this.polygonSelectionManager = new PolygonSelectionManager({
-      canvas: this.canvas,
-      camera: this.camera,
-      sceneManager: this.sceneManager,
-      rendererManager: this.rendererManager,
-      inspector: this.inspectorApi,
-      inputHandler: this.inputHandler, // Pass the inputHandler instance
-      onSelection: this.handleLassoSelection.bind(this)
-    });
-    Logger.log('[Application] PolygonSelectionManager initialized.');
     
     // Initialize UI
     Logger.log('[Application] Calling initUI()...');
@@ -128,10 +115,23 @@ export class Application {
     }
     Logger.log('[Application] initUIBindings() finished.');
     
-    // Initialize event listeners
+    // Initialize event listeners (this also calls initial handleResize)
     Logger.log('[Application] Calling initEventListeners()...');
     this.initEventListeners();
     Logger.log('[Application] initEventListeners() finished.');
+
+    // Initialize PolygonSelectionManager AFTER canvas has been sized
+    Logger.log('[Application] Initializing PolygonSelectionManager...');
+    this.polygonSelectionManager = new PolygonSelectionManager({
+      canvas: this.canvas,
+      camera: this.camera,
+      sceneManager: this.sceneManager,
+      rendererManager: this.rendererManager,
+      inspector: this.inspectorApi,
+      inputHandler: this.inputHandler, // Pass the inputHandler instance
+      onSelection: this.handleLassoSelection.bind(this)
+    });
+    Logger.log('[Application] PolygonSelectionManager initialized.');
     
     // Load default model
     Logger.log('[Application] Calling loadDefaultModel()...');

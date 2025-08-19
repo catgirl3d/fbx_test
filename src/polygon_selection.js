@@ -13,7 +13,7 @@ export class PolygonSelectionManager {
     sceneManager,
     rendererManager,
     inspector = null,
-    inputHandler = null, // New: inputHandler instance
+    inputHandler = null,
     onSelection = null
   } = {}) {
     if (!canvas) {
@@ -38,7 +38,7 @@ export class PolygonSelectionManager {
     this.sceneManager = sceneManager;
     this.rendererManager = rendererManager;
     this.inspector = inspector;
-    this.inputHandler = inputHandler; // Store inputHandler
+    this.inputHandler = inputHandler;
     this.onSelection = onSelection;
  
     this.controls = null;
@@ -64,7 +64,11 @@ export class PolygonSelectionManager {
     
     // Debug markers with memory management
     this.debugMarkers = [];
-    this.maxDebugMarkers = 1000; // Лимит для предотвращения утечек памяти
+    this.maxDebugMarkers = 1000; // Limit to prevent memory leaks
+    
+    // Store original pointer-events values for proper restoration
+    this.originalCanvasPointerEvents = null;
+    this.originalRendererPointerEvents = null;
 
     this.init();
   }
@@ -82,23 +86,60 @@ export class PolygonSelectionManager {
       top: 0;
       left: 0;
       pointer-events: none;
-      z-index: 1000;
-      width: 100%;
-      height: 100%;
+      z-index: 999999;
+      display: none;
     `;
-    this.selectionOverlay.width = this.canvas.width;
-    this.selectionOverlay.height = this.canvas.height;
     
-    // Insert overlay into the same parent as the main canvas
+    // Try to insert overlay next to canvas in same parent
     if (this.canvas.parentNode) {
-      this.canvas.parentNode.appendChild(this.selectionOverlay);
-      Logger.log('[PolygonSelection] Overlay created and appended to parentNode:', this.canvas.parentNode);
+      // Ensure parent has relative positioning
+      const computedStyle = window.getComputedStyle(this.canvas.parentNode);
+      if (computedStyle.position === 'static') {
+        this.canvas.parentNode.style.position = 'relative';
+      }
+      
+      // Insert AFTER canvas so it appears on top
+      if (this.canvas.nextSibling) {
+        this.canvas.parentNode.insertBefore(this.selectionOverlay, this.canvas.nextSibling);
+      } else {
+        this.canvas.parentNode.appendChild(this.selectionOverlay);
+      }
     } else {
-      Logger.warn('[PolygonSelection] Canvas parentNode not found, cannot append overlay.');
+      // Fallback to body
+      document.body.appendChild(this.selectionOverlay);
     }
  
     this.overlayContext = this.selectionOverlay.getContext('2d');
-    Logger.log('[PolygonSelection] Overlay context obtained.');
+    this.updateOverlaySize();
+  }
+
+  updateOverlaySize() {
+    if (!this.selectionOverlay) return;
+    
+    const canvasRect = this.canvas.getBoundingClientRect();
+    const width = this.canvas.offsetWidth || canvasRect.width;
+    const height = this.canvas.offsetHeight || canvasRect.height;
+    
+    // Set canvas actual size
+    this.selectionOverlay.width = width;
+    this.selectionOverlay.height = height;
+    
+    if (this.selectionOverlay.parentNode === document.body) {
+      // If in body, use absolute positioning with scroll
+      const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+      const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+      
+      this.selectionOverlay.style.width = width + 'px';
+      this.selectionOverlay.style.height = height + 'px';
+      this.selectionOverlay.style.left = (canvasRect.left + scrollX) + 'px';
+      this.selectionOverlay.style.top = (canvasRect.top + scrollY) + 'px';
+    } else {
+      // If in canvas parent, position directly over canvas
+      this.selectionOverlay.style.width = width + 'px';
+      this.selectionOverlay.style.height = height + 'px';
+      this.selectionOverlay.style.left = this.canvas.offsetLeft + 'px';
+      this.selectionOverlay.style.top = this.canvas.offsetTop + 'px';
+    }
   }
 
   bindEvents() {
@@ -115,43 +156,57 @@ export class PolygonSelectionManager {
   }
 
   activate() {
-    if (this.isActive) {
-      Logger.log('[PolygonSelection] Already active, returning.');
-      return;
-    }
+    if (this.isActive) return;
     
     this.isActive = true;
     this.canvas.style.cursor = 'crosshair';
+    
+    // Store original pointer events and disable controls immediately
+    this.storeOriginalPointerEvents();
+    this.canvas.style.pointerEvents = 'none';
+    if (this.rendererManager?.renderer?.domElement) {
+      this.rendererManager.renderer.domElement.style.pointerEvents = 'none';
+    }
+    
+    // Disable OrbitControls immediately when activating lasso tool
+    if (this.inputHandler) {
+      this.inputHandler.disableControls();
+    } else if (this.controls) {
+      this.controls.enabled = false;
+    }
+    
+    // Enable overlay for all pointer events
     this.selectionOverlay.style.pointerEvents = 'all';
-    this.selectionOverlay.style.display = 'block'; // Ensure overlay is visible
-    Logger.log('[PolygonSelection] Overlay pointer-events set to "all" and display "block" on activate.');
+    this.selectionOverlay.style.display = 'block';
     
     this.selectionOverlay.addEventListener('mousedown', this.boundMouseDown);
     this.selectionOverlay.addEventListener('mousemove', this.boundMouseMove);
     this.selectionOverlay.addEventListener('mouseup', this.boundMouseUp);
-    
-    Logger.log('[PolygonSelection] Activated - Click and drag to create selection polygon');
   }
 
   deactivate() {
-    if (!this.isActive) {
-      Logger.log('[PolygonSelection] Already inactive, returning.');
-      return;
-    }
+    if (!this.isActive) return;
     
     this.isActive = false;
     this.isDrawing = false;
     this.canvas.style.cursor = 'default';
     this.selectionOverlay.style.pointerEvents = 'none';
-    this.selectionOverlay.style.display = 'none'; // Hide overlay when inactive
-    Logger.log('[PolygonSelection] Overlay pointer-events set to "none" and display "none" on deactivate.');
+    this.selectionOverlay.style.display = 'none';
     
     this.selectionOverlay.removeEventListener('mousedown', this.boundMouseDown);
     this.selectionOverlay.removeEventListener('mousemove', this.boundMouseMove);
     this.selectionOverlay.removeEventListener('mouseup', this.boundMouseUp);
     
+    // Restore pointer events and re-enable controls
+    this.restorePointerEvents();
+    
+    if (this.inputHandler) {
+      this.inputHandler.enableControls();
+    } else if (this.controls) {
+      this.controls.enabled = true;
+    }
+    
     this.clearPolygon();
-    Logger.log('[PolygonSelection] Deactivated');
   }
 
   toggle() {
@@ -163,51 +218,62 @@ export class PolygonSelectionManager {
     return this.isActive;
   }
 
+  storeOriginalPointerEvents() {
+    this.originalCanvasPointerEvents = this.canvas.style.pointerEvents || 'auto';
+    if (this.rendererManager?.renderer?.domElement) {
+      this.originalRendererPointerEvents = this.rendererManager.renderer.domElement.style.pointerEvents || 'auto';
+    }
+  }
+
+  restorePointerEvents() {
+    if (this.originalCanvasPointerEvents !== null) {
+      this.canvas.style.pointerEvents = this.originalCanvasPointerEvents;
+      this.originalCanvasPointerEvents = null;
+    }
+    
+    if (this.originalRendererPointerEvents !== null && this.rendererManager?.renderer?.domElement) {
+      this.rendererManager.renderer.domElement.style.pointerEvents = this.originalRendererPointerEvents;
+      this.originalRendererPointerEvents = null;
+    }
+  }
+
   onMouseDown(event) {
     if (!this.isActive || event.button !== 0) return; // Only left mouse button
     
-    Logger.log('[PolygonSelection] onMouseDown. event:', { button: event.button, clientX: event.clientX, clientY: event.clientY });
     event.preventDefault();
     event.stopPropagation();
     
-    // While drawing, the overlay must capture pointer events
-    this.selectionOverlay.style.pointerEvents = 'all';
-    // Also disable pointer events on the underlying canvas and renderer.domElement
-    // so OrbitControls/InputHandler do not receive the pointer
-    try {
-      this.canvas.style.pointerEvents = 'none';
-      if (this.rendererManager?.renderer?.domElement) {
-        this.rendererManager.renderer.domElement.style.pointerEvents = 'none';
-        Logger.log('[PolygonSelection] Canvas and renderer.domElement pointer-events disabled for drawing');
-      } else {
-        Logger.log('[PolygonSelection] Canvas pointer-events disabled for drawing');
-      }
-    } catch(e) {
-      Logger.warn('[PolygonSelection] Failed to disable canvas/renderer pointer-events', e);
-    }
-    
     this.isDrawing = true;
     this.polygonPoints = [];
-    // Update canvas rect based on the main canvas (overlay uses same positioning)
-    this.canvasRect = this.canvas.getBoundingClientRect();
-    if (this.inputHandler) {
-      Logger.log('[PolygonSelection] Disabling OrbitControls via InputHandler for drawing');
-      this.inputHandler.disableControls();
-    } else if (this.controls) {
-      // Fallback if inputHandler is not provided
-      Logger.log('[PolygonSelection] Disabling OrbitControls directly for drawing (no InputHandler)');
-      this.controls.enabled = false;
-    }
+    
+    // Force overlay to be visible and update size
+    this.updateOverlaySize();
+    this.selectionOverlay.style.display = 'block';
     
     const point = this.getMousePosition(event);
     this.polygonPoints.push(point);
     
     this.clearCanvas();
-    Logger.log('[PolygonSelection] Started drawing. initial point:', point);
+    
+    // Draw initial point as a small circle for immediate feedback
+    if (this.overlayContext) {
+      this.overlayContext.save();
+      this.overlayContext.fillStyle = '#3b82f6';
+      this.overlayContext.beginPath();
+      this.overlayContext.arc(point.x, point.y, 3, 0, Math.PI * 2);
+      this.overlayContext.fill();
+      this.overlayContext.restore();
+    }
   }
 
   onMouseMove(event) {
-    if (!this.isActive || !this.isDrawing) return;
+    if (!this.isActive) return;
+    
+    if (!this.isDrawing) {
+      // Change cursor when hovering over overlay in active mode
+      this.canvas.style.cursor = 'crosshair';
+      return;
+    }
     
     event.preventDefault();
     
@@ -215,48 +281,18 @@ export class PolygonSelectionManager {
     this.polygonPoints.push(point);
     
     this.drawPolygon();
-    // Log a sampled set to avoid flooding console
-    if (this.polygonPoints.length % 10 === 0) {
-      Logger.log('[PolygonSelection] onMouseMove - points collected:', this.polygonPoints.length);
-    }
   }
 
   onMouseUp(event) {
     if (!this.isActive || !this.isDrawing || event.button !== 0) return;
     
-    Logger.log('[PolygonSelection] onMouseUp. event:', { button: event.button, clientX: event.clientX, clientY: event.clientY });
     event.preventDefault();
     event.stopPropagation();
     
     this.isDrawing = false;
     
-    // Restore overlay to let pointer events pass through to OrbitControls
-    this.selectionOverlay.style.pointerEvents = 'none';
-    // Restore pointer-events on canvas and renderer.domElement
-    try {
-      this.canvas.style.pointerEvents = '';
-      if (this.rendererManager?.renderer?.domElement) {
-        this.rendererManager.renderer.domElement.style.pointerEvents = '';
-        Logger.log('[PolygonSelection] Canvas and renderer.domElement pointer-events restored after drawing');
-      } else {
-        Logger.log('[PolygonSelection] Canvas pointer-events restored after drawing');
-      }
-    } catch(e) {
-      Logger.warn('[PolygonSelection] Failed to restore canvas/renderer pointer-events', e);
-    }
-    
-    if (this.inputHandler) {
-      Logger.log('[PolygonSelection] Re-enabling OrbitControls via InputHandler after drawing');
-      this.inputHandler.enableControls();
-    } else if (this.controls) {
-      // Fallback if inputHandler is not provided
-      Logger.log('[PolygonSelection] Re-enabling OrbitControls directly after drawing (no InputHandler)');
-      this.controls.enabled = true;
-    }
-    
     // Minimum polygon size check
     if (this.polygonPoints.length < 3) {
-      Logger.log('[PolygonSelection] Polygon too small, cancelling');
       this.clearPolygon();
       return;
     }
@@ -280,19 +316,17 @@ export class PolygonSelectionManager {
 
   onResize() {
     if (this.selectionOverlay) {
-      this.selectionOverlay.width = this.canvas.width;
-      this.selectionOverlay.height = this.canvas.height;
+      this.updateOverlaySize();
     }
   }
 
   getMousePosition(event) {
-    if (!this.canvasRect) {
-      this.canvasRect = this.canvas.getBoundingClientRect();
-    }
+    // Get position relative to the canvas, not overlay
+    const canvasRect = this.canvas.getBoundingClientRect();
     
     return {
-      x: event.clientX - this.canvasRect.left,
-      y: event.clientY - this.canvasRect.top
+      x: event.clientX - canvasRect.left,
+      y: event.clientY - canvasRect.top
     };
   }
 
@@ -309,6 +343,9 @@ export class PolygonSelectionManager {
     
     const ctx = this.overlayContext;
     
+    // Force immediate rendering
+    ctx.save();
+    
     // Draw polygon outline
     ctx.beginPath();
     ctx.moveTo(this.polygonPoints[0].x, this.polygonPoints[0].y);
@@ -320,12 +357,12 @@ export class PolygonSelectionManager {
     // Style for active drawing
     if (this.isDrawing) {
       ctx.strokeStyle = '#3b82f6';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3; // Increased line width for better visibility
       ctx.setLineDash([5, 5]);
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 1.0; // Full opacity for better visibility
     } else {
       ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.setLineDash([]);
       ctx.globalAlpha = 1.0;
     }
@@ -338,8 +375,10 @@ export class PolygonSelectionManager {
       ctx.fill();
     }
     
-    ctx.globalAlpha = 1.0;
-    ctx.setLineDash([]);
+    ctx.restore();
+    
+    // Force canvas update
+    ctx.canvas.style.display = 'block';
   }
 
   clearPolygon() {
@@ -361,13 +400,13 @@ export class PolygonSelectionManager {
       return;
     }
     
-    // Очищаем предыдущие debug маркеры с безопасной проверкой
+    // Clear previous debug markers safely
     this.clearDebugMarkers();
     
     this.selectedObjects = [];
-    const selectedFaces = []; // ✅ НОВОЕ: массив для отдельных полигонов
+    const selectedFaces = []; // Array for individual polygons
     
-    // Получаем все выделяемые объекты из сцены
+    // Get all selectable objects from scene
     const selectableObjects = [];
     scene.traverse(obj => {
       if (obj.isMesh || obj.isLight || obj.isCamera) {
@@ -378,77 +417,86 @@ export class PolygonSelectionManager {
     
     Logger.log('[PolygonSelection] performSelection - selectableObjects count:', selectableObjects.length);
     
-    // Конвертируем точки полигона в normalized device coordinates
+    // Convert polygon points to normalized device coordinates
+    // Use the canvas size for proper NDC conversion
+    const canvasRect = this.canvas.getBoundingClientRect();
     const polygonNDC = this.polygonPoints.map(point => ({
-      x: (point.x / this.canvas.clientWidth) * 2 - 1,
-      y: -(point.y / this.canvas.clientHeight) * 2 + 1
+      x: (point.x / canvasRect.width) * 2 - 1,
+      y: -(point.y / canvasRect.height) * 2 + 1
     }));
     
-    // ✅ НОВОЕ: Проверяем каждый полигон в каждом mesh
+    Logger.log('[PolygonSelection] Polygon NDC points:', polygonNDC.slice(0, 5), '... (showing first 5)');
+    
+    // Check each object
     selectableObjects.forEach(obj => {
       if (obj.isMesh && obj.geometry) {
+        // For meshes, check individual polygons/faces
         const selectedFacesForMesh = this.getPolygonsInPolygon(obj, polygonNDC);
         if (selectedFacesForMesh.length > 0) {
           selectedFacesForMesh.forEach(faceIndex => {
             selectedFaces.push({ mesh: obj, faceIndex });
           });
-          this.selectedObjects.push(obj); // Добавляем объект если у него есть выделенные полигоны
+          // Only add object if it has selected faces, not the whole object
+          if (!this.selectedObjects.includes(obj)) {
+            this.selectedObjects.push(obj);
+          }
         }
-      } else if (this.isObjectInPolygon(obj, polygonNDC)) {
-        this.selectedObjects.push(obj);
+      } else {
+        // For non-mesh objects (lights, cameras), check object center
+        if (this.isObjectInPolygon(obj, polygonNDC)) {
+          this.selectedObjects.push(obj);
+        }
       }
     });
     
-    Logger.log(`[PolygonSelection] Selected ${this.selectedObjects.length} objects and ${selectedFaces.length} polygons`);
+    Logger.log(`[PolygonSelection] Selected ${this.selectedObjects.length} objects and ${selectedFaces.length} faces`);
     
-    // ✅ ИСПРАВЛЕНО: Визуализируем выделенные полигоны
+    // Visualize selected polygons
     try {
       if (this.rendererManager) {
         if (selectedFaces.length > 0) {
-          // Показываем контуры отдельных полигонов
+          // Show outlines of individual polygons
           this.rendererManager.setFaceOutlines(selectedFaces);
           Logger.log('[PolygonSelection] setFaceOutlines called for selected faces:', selectedFaces.length);
         } else if (this.selectedObjects.length > 0) {
-          // Fallback: показываем контуры целых объектов
+          // Fallback: show outlines of entire objects
           this.rendererManager.setOutlineObjects(this.selectedObjects);
           Logger.log('[PolygonSelection] setOutlineObjects called for selected objects:', this.selectedObjects.length);
         } else {
-          // Очищаем выделение
+          // Clear selection
           this.rendererManager.setOutlineObjects([]);
           this.rendererManager.setFaceOutlines([]);
         }
       }
     } catch (e) {
-      Logger.warn('[PolygonSelection] Failed to set outline objects/faces via rendererManager', e);
+      console.warn('[PolygonSelection] Failed to set outline objects/faces via rendererManager', e);
     }
     
-    // Обновляем inspector выделения если доступен
+    // Update inspector selection if available
     if (this.inspector && this.inspector.selectObject) {
       if (this.selectedObjects.length === 1) {
         this.inspector.selectObject(this.selectedObjects[0]);
       } else if (this.selectedObjects.length > 1) {
         this.inspector.selectObject(this.selectedObjects[0]);
-        Logger.log('[PolygonSelection] Multiple objects selected:', this.selectedObjects.map(o => o.name || o.type));
       } else {
         this.inspector.selectObject(null);
       }
     }
     
-    // Вызываем кастомный callback выделения
+    // Call custom selection callback
     if (this.onSelection) {
-      Logger.log('[PolygonSelection] Calling onSelection callback with', selectedFaces.length, 'faces and', this.selectedObjects.length, 'objects');
       this.onSelection({
         objects: this.selectedObjects,
-        faces: selectedFaces // ✅ НОВОЕ: передаем информацию о полигонах
+        faces: selectedFaces // Pass information about polygons
       });
     }
   }
 
-  // Безопасное добавление debug маркера с контролем памяти
+  // Safe addition of debug marker with memory control
   addDebugMarker(marker) {
     if (!this.debugMarkers) this.debugMarkers = [];
     
-    // Если достигли лимита, удаляем старые маркеры
+    // If we've reached the limit, remove old markers
     if (this.debugMarkers.length >= this.maxDebugMarkers) {
       const oldMarkers = this.debugMarkers.splice(0, this.debugMarkers.length - this.maxDebugMarkers + 1);
       oldMarkers.forEach(m => {
@@ -476,7 +524,7 @@ export class PolygonSelectionManager {
     this.debugMarkers.push(marker);
   }
 
-  // Безопасная очистка всех debug маркеров
+  // Safe clearing of all debug markers
   clearDebugMarkers() {
     if (!this.debugMarkers) return;
     
@@ -503,76 +551,85 @@ export class PolygonSelectionManager {
     Logger.log('[PolygonSelection] All debug markers cleared');
   }
 
-// ✅ НОВЫЙ МЕТОД: Получить полигоны объекта, попадающие в область выделения
-getPolygonsInPolygon(mesh, polygonNDC) {
-  const selectedFaces = [];
-  
-  if (!mesh.geometry || !mesh.geometry.attributes || !mesh.geometry.attributes.position) {
-    Logger.warn('[PolygonSelection] getPolygonsInPolygon aborted - mesh missing geometry or position attributes.');
+  // NEW METHOD: Get polygons of an object that fall within selection area
+  getPolygonsInPolygon(mesh, polygonNDC) {
+    const selectedFaces = [];
+    
+    if (!mesh.geometry || !mesh.geometry.attributes || !mesh.geometry.attributes.position) {
+      Logger.warn('[PolygonSelection] getPolygonsInPolygon aborted - mesh missing geometry or position attributes.');
+      return selectedFaces;
+    }
+    
+    try {
+      const geometry = mesh.geometry;
+      const position = geometry.attributes.position;
+      const index = geometry.index;
+      
+      // Determine number of triangles
+      const triangleCount = index ? (index.count / 3) : (position.count / 3);
+      
+      // Update world matrix before use
+      mesh.updateMatrixWorld();
+      
+      let checkedTriangles = 0;
+      let selectedTriangles = 0;
+      
+      // Check each triangle (but limit for performance)
+      const maxTrianglesToCheck = Math.min(triangleCount, 10000); // Limit for performance
+      const step = Math.max(1, Math.floor(triangleCount / maxTrianglesToCheck));
+      
+      for (let i = 0; i < triangleCount; i += step) {
+        checkedTriangles++;
+        let a, b, c;
+        
+        if (index) {
+          // Indexed geometry
+          a = index.getX(i * 3);
+          b = index.getX(i * 3 + 1);
+          c = index.getX(i * 3 + 2);
+        } else {
+          // Non-indexed geometry
+          a = i * 3;
+          b = i * 3 + 1;
+          c = i * 3 + 2;
+        }
+        
+        // Get triangle vertex positions
+        const vA = new THREE.Vector3().fromBufferAttribute(position, a);
+        const vB = new THREE.Vector3().fromBufferAttribute(position, b);
+        const vC = new THREE.Vector3().fromBufferAttribute(position, c);
+        
+        // Transform to world coordinates
+        vA.applyMatrix4(mesh.matrixWorld);
+        vB.applyMatrix4(mesh.matrixWorld);
+        vC.applyMatrix4(mesh.matrixWorld);
+        
+        // Project to screen coordinates
+        const screenA = new THREE.Vector3().copy(vA).project(this.camera);
+        const screenB = new THREE.Vector3().copy(vB).project(this.camera);
+        const screenC = new THREE.Vector3().copy(vC).project(this.camera);
+        
+        // Check if triangle is in front of camera
+        if (screenA.z > 1 || screenB.z > 1 || screenC.z > 1) continue;
+        
+        // Check if triangle center falls within selection area
+        const center = new THREE.Vector3()
+          .addVectors(screenA, screenB)
+          .add(screenC)
+          .divideScalar(3);
+        
+        if (this.isPointInPolygon(center.x, center.y, polygonNDC)) {
+          selectedFaces.push(i);
+          selectedTriangles++;
+        }
+      }
+      
+    } catch (e) {
+      console.error('[PolygonSelection] Error in getPolygonsInPolygon:', e);
+    }
+    
     return selectedFaces;
   }
-  
-  try {
-    const geometry = mesh.geometry;
-    const position = geometry.attributes.position;
-    const index = geometry.index;
-    
-    // Определяем количество треугольников
-    const triangleCount = index ? (index.count / 3) : (position.count / 3);
-    
-    // Обновляем матрицу мира перед использованием
-    mesh.updateMatrixWorld();
-    
-    // Проверяем каждый треугольник
-    for (let i = 0; i < triangleCount; i++) {
-      let a, b, c;
-      
-      if (index) {
-        // Indexed geometry
-        a = index.getX(i * 3);
-        b = index.getX(i * 3 + 1);
-        c = index.getX(i * 3 + 2);
-      } else {
-        // Non-indexed geometry
-        a = i * 3;
-        b = i * 3 + 1;
-        c = i * 3 + 2;
-      }
-      
-      // Получаем позиции вершин треугольника
-      const vA = new THREE.Vector3().fromBufferAttribute(position, a);
-      const vB = new THREE.Vector3().fromBufferAttribute(position, b);
-      const vC = new THREE.Vector3().fromBufferAttribute(position, c);
-      
-      // Переводим в мировые координаты
-      vA.applyMatrix4(mesh.matrixWorld);
-      vB.applyMatrix4(mesh.matrixWorld);
-      vC.applyMatrix4(mesh.matrixWorld);
-      
-      // Проецируем в экранные координаты
-      const screenA = new THREE.Vector3().copy(vA).project(this.camera);
-      const screenB = new THREE.Vector3().copy(vB).project(this.camera);
-      const screenC = new THREE.Vector3().copy(vC).project(this.camera);
-      
-      // Проверяем, находится ли треугольник перед камерой
-      if (screenA.z > 1 || screenB.z > 1 || screenC.z > 1) continue;
-      
-      // Проверяем, попадает ли центр треугольника в область выделения
-      const center = new THREE.Vector3()
-        .addVectors(screenA, screenB)
-        .add(screenC)
-        .divideScalar(3);
-      
-      if (this.isPointInPolygon(center.x, center.y, polygonNDC)) {
-        selectedFaces.push(i);
-      }
-    }
-  } catch (e) {
-    Logger.error('[PolygonSelection] Error in getPolygonsInPolygon:', e);
-  }
-  
-  return selectedFaces;
-}
 
   isObjectInPolygon(obj, polygonNDC) {
     // Get object's position in screen space
@@ -672,6 +729,16 @@ getPolygonsInPolygon(mesh, polygonNDC) {
     if (this.inspector && this.inspector.selectObject) {
       this.inspector.selectObject(null);
     }
+    
+    // Clear visual selection indicators
+    try {
+      if (this.rendererManager) {
+        this.rendererManager.setOutlineObjects([]);
+        this.rendererManager.setFaceOutlines([]);
+      }
+    } catch (e) {
+      Logger.warn('[PolygonSelection] Failed to clear selection via rendererManager', e);
+    }
   }
 
   dispose() {
@@ -681,12 +748,12 @@ getPolygonsInPolygon(mesh, polygonNDC) {
     window.removeEventListener('keydown', this.boundKeyDown);
     window.removeEventListener('resize', this.boundResize);
     
-    // Remove overlay
+    // Remove overlay from its parent (body or canvas parent)
     if (this.selectionOverlay && this.selectionOverlay.parentNode) {
       this.selectionOverlay.parentNode.removeChild(this.selectionOverlay);
     }
     
-    // Безопасная очистка debug маркеров
+    // Safe cleanup of debug markers
     this.clearDebugMarkers();
     
     // Clear references
@@ -703,6 +770,8 @@ getPolygonsInPolygon(mesh, polygonNDC) {
     this.selectedObjects = [];
     this.polygonPoints = [];
     this.debugMarkers = null;
+    this.originalCanvasPointerEvents = null;
+    this.originalRendererPointerEvents = null;
   }
 }
 

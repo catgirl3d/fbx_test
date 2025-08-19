@@ -54,7 +54,10 @@ export class RendererManager {
     // composer and passes
     this.composer = new EffectComposer(this.renderer);
     // ensure composer has initial size matching renderer
-    try { this.composer.setSize(window.innerWidth, window.innerHeight); } catch(e){ Logger.error('[Renderer] Failed to set composer size:', e); }
+    try {
+      this.composer.setSize(window.innerWidth, window.innerHeight);
+      Logger.log(`[Renderer] Initial composer size set to: ${window.innerWidth}x${window.innerHeight}`);
+    } catch(e){ Logger.error('[Renderer] Failed to set composer size:', e); }
     this.renderPass = null; // created on first render when scene/camera are available
     this.outlinePass = null;
     this.fxaaPass = null;
@@ -105,6 +108,7 @@ export class RendererManager {
     this.composer.setSize(w, h);
     if (this.outlinePass) this.outlinePass.setSize(w, h);
     if (this.fxaaPass) this.fxaaPass.material.uniforms['resolution'].value.set(1 / w, 1 / h);
+    Logger.log(`[Renderer] setSize called with: ${w}x${h}. Canvas actual size: ${this.canvas.offsetWidth}x${this.canvas.offsetHeight}`);
   }
 
   setPixelRatio(r) {
@@ -242,6 +246,7 @@ export class RendererManager {
 
     // ensure full viewport for main composer
     const w = window.innerWidth, h = window.innerHeight;
+    Logger.log(`[Renderer] Render loop window dimensions: ${w}x${h}`);
     this.renderer.setViewport(0,0,w,h);
     this.renderer.setScissorTest(false);
     this.renderer.clear();

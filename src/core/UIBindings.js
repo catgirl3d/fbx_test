@@ -273,6 +273,7 @@ export class UIBindings {
       const y = e.clientY - rect.top;
 
       this.eventSystem?.emit(EVENTS.POLYGON_SELECTED, { x, y, ctrlKey: e.ctrlKey || e.metaKey });
+      Logger.log(`[UIBindings] Canvas click rect: ${JSON.stringify(rect)}, x: ${x}, y: ${y}`);
     };
  
     // Dynamically bind/unbind onCanvasClick based on the selected polygon mode
