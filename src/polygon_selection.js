@@ -41,7 +41,7 @@ export class PolygonSelectionManager {
     this.inputHandler = inputHandler; // Store inputHandler
     this.onSelection = onSelection;
  
-   this.controls = null;
+    this.controls = null;
 
     // Selection state
     this.isActive = false;
@@ -61,6 +61,10 @@ export class PolygonSelectionManager {
 
     // Temporary storage for canvas operations
     this.canvasRect = null;
+    
+    // Debug markers with memory management
+    this.debugMarkers = [];
+    this.maxDebugMarkers = 1000; // Лимит для предотвращения утечек памяти
 
     this.init();
   }
@@ -357,14 +361,8 @@ export class PolygonSelectionManager {
       return;
     }
     
-    // Очищаем предыдущие debug маркеры
-    if (!this.debugMarkers) this.debugMarkers = [];
-    this.debugMarkers.forEach(m => {
-      if (m && m.parent) m.parent.remove(m);
-      if (m && m.geometry) m.geometry.dispose();
-      if (m && m.material) m.material.dispose();
-    });
-    this.debugMarkers = [];
+    // Очищаем предыдущие debug маркеры с безопасной проверкой
+    this.clearDebugMarkers();
     
     this.selectedObjects = [];
     const selectedFaces = []; // ✅ НОВОЕ: массив для отдельных полигонов
@@ -444,6 +442,65 @@ export class PolygonSelectionManager {
         faces: selectedFaces // ✅ НОВОЕ: передаем информацию о полигонах
       });
     }
+  }
+
+  // Безопасное добавление debug маркера с контролем памяти
+  addDebugMarker(marker) {
+    if (!this.debugMarkers) this.debugMarkers = [];
+    
+    // Если достигли лимита, удаляем старые маркеры
+    if (this.debugMarkers.length >= this.maxDebugMarkers) {
+      const oldMarkers = this.debugMarkers.splice(0, this.debugMarkers.length - this.maxDebugMarkers + 1);
+      oldMarkers.forEach(m => {
+        if (m && m.parent && typeof m.parent.remove === 'function') {
+          m.parent.remove(m);
+        }
+        if (m && m.geometry && typeof m.geometry.dispose === 'function') {
+          m.geometry.dispose();
+        }
+        if (m && m.material) {
+          if (Array.isArray(m.material)) {
+            m.material.forEach(mat => {
+              if (mat && typeof mat.dispose === 'function') {
+                mat.dispose();
+              }
+            });
+          } else if (typeof m.material.dispose === 'function') {
+            m.material.dispose();
+          }
+        }
+      });
+      Logger.log(`[PolygonSelection] Removed ${oldMarkers.length} old debug markers to prevent memory leak`);
+    }
+    
+    this.debugMarkers.push(marker);
+  }
+
+  // Безопасная очистка всех debug маркеров
+  clearDebugMarkers() {
+    if (!this.debugMarkers) return;
+    
+    this.debugMarkers.forEach(m => {
+      if (m && m.parent && typeof m.parent.remove === 'function') {
+        m.parent.remove(m);
+      }
+      if (m && m.geometry && typeof m.geometry.dispose === 'function') {
+        m.geometry.dispose();
+      }
+      if (m && m.material) {
+        if (Array.isArray(m.material)) {
+          m.material.forEach(mat => {
+            if (mat && typeof mat.dispose === 'function') {
+              mat.dispose();
+            }
+          });
+        } else if (typeof m.material.dispose === 'function') {
+          m.material.dispose();
+        }
+      }
+    });
+    this.debugMarkers.length = 0;
+    Logger.log('[PolygonSelection] All debug markers cleared');
   }
 
 // ✅ НОВЫЙ МЕТОД: Получить полигоны объекта, попадающие в область выделения
@@ -629,18 +686,23 @@ getPolygonsInPolygon(mesh, polygonNDC) {
       this.selectionOverlay.parentNode.removeChild(this.selectionOverlay);
     }
     
+    // Безопасная очистка debug маркеров
+    this.clearDebugMarkers();
+    
     // Clear references
     this.canvas = null;
     this.camera = null;
     this.sceneManager = null;
     this.rendererManager = null;
     this.inspector = null;
+    this.inputHandler = null;
     this.onSelection = null;
     this.selectionOverlay = null;
     this.overlayContext = null;
     this.raycaster = null;
     this.selectedObjects = [];
     this.polygonPoints = [];
+    this.debugMarkers = null;
   }
 }
 
