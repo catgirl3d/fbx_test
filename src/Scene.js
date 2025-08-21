@@ -12,10 +12,6 @@ export class SceneManager {
     this.stateManager = stateManager;
     this.grid = null;
 
-    // Removed HemisphereLight creation and addition, as it's handled by LightingManager
-    // this.hemi = hemi || new THREE.HemisphereLight(0xffffff, 0xe2e8f0, 0.5);
-    // this.scene.add(this.hemi);
-
     this.measure = { group: new THREE.Group(), pts: [] };
     this.scene.add(this.measure.group);
 
@@ -166,19 +162,6 @@ export class SceneManager {
     if (this.measure.pts.length > 2) { this.clearMeasure(); this.addMeasurePoint(p, gridSize); }
   }
 
-  // Add HDRI loading helper
-  async loadHDRI(url) {
-    const { RGBELoader } = await import('three/examples/jsm/loaders/RGBELoader.js');
-    const loader = new RGBELoader();
-    return new Promise((resolve, reject) => {
-      loader.load(url, texture => {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        this.setEnvironment(texture);
-        resolve(texture);
-      }, undefined, reject);
-    });
-  }
-
   drawMeasureLine(gridSize = 10) {
     if (this.measureLine) {
       this.measure.group.remove(this.measureLine);
@@ -235,7 +218,6 @@ export class SceneManager {
     // Clear references
     this.scene = null;
     this.grid = null;
-    // this.hemi = null; // Removed reference cleanup for removed hemi
     this.measure = null;
     this.bboxHelper = null;
     this.env = null;

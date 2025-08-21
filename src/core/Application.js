@@ -1393,6 +1393,7 @@ export class Application {
     });
     
     this.assetLoader?.clearTextures();
+    this.sceneManager?.setEnvironment(null);
     
     // Обновляем инспектор после очистки сцены
     if (this.inspectorApi && typeof this.inspectorApi.refresh === 'function') {

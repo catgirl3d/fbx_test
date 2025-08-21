@@ -62,7 +62,6 @@ export function initUI({
       const key = el.getAttribute('data-i');
       el.textContent = t(key);
     });
-    const openInspectorBtn = d.getElementById('open-inspector');
     
     // Update inspector title specifically (in case inspector panel is not visible when applyLang is called)
     const inspectorTitle = d.querySelector('#scene-inspector header strong[data-i="inspector"]');
