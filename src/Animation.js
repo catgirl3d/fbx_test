@@ -15,7 +15,7 @@ import Logger from './core/Logger.js';
  * @param {THREE.AnimationMixer} [opts.mixer] - Optional mixer instance
  */
 export class AnimationManager {
-  constructor({ root = null, mixer = null } = {}) {
+  constructor({ root = null, mixer = null, onUpdate = () => {} } = {}) {
     this.mixer = mixer;
     this.clips = [];
     this.activeAction = null;
@@ -23,6 +23,7 @@ export class AnimationManager {
     this.loop = false;
     this.speed = 1;
     this.root = root;
+    this.onUpdate = onUpdate; // Callback for when animation updates
   }
 
   init(root) {
@@ -119,7 +120,13 @@ export class AnimationManager {
   }
 
   update(dt) {
-    if (this.mixer) this.mixer.update(dt);
+    if (this.mixer) {
+      this.mixer.update(dt);
+      // If an animation is playing, we need to signal that a render is needed
+      if (this.activeAction && !this.activeAction.paused) {
+        this.onUpdate();
+      }
+    }
   }
 
   getCurrentTime() {

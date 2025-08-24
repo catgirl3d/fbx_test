@@ -148,21 +148,21 @@ export class AssetLoader {
     }
   }
 
-  applyTexturesToModel(model) {
+  async applyTexturesToModel(model) {
     const zipTextures = this.stateManager?.getAppState().zipTextures;
     
     if (zipTextures && zipTextures.size > 0) {
       try {
         Logger.log(`[AssetLoader] Applying ${zipTextures.size} ZIP textures to model: ${model.name || model.uuid}`);
         
-        // Import the applyTexturesFromMap function
-        import('../Materials.js').then(({ applyTexturesFromMap }) => {
-          applyTexturesFromMap(model, zipTextures);
-          this.eventSystem?.emit(EVENTS.TEXTURE_APPLIED, {
-            model,
-            textureCount: zipTextures.size
-          });
+        // Import the applyTexturesFromMap function and await its completion
+        const { applyTexturesFromMap } = await import('../Materials.js');
+        applyTexturesFromMap(model, zipTextures);
+        this.eventSystem?.emit(EVENTS.TEXTURE_APPLIED, {
+          model,
+          textureCount: zipTextures.size
         });
+        Logger.log(`[AssetLoader] Finished applying ${zipTextures.size} ZIP textures to model: ${model.name || model.uuid}`);
         
       } catch (error) {
         Logger.warn('[AssetLoader] Failed to apply ZIP textures:', error);
@@ -171,6 +171,7 @@ export class AssetLoader {
           error: error.message,
           type: 'texture-application'
         });
+        throw error; // Re-throw to propagate the error
       }
     }
   }

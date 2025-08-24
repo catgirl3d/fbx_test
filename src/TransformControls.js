@@ -112,6 +112,8 @@ export class TransformControlsWrapper {
   detach() {
     try {
       this.controls.detach();
+      Logger.log('[DEBUG] Detaching TransformControls and emitting change event');
+      this._emit('change', {}); // Emit change to trigger re-render
     } catch(e) {
       Logger.warn('[TransformControls] Failed to detach TransformControls:', e);
     }

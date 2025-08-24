@@ -24,8 +24,10 @@ export class Application {
   constructor(canvas) {
     Logger.log('[Application] Constructor started.');
     this.canvas = canvas;
-    this.isRunning = false;
+    this.isRunning = false; // Is the animation loop running?
     this.rafId = null;
+    this.renderRequested = false; // Flag to request a single render
+    this.isModelLoading = false; // Flag to indicate if a model is currently loading
     
     // Initialize core systems
     Logger.log('[Application] Initializing StateManager...');
@@ -169,7 +171,10 @@ export class Application {
     Logger.log('[Application] SceneManager initialized.');
     
     Logger.log('[Application] Initializing AnimationManager...');
-    this.animationManager = new AnimationManager();
+    this.animationManager = new AnimationManager({
+      // Когда анимация обновляется, нам нужно перерисовать кадр
+      onUpdate: () => this.requestRender()
+    });
     Logger.log('[Application] AnimationManager initialized.');
     
     Logger.log('[Application] Initializing TransformControlsWrapper...');
@@ -206,6 +211,9 @@ export class Application {
       if (selectedObject && this.inspectorApi?.refresh) {
         this.inspectorApi.refresh();
       }
+      // Запрашиваем рендер при любом изменении TransformControls
+      Logger.log('[DEBUG] TransformControls change event');
+      this.requestRender('[TransformControls]');
     });
     
     // По умолчанию Transform Controls выключены
@@ -307,6 +315,12 @@ export class Application {
       this.controls,
       this.rendererManager?.renderer?.domElement // Use optional chaining here
     );
+    
+    // Request render when camera is moved by user
+    this.controls.addEventListener('change', () => {
+      Logger.log('[DEBUG] OrbitControls change event');
+      this.requestRender('[OrbitControls]');
+    });
 
     // Subscribe to state changes
     if (this.stateManager) {
@@ -337,10 +351,24 @@ export class Application {
     
     // Animation events
     if (this.eventSystem) {
-      this.eventSystem.on(EVENTS.ANIMATION_PLAY, ({ index }) => this.animationManager?.select(index));
-      this.eventSystem.on(EVENTS.ANIMATION_PAUSE, () => this.animationManager?.pause());
-      this.eventSystem.on(EVENTS.ANIMATION_STOP, () => this.animationManager?.stop());
-      this.eventSystem.on(EVENTS.ANIMATION_TIME_UPDATE, ({ progress }) => this.animationManager?.setTime(progress));
+      this.eventSystem.on(EVENTS.ANIMATION_PLAY, ({ index }) => {
+        this.animationManager?.select(index);
+        this.animationManager?.play(); // Автоматически запускаем
+        this.start(); // Убедимся, что цикл анимации запущен
+        this.requestRender();
+      });
+      this.eventSystem.on(EVENTS.ANIMATION_PAUSE, () => {
+        this.animationManager?.pause();
+        this.requestRender();
+      });
+      this.eventSystem.on(EVENTS.ANIMATION_STOP, () => {
+        this.animationManager?.stop();
+        this.requestRender();
+      });
+      this.eventSystem.on(EVENTS.ANIMATION_TIME_UPDATE, ({ progress }) => {
+        this.animationManager?.setTime(progress);
+        this.requestRender();
+      });
     }
 
     // Обработчики событий инспектора
@@ -464,9 +492,14 @@ export class Application {
     // Handle model files
     for (const file of modelFiles) {
       try {
+        this.isModelLoading = true;
+        this.start(); // Start continuous rendering
         await this.loadModel(file);
       } catch (err) {
         this.dom?.showToast(t('loading_error', { message: err.message || err }));
+      } finally {
+        this.isModelLoading = false;
+        this.stop(); // Stop continuous rendering
       }
     }
   };
@@ -493,6 +526,7 @@ export class Application {
       this.dom?.hideOverlay();
       this.dom?.showToast(t('failed_to_load_hdri'));
     }
+    this.requestRender('[handleHDRIApply]');
   };
 
   handleTexturesApply = async (file) => {
@@ -527,6 +561,7 @@ export class Application {
       this.dom?.hideOverlay();
       this.dom?.showToast(t('error_loading_textures', { message: error.message }));
     }
+    this.requestRender('[handleTexturesApply]');
   };
 
   handleFrame = () => {
@@ -667,6 +702,7 @@ export class Application {
       
       this.setInspectorOpen(true);
     }
+    this.requestRender('[handleObjectSelected]');
   };
 
   handleSceneCleared = () => {
@@ -699,27 +735,31 @@ export class Application {
     }
   };
 
-  handleModelLoaded = ({ model, source }) => {
-    // Handle model loaded
-    this.sceneManager?.add(model);
-    this.stateManager?.addModel(model);
-    
-    Logger.log('[Application] Model added to scene and state:', model);
-    
-    // *** ИСПРАВЛЕНИЕ: Устанавливаем загруженную модель как выделенный объект ***
-    this.stateManager?.setSelectedObject(model);
-    
-    // Update filename display
-    this.updateFilenameDisplay(source);
+  handleModelLoaded = async ({ model, source }) => {
+    try {
+      // Handle model loaded
+      this.sceneManager?.add(model);
+      this.stateManager?.addModel(model);
+      
+      Logger.log('[Application] Model added to scene and state:', model);
+      
+      // *** ИСПРАВЛЕНИЕ: Устанавливаем загруженную модель как выделенный объект ***
+      this.stateManager?.setSelectedObject(model);
+      
+      // Update filename display
+      this.updateFilenameDisplay(source);
 
-    // Apply textures if available
-    this.assetLoader?.applyTexturesToModel(model);
-    
-    // Apply model settings (shadows, materials)
-    this.applyModelSettings(model);
+      // Apply textures if available (await its completion)
+      await this.assetLoader?.applyTexturesToModel(model);
+      
+      // Apply model settings (shadows, materials) (await its completion)
+      await this.applyModelSettings(model);
+      
+      Logger.log('[Application] Model loading and setup complete.');
+    } catch (error) {
+      Logger.error('[Application] Error in handleModelLoaded:', error);
+    }
 
-    // Frame the model
-    this.frameObject([model]);
     this.updateStatsUI();
     this.sceneManager?.updateBBox([model]);
 
@@ -749,6 +789,10 @@ export class Application {
 
     // Load attachment state
     this.loadAttachmentState();
+
+    // Frame the model AFTER all async processing is complete
+    this.frameObject([model]);
+    this.requestRender('[handleModelLoaded]');
   };
 
   handleKeyPress = (event) => {
@@ -831,6 +875,7 @@ export class Application {
         this.inspectorApi.showContextMenu(clientX, clientY);
       }
     }
+    this.requestRender('[handleContextMenu]');
   };
 
   clearSelection = () => {
@@ -863,7 +908,7 @@ export class Application {
     }
   };
 
-  applyModelSettings = (model) => {
+  async applyModelSettings(model) {
     // If shadows are enabled, set cast/receive flags for new meshes
     const shadowsEnabled = this.dom?.get('toggle-shadows')?.checked;
     if (shadowsEnabled) {
@@ -885,13 +930,13 @@ export class Application {
     const wire = !!(wireframeEl && wireframeEl.checked);
     const envI = envIntensityEl ? Number(envIntensityEl.value) : 1;
 
-    // Dynamically import Materials and apply
-    import('../Materials.js').then(({ applyMaterialOverride, setLightOnly }) => {
-      applyMaterialOverride(model, { overrideType, wire, envIntensity: envI });
-      if (lightOnlyEl) {
-        setLightOnly(model, lightOnlyEl.checked);
-      }
-    });
+    // Dynamically import Materials and apply, awaiting its completion
+    const { applyMaterialOverride, setLightOnly } = await import('../Materials.js');
+    applyMaterialOverride(model, { overrideType, wire, envIntensity: envI });
+    if (lightOnlyEl) {
+      setLightOnly(model, lightOnlyEl.checked);
+    }
+    Logger.log('[Application] Finished applying model settings.');
   };
 
   flipUVs = (flip) => {
@@ -929,6 +974,7 @@ export class Application {
       });
     });
     this.dom?.showToast(flip ? t('uvs_flipped') : t('uvs_restored'));
+    this.requestRender('[flipUVs]');
   };
 
   loadAttachmentState = () => {
@@ -1022,6 +1068,8 @@ export class Application {
       
       this.dom?.showOverlay(t('loading_model'), defaultModelFile.name);
       
+      this.isModelLoading = true;
+      this.start(); // Start continuous rendering
       const model = await this.loadModel(defaultModelFile);
       this.dom?.hideOverlay();
       
@@ -1033,6 +1081,9 @@ export class Application {
       }
     } catch (error) {
       Logger.error('[Application] Failed to load default model:', error);
+    } finally {
+      this.isModelLoading = false;
+      this.stop(); // Stop continuous rendering
     }
   };
 
@@ -1058,6 +1109,7 @@ export class Application {
     this.camera.position.copy(sphere.center.clone().addScaledVector(dirTo, dist * 1.2));
     this.controls.target.copy(sphere.center);
     this.controls.update();
+    this.requestRender('[frameObject]');
   };
 
   updateStatsUI = () => {
@@ -1125,6 +1177,7 @@ export class Application {
     }
     
     this.stateManager?.updateUIState({ isInspectorOpen: open });
+    this.requestRender('[setInspectorOpen]');
   };
 
   handleResize = () => {
@@ -1134,6 +1187,7 @@ export class Application {
       this.camera.aspect = size.width / size.height;
       this.camera.updateProjectionMatrix();
     }
+    this.requestRender('[handleResize]');
   };
 
   handleSettingsChanged = (settings) => {
@@ -1175,6 +1229,7 @@ export class Application {
     if (settings.background) {
       this.sceneManager?.setBackground(settings.background);
     }
+    this.requestRender('[handleSettingsChanged]');
   };
 
   handleRenderSettingsChanged = (settings) => {
@@ -1191,6 +1246,7 @@ export class Application {
     loadedModels?.forEach(model => {
       this.applyModelSettings(model); // Reapply all model settings
     });
+    this.requestRender('[handleRenderSettingsChanged]');
   };
 
   handleLightingSettingsChanged = (settings) => {
@@ -1211,6 +1267,7 @@ export class Application {
         this.sceneManager?.applyEnvIntensity(settings.environment.intensity, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null));
       }
     }
+    this.requestRender('[handleLightingSettingsChanged]');
   };
 
   resetRender = () => {
@@ -1227,6 +1284,7 @@ export class Application {
       try { this.renderSettings?.applyToneMapping('ACES'); } catch(e){ Logger.error('[Application] Failed to reset tone mapping:', e); }
     }
     this.dom?.showToast(t('reset_render'));
+    this.requestRender('[resetRender]');
   };
 
   resetDir = () => {
@@ -1242,6 +1300,7 @@ export class Application {
      if (dirSoftnessEl) { dirSoftnessEl.value = 1; try { this.lightingManager?.setDirSoftness(1); } catch(e){ Logger.error('[Application] Failed to reset directional softness:', e); } if (dirSoftnessVal) dirSoftnessVal.textContent = (1).toFixed(1); }
  
      this.dom?.showToast(t('reset_directional_light'));
+    this.requestRender('[resetRender]');
   };
 
   resetEnv = () => {
@@ -1253,6 +1312,7 @@ export class Application {
     if (hdriUrlInput) { hdriUrlInput.value = ''; }
     try { this.sceneManager?.setEnvironment(null); } catch(e){ Logger.error('[Application] Failed to reset environment:', e); }
     this.dom?.showToast(t('reset_environment'));
+    this.requestRender('[resetEnv]');
   };
 
   resetGizmos = () => {
@@ -1280,6 +1340,7 @@ export class Application {
     if (measureOutEl) measureOutEl.textContent = '—';
 
     this.dom?.showToast(t('reset_gizmos'));
+    this.requestRender('[resetDir]');
   };
 
   resetAll = () => {
@@ -1333,6 +1394,7 @@ export class Application {
     // persist defaults by clearing settings store
     try { this.settings?.clear(); } catch(e){ Logger.error('[Application] Failed to clear settings:', e); }
     this.dom?.showToast(t('settings_reset_to_defaults'));
+    this.requestRender('[resetAll]');
   };
 
   handleCameraPreset = (view) => {
@@ -1366,6 +1428,7 @@ export class Application {
     this.camera.position.copy(center.clone().addScaledVector(dirv.normalize(), m));
     this.controls.target.copy(center);
     this.controls.update();
+    this.requestRender('[handleCameraPreset]');
   };
 
   /**
@@ -1430,6 +1493,7 @@ export class Application {
     this.dom?.showToast(t('scene_cleared'));
     
     Logger.log('[Application] clearScene() completed - inspector updated');
+    this.requestRender('[clearScene]');
   };
 
   showToast = (msg) => {
@@ -1461,63 +1525,130 @@ export class Application {
     } catch(e){ Logger.error('[Application] Error reporting runtime error (fallback):', e); }
   };
 
-  // Animation loop
-  animate = () => {
-    if (!this.isRunning) return;
+  // --- On-Demand Rendering System ---
+
+  /**
+   * Requests a single frame render.
+   * This is the primary method to trigger a redraw when the scene changes.
+   */
+  requestRender = (source = 'Unknown') => {
+    if (this.renderRequested) return; // A render is already queued
     
-    this.rafId = requestAnimationFrame(this.animate);
+    // VALIDATION LOG: Check for RAF ID conflicts
+    if (this.rafId !== null) {
+      Logger.warn(`[DEBUG-VALIDATE] RAF conflict detected! Previous rafId: ${this.rafId}, Source: ${source}`);
+    }
+    
+    Logger.log(`[DEBUG] Render requested from: ${source}`);
+    this.renderRequested = true;
+    this.rafId = requestAnimationFrame(this.render);
+  }
+
+  /**
+   * The core render function. Executes a single frame draw.
+   * This is called by requestAnimationFrame.
+   */
+  render = () => {
+    Logger.log('[DEBUG] --- Render START ---');
+    this.renderRequested = false; // Unset the flag
+    
     const dt = this.clock.getDelta();
     
-    // Update animation
+    // Update controls - must be called for damping and other features
+    // update() returns true if the camera is still changing due to damping
+    const controlsUpdated = this.controls.update();
+    
+    // VALIDATION LOG: Check if controls need continuous updates
+    if (controlsUpdated) {
+      Logger.log(`[DEBUG-VALIDATE] Controls still updating (damping active), need continuous render`);
+    }
+    
+    // Update animation - this will call requestRender() internally if it's playing
     this.animationManager?.update(dt);
+
+    // If controls are still moving (e.g., damping), we need to re-render the next frame
+    if (controlsUpdated) {
+      this.requestRender();
+    }
     
-    // Update loaded models
-    const models = this.stateManager?.getSceneState().models;
-    models?.forEach(model => {
-      if (model) {
-        model.updateMatrixWorld(true);
-      }
-    });
-    
-    // Update controls
-    this.controls.update();
-    
-    // Render
-    const scene = this._getSafeScene(); // Use _getSafeScene
+    // Perform the actual render
+    const scene = this._getSafeScene();
     if (scene) {
       this.rendererManager?.render(scene, this.camera);
     }
     
-    // Update FPS
-    if (this.dom?.get('fps')) {
-      const now = performance.now();
-      if (!this.lastFpsUpdate) this.lastFpsUpdate = now;
-      if (now - this.lastFpsUpdate >= 500) {
-        const fps = Math.round(1 / dt);
-        const fpsEl = this.dom?.get('fps');
-        if (fpsEl) {
-          fpsEl.textContent = String(fps);
-        }
-        this.lastFpsUpdate = now;
+    // Update FPS counter
+    this.updateFps(dt);
+    Logger.log('[DEBUG] --- Render END ---');
+  }
+  
+  /**
+   * Updates the FPS counter UI element.
+   * @param {number} dt - Delta time from the last frame.
+   */
+  updateFps = (dt) => {
+    if (!this.dom?.get('fps')) return;
+    
+    const now = performance.now();
+    if (!this.lastFpsUpdate) this.lastFpsUpdate = now;
+    if (now - this.lastFpsUpdate >= 500) {
+      const fps = dt > 0 ? Math.round(1 / dt) : 0;
+      const fpsEl = this.dom?.get('fps');
+      if (fpsEl) {
+        fpsEl.textContent = String(fps);
       }
+      this.lastFpsUpdate = now;
+    }
+  }
+  
+  /**
+   * The animation loop, separate from rendering.
+   * This loop only runs when animations are active.
+   */
+  animate = () => {
+    if (!this.isRunning) return;
+    
+    // VALIDATION LOG: Check for RAF ID conflicts
+    if (this.rafId !== null) {
+      Logger.warn(`[DEBUG-VALIDATE] Animation RAF conflict! Overwriting rafId: ${this.rafId}`);
+    }
+    
+    // Keep the animation loop going as long as it's running
+    this.rafId = requestAnimationFrame(this.animate);
+    
+    // This will update animations and call requestRender() internally
+    this.animationManager?.update(this.clock.getDelta());
+  };
+
+  /**
+   * Starts the application's rendering and animation loop.
+   */
+  start = () => {
+    Logger.log('[Application] start() called. Initial render requested.');
+    // Instead of starting a continuous loop, we request a single render.
+    // The render loop will continue automatically if controls are damping or animations are playing.
+    this.requestRender('[start]');
+    
+    // Start the animation loop if there are animations or a model is loading
+    if (this.animationManager?.hasClips() || this.isModelLoading) {
+        this.isRunning = true;
+        this.animate(); // Start the animation-only loop
     }
   };
 
-  start = () => {
-    if (this.isRunning) return;
-    
-    this.isRunning = true;
-    this.animate();
-  };
-
+  /**
+   * Stops the animation loop.
+   */
   stop = () => {
     if (!this.isRunning) return;
-    
     this.isRunning = false;
-    if (this.rafId) {
+    
+    // Only cancel animation frame if neither animation nor model loading is active
+    if (this.rafId && !this.animationManager?.hasClips() && !this.isModelLoading) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
+    this.requestRender('[stop]');
   };
 
   dispose = () => {
@@ -1548,6 +1679,7 @@ export class Application {
     
     // Save state
     this.saveAttachmentState();
+    this.requestRender('[dispose]');
   };
 
   saveAttachmentState = () => {
@@ -1609,6 +1741,7 @@ export class Application {
     }
     
     Logger.log(`[Application] Transform Controls ${enabled ? 'enabled' : 'disabled'} in ${mode} mode`);
+    this.requestRender('[enableTransformControls]');
   };
 
   // Polygon Selection Methods
@@ -1635,6 +1768,7 @@ export class Application {
     this.updatePolygonSelectionVisuals();
     this.showToast(t('polygons_selected', { count: this.getTotalSelectedPolygonCount() }));
     Logger.log(`[Application] Lasso selection completed. Selected ${this.getTotalSelectedPolygonCount()} polygons.`);
+    this.requestRender('[handleLassoSelection]');
   };
 
   handlePolygonClickSelection = (eventData) => {
@@ -1680,6 +1814,7 @@ export class Application {
             this.showToast(t('polygons_selected', { count: this.getTotalSelectedPolygonCount() }));
         }
     }
+    this.requestRender('[handlePolygonClickSelection]');
   };
 
   togglePolygonSelection = (mesh, faceIndex) => {
