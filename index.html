@@ -387,7 +387,13 @@
         import Logger from './src/core/Logger.js';
         const toggle = document.getElementById('debug-log-toggle');
         if (toggle) {
+            // Set initial state
             Logger.setEnabled(toggle.checked);
+            // Add change event listener
+            toggle.addEventListener('change', () => {
+                Logger.setEnabled(toggle.checked);
+                console.log(`[Logger] Debug logging ${toggle.checked ? 'enabled' : 'disabled'}`);
+            });
         }
     </script>
 <script type="module">

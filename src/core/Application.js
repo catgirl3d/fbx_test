@@ -28,6 +28,7 @@ export class Application {
     this.rafId = null;
     this.renderRequested = false; // Flag to request a single render
     this.isModelLoading = false; // Flag to indicate if a model is currently loading
+    this.animationEndDelay = null; // Timer for delayed stop after animation ends
     
     // Initialize core systems
     Logger.log('[Application] Initializing StateManager...');
@@ -82,32 +83,39 @@ export class Application {
 
   async init() {
     Logger.log('[Application] init() started.');
-    
+    const initStart = performance.now();
+    let stepStart = performance.now();
+
     // Load the default language pack before initializing UI
     Logger.log('[Application] Loading default language pack...');
     await loadLanguage('en'); // Or another default language
-    Logger.log('[Application] Language pack loaded.');
-    
+    Logger.log(`[Perf] loadLanguage() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    stepStart = performance.now();
+
     // Initialize DOM Manager
     Logger.log('[Application] Initializing DOMManager...');
     this.dom = createDOMManager({ t });
-    Logger.log('[Application] DOMManager initialized.');
-    
+    Logger.log(`[Perf] createDOMManager() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    stepStart = performance.now();
+
     // Initialize Three.js core objects
     Logger.log('[Application] Calling initThreeJS()...');
     this.initThreeJS();
-    Logger.log('[Application] initThreeJS() finished.');
-    
+    Logger.log(`[Perf] initThreeJS() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    stepStart = performance.now();
+
     // Initialize managers
     Logger.log('[Application] Calling initManagers()...');
     this.initManagers();
-    Logger.log('[Application] initManagers() finished.');
-    
+    Logger.log(`[Perf] initManagers() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    stepStart = performance.now();
+
     // Initialize UI
     Logger.log('[Application] Calling initUI()...');
     this.initUI();
-    Logger.log('[Application] initUI() finished.');
-    
+    Logger.log(`[Perf] initUI() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    stepStart = performance.now();
+
     // Initialize UI bindings
     Logger.log('[Application] Calling initUIBindings()...');
     try {
@@ -115,12 +123,14 @@ export class Application {
     } catch (e) {
       Logger.error('[Application] initUIBindings() failed:', e);
     }
-    Logger.log('[Application] initUIBindings() finished.');
-    
+    Logger.log(`[Perf] initUIBindings() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    stepStart = performance.now();
+
     // Initialize event listeners (this also calls initial handleResize)
     Logger.log('[Application] Calling initEventListeners()...');
     this.initEventListeners();
-    Logger.log('[Application] initEventListeners() finished.');
+    Logger.log(`[Perf] initEventListeners() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    stepStart = performance.now();
 
     // Initialize PolygonSelectionManager AFTER canvas has been sized
     Logger.log('[Application] Initializing PolygonSelectionManager...');
@@ -133,18 +143,21 @@ export class Application {
       inputHandler: this.inputHandler, // Pass the inputHandler instance
       onSelection: this.handleLassoSelection.bind(this)
     });
-    Logger.log('[Application] PolygonSelectionManager initialized.');
-    
+    Logger.log(`[Perf] PolygonSelectionManager init took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    stepStart = performance.now();
+
     // Load default model
     Logger.log('[Application] Calling loadDefaultModel()...');
     await this.loadDefaultModel();
-    Logger.log('[Application] loadDefaultModel() finished.');
-    
+    Logger.log(`[Perf] loadDefaultModel() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    stepStart = performance.now();
+
     // Start the application
     Logger.log('[Application] Calling start()...');
     this.start();
-    Logger.log('[Application] start() finished.');
-    
+    Logger.log(`[Perf] start() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+
+    Logger.log(`[Perf] TOTAL init() took: ${(performance.now() - initStart).toFixed(2)}ms`);
     Logger.log('[Application] init() finished.');
   }
 
@@ -353,9 +366,9 @@ export class Application {
     if (this.eventSystem) {
       this.eventSystem.on(EVENTS.ANIMATION_PLAY, ({ index }) => {
         this.animationManager?.select(index);
-        this.animationManager?.play(); // Автоматически запускаем
-        this.start(); // Убедимся, что цикл анимации запущен
-        this.requestRender();
+        this.animationManager?.play();
+        // Просто запускаем цикл. `animate` сам будет рендерить, пока идет анимация.
+        this.start();
       });
       this.eventSystem.on(EVENTS.ANIMATION_PAUSE, () => {
         this.animationManager?.pause();
@@ -749,6 +762,20 @@ export class Application {
       // Update filename display
       this.updateFilenameDisplay(source);
 
+      // [Debug] Check for animations
+      Logger.log(`[AnimationDebug] Checking for animations on model: ${source}. Found:`, model.animations);
+
+      if (model.animations && model.animations.length > 0) {
+        Logger.log(`[AnimationDebug] Model has animations, proceeding with setup.`);
+        this.animationManager?.init(model);
+        this.animationManager?.setClips(model.animations);
+        this.updateAnimationUI(model.animations);
+        this.setAnimSectionVisible(true);
+      } else {
+        Logger.log(`[AnimationDebug] No animations found on model.`);
+        this.setAnimSectionVisible(false);
+      }
+
       // Apply textures if available (await its completion)
       await this.assetLoader?.applyTexturesToModel(model);
       
@@ -1054,23 +1081,33 @@ export class Application {
   };
 
   loadDefaultModel = async () => {
+    const start = performance.now();
     try {
       const defaultModelPath = 'model/Y_Bot.fbx';
       Logger.log(`[Application] Loading default model: ${defaultModelPath}`);
+      
+      let stepStart = performance.now();
       const response = await fetch(defaultModelPath);
+      Logger.log(`[Perf] fetch() default model took: ${(performance.now() - stepStart).toFixed(2)}ms`);
       
       if (!response.ok) {
         throw new Error(`Failed to load default model: ${response.status} ${response.statusText}`);
       }
       
+      stepStart = performance.now();
       const arrayBuffer = await response.arrayBuffer();
+      Logger.log(`[Perf] response.arrayBuffer() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+      
       const defaultModelFile = new File([arrayBuffer], defaultModelPath.split('/').pop(), { type: 'application/octet-stream' });
       
       this.dom?.showOverlay(t('loading_model'), defaultModelFile.name);
       
       this.isModelLoading = true;
-      this.start(); // Start continuous rendering
+      
+      stepStart = performance.now();
       const model = await this.loadModel(defaultModelFile);
+      Logger.log(`[Perf] this.loadModel() (default) took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+      
       this.dom?.hideOverlay();
       
       Logger.log('[Application] Default model loaded successfully:', model);
@@ -1084,6 +1121,7 @@ export class Application {
     } finally {
       this.isModelLoading = false;
       this.stop(); // Stop continuous rendering
+      Logger.log(`[Perf] loadDefaultModel() (total) took: ${(performance.now() - start).toFixed(2)}ms`);
     }
   };
 
@@ -1142,6 +1180,30 @@ export class Application {
     
     if (animTime) animTime.textContent = `${t.toFixed(2)} / ${d.toFixed(2)}s`;
     if (animProgress) animProgress.value = d ? (t / d) : 0;
+  };
+
+  updateAnimationUI = (animations) => {
+    const animSelect = this.dom?.get('anim-select');
+    if (!animSelect) return;
+
+    // Clear existing options
+    animSelect.innerHTML = '';
+
+    // Populate with new animations
+    animations.forEach((clip, index) => {
+      const option = document.createElement('option');
+      option.value = index;
+      option.textContent = clip.name || `Animation ${index + 1}`;
+      animSelect.appendChild(option);
+    });
+
+    // Add event listener if it doesn't exist
+    if (!animSelect.onchange) {
+      animSelect.onchange = (e) => {
+        const index = parseInt(e.target.value, 10);
+        this.eventSystem.emit(EVENTS.ANIMATION_PLAY, { index });
+      };
+    }
   };
 
   setAnimSectionVisible = (visible) => {
@@ -1219,6 +1281,15 @@ export class Application {
       }
     }
     
+    if (settings.animation) {
+      if (settings.animation.loop !== undefined) {
+        this.animationManager?.setLoop(settings.animation.loop);
+      }
+      if (settings.animation.speed !== undefined) {
+        this.animationManager?.setSpeed(settings.animation.speed);
+      }
+    }
+
     // Остальные настройки...
     if (settings.flipUV !== undefined) {
       this.flipUVs(settings.flipUV);
@@ -1457,6 +1528,10 @@ export class Application {
     
     this.assetLoader?.clearTextures();
     this.sceneManager?.setEnvironment(null);
+
+    // Clear animation UI
+    this.updateAnimationUI([]);
+    this.setAnimSectionVisible(false);
     
     // Обновляем инспектор после очистки сцены
     if (this.inspectorApi && typeof this.inspectorApi.refresh === 'function') {
@@ -1532,54 +1607,15 @@ export class Application {
    * This is the primary method to trigger a redraw when the scene changes.
    */
   requestRender = (source = 'Unknown') => {
-    if (this.renderRequested) return; // A render is already queued
-    
-    // VALIDATION LOG: Check for RAF ID conflicts
-    if (this.rafId !== null) {
-      Logger.warn(`[DEBUG-VALIDATE] RAF conflict detected! Previous rafId: ${this.rafId}, Source: ${source}`);
-    }
-    
-    Logger.log(`[DEBUG] Render requested from: ${source}`);
+    Logger.log(`[Application] Render requested from: ${source}. isRunning: ${this.isRunning}`);
     this.renderRequested = true;
-    this.rafId = requestAnimationFrame(this.render);
-  }
-
-  /**
-   * The core render function. Executes a single frame draw.
-   * This is called by requestAnimationFrame.
-   */
-  render = () => {
-    Logger.log('[DEBUG] --- Render START ---');
-    this.renderRequested = false; // Unset the flag
     
-    const dt = this.clock.getDelta();
-    
-    // Update controls - must be called for damping and other features
-    // update() returns true if the camera is still changing due to damping
-    const controlsUpdated = this.controls.update();
-    
-    // VALIDATION LOG: Check if controls need continuous updates
-    if (controlsUpdated) {
-      Logger.log(`[DEBUG-VALIDATE] Controls still updating (damping active), need continuous render`);
+    // Если цикл анимации не запущен, мы должны его запустить,
+    // чтобы наш запрос на рендер был обработан.
+    if (!this.isRunning) {
+      Logger.log('[Application] Starting animation loop to handle render request.');
+      this.start();
     }
-    
-    // Update animation - this will call requestRender() internally if it's playing
-    this.animationManager?.update(dt);
-
-    // If controls are still moving (e.g., damping), we need to re-render the next frame
-    if (controlsUpdated) {
-      this.requestRender();
-    }
-    
-    // Perform the actual render
-    const scene = this._getSafeScene();
-    if (scene) {
-      this.rendererManager?.render(scene, this.camera);
-    }
-    
-    // Update FPS counter
-    this.updateFps(dt);
-    Logger.log('[DEBUG] --- Render END ---');
   }
   
   /**
@@ -1606,33 +1642,38 @@ export class Application {
    * This loop only runs when animations are active.
    */
   animate = () => {
-    if (!this.isRunning) return;
-    
-    // VALIDATION LOG: Check for RAF ID conflicts
-    if (this.rafId !== null) {
-      Logger.warn(`[DEBUG-VALIDATE] Animation RAF conflict! Overwriting rafId: ${this.rafId}`);
+    if (!this.isRunning) {
+        return;
     }
-    
-    // Keep the animation loop going as long as it's running
+
     this.rafId = requestAnimationFrame(this.animate);
+
+    const dt = this.clock.getDelta();
     
-    // This will update animations and call requestRender() internally
-    this.animationManager?.update(this.clock.getDelta());
+    const controlsUpdated = this.controls.update();
+    this.animationManager?.update(dt);
+    const isAnimationPlaying = this.animationManager?.isPlaying();
+
+    // Рендерим кадр, если есть какие-либо обновления
+    if (this.renderRequested || controlsUpdated || isAnimationPlaying) {
+      const scene = this._getSafeScene();
+      if (scene && this.rendererManager?.renderer) {
+        this.rendererManager.render(scene, this.camera);
+        this.renderRequested = false;
+      }
+      this.updateFps(dt);
+    }
   };
 
   /**
    * Starts the application's rendering and animation loop.
    */
   start = () => {
-    Logger.log('[Application] start() called. Initial render requested.');
-    // Instead of starting a continuous loop, we request a single render.
-    // The render loop will continue automatically if controls are damping or animations are playing.
-    this.requestRender('[start]');
-    
-    // Start the animation loop if there are animations or a model is loading
-    if (this.animationManager?.hasClips() || this.isModelLoading) {
+    if (!this.isRunning) {
+        Logger.log('[Application] Starting animation loop.');
         this.isRunning = true;
-        this.animate(); // Start the animation-only loop
+        this.clock.start();
+        this.rafId = requestAnimationFrame(this.animate);
     }
   };
 
@@ -1640,15 +1681,13 @@ export class Application {
    * Stops the animation loop.
    */
   stop = () => {
-    if (!this.isRunning) return;
-    this.isRunning = false;
-    
-    // Only cancel animation frame if neither animation nor model loading is active
-    if (this.rafId && !this.animationManager?.hasClips() && !this.isModelLoading) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
+    if (this.isRunning) {
+        Logger.log('[Application] Stopping animation loop.');
+        this.isRunning = false;
+        this.clock.stop();
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
     }
-    this.requestRender('[stop]');
   };
 
   dispose = () => {

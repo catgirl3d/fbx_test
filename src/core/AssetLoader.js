@@ -15,6 +15,7 @@ export class AssetLoader {
     this.initLoaders();
   }
 
+
   initLoaders() {
     Logger.log('[AssetLoader] Initializing loaders with renderer:', this.rendererManager?.renderer);
     // Initialize GLTF loader
@@ -34,6 +35,7 @@ export class AssetLoader {
   }
 
   async loadModel(file, options = {}) {
+    const start = performance.now();
     const extension = file.name.split('.').pop().toLowerCase();
     const loader = this.loaders.get(extension);
 
@@ -48,11 +50,8 @@ export class AssetLoader {
       const textureResolver = this.createTextureResolver();
 
       if (extension === 'fbx') {
-        // Reuse cached loader created by initLoaders() so lifecycle/cleanup is centralised
-        const fbxLoader = loader; // loader === this.loaders.get(extension) (set earlier)
-        // Attach the per-load texture resolver created from state
+        const fbxLoader = loader;
         fbxLoader.textureResolver = textureResolver;
-        // Ensure renderer initialization (no-op if already inited)
         this.rendererManager?.renderer && fbxLoader.init(this.rendererManager.renderer);
         result = await this.loadWithProgress(fbxLoader, file, options);
       } else {
@@ -65,6 +64,7 @@ export class AssetLoader {
         type: extension
       });
       Logger.log('[AssetLoader] Fired MODEL_LOADED event');
+      Logger.log(`[Perf] loadModel() for ${file.name} took: ${(performance.now() - start).toFixed(2)}ms`);
       return result;
     } catch (error) {
       Logger.error('[AssetLoader] Error loading model:', error);

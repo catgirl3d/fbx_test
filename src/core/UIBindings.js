@@ -132,7 +132,12 @@ export class UIBindings {
     });
     this.bind(this.dom?.get('anim-playpause'), 'click', () => {
       const state = this.dom?.get('anim-playpause')?.dataset.state;
-      this.eventSystem?.emit(state === 'playing' ? EVENTS.ANIMATION_PAUSE : EVENTS.ANIMATION_PLAY);
+      if (state === 'playing') {
+        this.eventSystem?.emit(EVENTS.ANIMATION_PAUSE);
+      } else {
+        const index = Number(this.dom?.getValue('anim-select'));
+        this.eventSystem?.emit(EVENTS.ANIMATION_PLAY, { index });
+      }
     });
     this.bind(this.dom?.get('anim-stop'), 'click', () => {
       this.eventSystem?.emit(EVENTS.ANIMATION_STOP);

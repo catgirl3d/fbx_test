@@ -62,6 +62,26 @@ export class AnimationManager {
     return this.clips && this.clips.length > 0;
   }
 
+  isPlaying() {
+    if (!this.activeAction || this.activeAction.paused) {
+      return false;
+    }
+    
+    // For non-looping animations, check if we've reached the end
+    if (!this.loop && this.activeAction.getClip) {
+      const clip = this.activeAction.getClip();
+      const duration = clip.duration;
+      const currentTime = this.activeAction.time;
+      
+      // Consider animation finished if we're at or past the duration
+      if (currentTime >= duration) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
   select(index) {
     if (!this.mixer || !this.hasClips()) return;
     const i = Math.max(0, Math.min(index, this.clips.length - 1));
@@ -105,8 +125,12 @@ export class AnimationManager {
       this.mixer.stopAllAction();
       if (this.activeAction) {
         this.activeAction.stop();
+        this.activeAction.paused = true;
+        this.activeAction.reset();
       }
     }
+    this.activeAction = null;
+    this.activeIndex = -1;
   }
 
   setLoop(enabled) {
