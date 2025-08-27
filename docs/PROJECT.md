@@ -38,12 +38,12 @@ Application.create() -> init() -> {
 ### Key Components
 
 **Core System** (`src/core/`):
-- `Application.js` - Main application orchestrator and entry point  
+- `Application.js` - Main application orchestrator and entry point
 - `StateManager.js` - Centralized state management with observer pattern
 - `EventSystem.js` - Event bus for component communication
 - `Logger.js` - Singleton logging system with module prefixes
 - `UIBindings.js` - DOM event bindings and UI state management
-- `InputHandler.js` - Mouse/keyboard input processing
+- `InputHandler.js` - Centralized input management with KeyboardEventManager for hotkeys
 - `AssetLoader.js` - File loading and parsing for 3D models/textures
 
 **Rendering & Scene** (`src/`):
@@ -158,6 +158,18 @@ Supports FBX, GLTF/GLB, OBJ formats with automatic texture application from ZIP 
 ### Transform System
 3D manipulation gizmos with snapping, multiple transform modes, and proper OrbitControls integration.
 
+### Keyboard Shortcuts (Hotkeys)
+Centralized hotkey system with automatic input field detection:
+- **F** - Frame selected object or fit all to view
+- **R** - Reset camera position
+- **I** - Toggle inspector panel
+- **G/S/E** - Transform controls (Grab/Scale/Rotate)
+- **Tab** - Toggle transform controls
+- **P** - Toggle polygon selection mode
+- **Delete/Escape** - Clear selection or close dialogs
+
+Hotkeys are automatically suppressed when typing in input fields. See `docs/HOTKEYS_GUIDE.md` for developer documentation on adding new hotkeys.
+
 ## Important Implementation Notes
 
 - **No Build System**: Direct browser execution with ES6 modules
@@ -170,8 +182,10 @@ Supports FBX, GLTF/GLB, OBJ formats with automatic texture application from ZIP 
 ## Recent Development Focus
 
 Based on recent commits, active development areas include:
+- **Centralized Hotkey System**: Implemented KeyboardEventManager with automatic input field detection
 - Enhanced polygon selection with memory management
 - UI state improvements and error handling
 - Scene handling resilience and safety checks
 - Logger integration throughout the codebase
 - Model switching and state management improvements
+- Keyboard event organization and conflict prevention

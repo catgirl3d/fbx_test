@@ -356,7 +356,10 @@ export class Application {
       this.controls,
       this.rendererManager?.renderer?.domElement // Use optional chaining here
     );
-    
+
+    // Register hotkey handlers with the centralized keyboard manager
+    this.registerHotkeys();
+
     // Request render when camera is moved by user
     this.controls.addEventListener('change', () => {
       Logger.log('[DEBUG] OrbitControls change event');
@@ -370,12 +373,12 @@ export class Application {
       this.stateManager.subscribe('animation', this.handleAnimationStateChange.bind(this));
       this.stateManager.subscribe('ui', this.handleUIStateChange.bind(this));
     }
-    
+
     // Subscribe to events
     this.eventSystem.on(EVENTS.OBJECT_SELECTED, this.handleObjectSelected.bind(this));
     this.eventSystem.on(EVENTS.SCENE_CLEARED, this.handleSceneCleared.bind(this));
     this.eventSystem.on(EVENTS.MODEL_LOADED, this.handleModelLoaded.bind(this));
-    this.eventSystem.on(EVENTS.KEY_PRESS, this.handleKeyPress.bind(this));
+    // KEY_PRESS event handling moved to centralized keyboard manager
     this.eventSystem.on(EVENTS.CONTEXT_MENU, this.handleContextMenu.bind(this));
     this.eventSystem.on(EVENTS.SETTINGS_CHANGED, this.handleSettingsChanged.bind(this));
     this.eventSystem.on(EVENTS.RENDER_SETTINGS_CHANGED, this.handleRenderSettingsChanged.bind(this));
@@ -426,8 +429,8 @@ export class Application {
         lighting: this.lightingManager,
         tControls: this.transformControls,
         getLoadedModels: () => this.stateManager.getSceneState().models,
-        getCurrentModel: () => this.stateManager.getSceneState().selectedObject || 
-          (this.stateManager.getSceneState().models.length > 0 ? 
+        getCurrentModel: () => this.stateManager.getSceneState().selectedObject ||
+          (this.stateManager.getSceneState().models.length > 0 ?
            this.stateManager.getSceneState().models[0] : null),
         onSelect: (obj) => {
           this.rendererManager?.setOutlineObjects(obj);
@@ -438,6 +441,15 @@ export class Application {
         },
         onFocus: (obj) => {
           this.frameObject(obj);
+        },
+        onIsolate: () => {
+          this.requestRender('[isolate]');
+        },
+        onSceneChange: () => {
+          this.requestRender('[scene-change]');
+        },
+        onModelAdded: (model) => {
+          this.stateManager?.addModel(model);
         }
       });
     } catch (e) {
@@ -449,6 +461,81 @@ export class Application {
   initUIBindings() {
     // FIX: This was missing
     this.uiBindings = new UIBindings(this.stateManager, this.eventSystem, this.dom);
+  }
+
+  registerHotkeys() {
+    if (!this.inputHandler?.keyboardManager) {
+      Logger.warn('[Application] Keyboard manager not available for hotkey registration');
+      return;
+    }
+
+    Logger.log('[Application] Registering hotkey handlers with centralized keyboard manager');
+
+    // Register hotkey handlers using the centralized keyboard manager
+    this.inputHandler.keyboardManager.registerKeyHandler('KeyF', (event) => {
+      const selectedObject = this.stateManager.getSceneState().selectedObject;
+      if (selectedObject) {
+        this.frameObject([selectedObject]);
+      } else {
+        this.handleFrame();
+      }
+    });
+
+    this.inputHandler.keyboardManager.registerKeyHandler('KeyR', (event) => {
+      this.camera.position.set(2, 1.2, 3);
+      this.controls.target.set(0, 0.8, 0);
+      this.controls.update();
+    });
+
+    this.inputHandler.keyboardManager.registerKeyHandler('Delete', (event) => {
+      this.clearSelection();
+    });
+
+    this.inputHandler.keyboardManager.registerKeyHandler('Backspace', (event) => {
+      this.clearSelection();
+    });
+
+    this.inputHandler.keyboardManager.registerKeyHandler('Escape', (event) => {
+      // Закрывать инспектор по ESC
+      const uiState = this.stateManager?.getUIState();
+      if (uiState?.isInspectorOpen) {
+        this.setInspectorOpen(false);
+      } else {
+        this.clearSelection();
+      }
+    });
+
+    this.inputHandler.keyboardManager.registerKeyHandler('KeyI', (event) => {
+      // Переключение инспектора по клавише I
+      const currentInspectorState = this.stateManager?.getUIState()?.isInspectorOpen;
+      this.setInspectorOpen(!currentInspectorState);
+    });
+
+    // Transform Controls hotkeys
+    this.inputHandler.keyboardManager.registerKeyHandler('KeyG', (event) => {
+      this.enableTransformControls(true, 'translate');
+    });
+
+    this.inputHandler.keyboardManager.registerKeyHandler('KeyS', (event) => {
+      this.enableTransformControls(true, 'scale');
+    });
+
+    this.inputHandler.keyboardManager.registerKeyHandler('KeyE', (event) => {
+      this.enableTransformControls(true, 'rotate');
+    });
+
+    this.inputHandler.keyboardManager.registerKeyHandler('Tab', (event) => {
+      event.preventDefault(); // Предотвращаем стандартное поведение Tab
+      const currentState = this.dom?.isChecked('toggle-transform');
+      this.enableTransformControls(!currentState);
+    });
+
+    this.inputHandler.keyboardManager.registerKeyHandler('KeyP', (event) => {
+      event.preventDefault();
+      this.togglePolygonSelectionMode();
+    });
+
+    Logger.log('[Application] Hotkey registration completed');
   }
 
   initUIState() {

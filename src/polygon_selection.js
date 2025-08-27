@@ -76,6 +76,21 @@ export class PolygonSelectionManager {
   init() {
     this.createOverlay();
     this.bindEvents();
+    this.registerKeyboardHandlers();
+  }
+
+  registerKeyboardHandlers() {
+    // Register Escape key handler with the centralized keyboard manager
+    if (this.inputHandler?.keyboardManager) {
+      this.inputHandler.keyboardManager.registerKeyHandler('Escape', (event) => {
+        if (this.isActive) {
+          this.deactivate();
+        }
+      });
+      Logger.log('[PolygonSelection] Escape key handler registered with centralized keyboard manager');
+    } else {
+      Logger.warn('[PolygonSelection] InputHandler or keyboard manager not available for Escape key registration');
+    }
   }
 
   createOverlay() {
@@ -151,7 +166,7 @@ export class PolygonSelectionManager {
     this.boundResize = this.onResize.bind(this);
 
     // Initially not bound - activated by toggle
-    window.addEventListener('keydown', this.boundKeyDown);
+    // Keyboard event handling moved to centralized manager
     window.addEventListener('resize', this.boundResize);
   }
 
@@ -745,7 +760,7 @@ export class PolygonSelectionManager {
     this.deactivate();
     
     // Remove event listeners
-    window.removeEventListener('keydown', this.boundKeyDown);
+    // Keyboard event handling moved to centralized manager
     window.removeEventListener('resize', this.boundResize);
     
     // Remove overlay from its parent (body or canvas parent)

@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import Logger from './core/Logger.js';
 
-export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel, getLoadedModels, tControls, lighting } = {}) {
+export function initInspector({ sceneManager, onSelect, onFocus, onIsolate, onSceneChange, onModelAdded, getCurrentModel, getLoadedModels, tControls, lighting } = {}) {
   if (!lighting) {
     Logger.error('[Inspector] FATAL: lighting is null');
     return null; // Return null or an empty API object
@@ -282,6 +282,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
         e.stopPropagation();
         o.visible = !o.visible;
         visIcon.className = `fa-solid ${o.visible ? 'fa-eye' : 'fa-eye-slash'} vis-icon`;
+        if (onSceneChange) onSceneChange();
     });
 
     row.appendChild(expandBtn);
@@ -356,6 +357,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
             targetParent.attach(objectToAttach);
             Logger.log(`[Inspector] Dragged and attached ${objectToAttach.name} to ${targetParent.name}`);
             renderTree();
+            if (onSceneChange) onSceneChange();
             // Clear selection after drop to avoid confusion
             clearSelection();
         } else {
@@ -535,23 +537,27 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
       case 'duplicate':
         selectedObjects.forEach(obj => {
           const clone = SkeletonUtils.clone(obj);
-          
+
           // Ensure the clone has a unique name
           const baseName = (clone.name || 'copy').replace(/_copy\d*$/g, '');
           let copyNumber = 1;
           let newName = `${baseName}_copy${copyNumber}`;
-          
+
           // Find a unique name
           while (obj.parent.children.some(child => child.name === newName)) {
             copyNumber++;
             newName = `${baseName}_copy${copyNumber}`;
           }
           clone.name = newName;
-          
+
           // Add the clone to the parent
           obj.parent.add(clone);
+
+          // Notify application about the new model
+          if (onModelAdded) onModelAdded(clone);
         });
         renderTree();
+        if (onSceneChange) onSceneChange();
         break;
       case 'delete':
         if (confirm(`Delete ${selectedObjects.length} object(s)?`)) {
@@ -573,6 +579,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
             });
             clearSelection();
             renderTree();
+            if (onSceneChange) onSceneChange();
         }
         break;
       case 'isolate':
@@ -594,9 +601,10 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
           // Use THREE.Object3D.attach to maintain world position while changing parent
           // This automatically handles the matrix transformations
           targetParent.attach(objectToAttach);
-          
+
           Logger.log(`[Inspector] Attached ${objectToAttach.name}`);
           renderTree();
+          if (onSceneChange) onSceneChange();
         } else {
           alert(t('alert_select_two_objects'));
         }
@@ -712,6 +720,9 @@ export function initInspector({ sceneManager, onSelect, onFocus, getCurrentModel
           });
           visibilityCache = new WeakMap();
       }
+
+      // Request render after visibility changes
+      if (onIsolate) onIsolate();
   }
 
   function createPropertiesPanel() {
