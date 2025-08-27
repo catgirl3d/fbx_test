@@ -98,6 +98,9 @@ export class UIBindings {
     this.bind(this.dom?.get('toggle-grid'), 'change', () => {
       this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, { gridVisible: this.dom?.isChecked('toggle-grid') });
     });
+    this.bind(this.dom?.get('toggle-load-default'), 'change', () => {
+      this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, { loadDefaultModel: this.dom?.isChecked('toggle-load-default') });
+    });
     this.bind(this.dom?.get('debug-log-toggle'), 'change', () => {
       Logger.setEnabled(this.dom?.isChecked('debug-log-toggle'));
     });

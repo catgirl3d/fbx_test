@@ -89,6 +89,7 @@
   "displayTitle": "Display",
   "cameraTitle": "Camera",
   "toggleFXAA": "FXAA",
+  "toggleLoadDefaultModel": "Load default model",
   "matStandard": "Standard",
   "matPhong": "Phong",
   "matBasic": "Basic",
@@ -125,10 +126,17 @@
   "camIso": "Iso",
   "lang_en": "English",
   "lang_ru": "Русский",
+  "lang_ua": "Українська",
   "animSpeedUnit": "x",
   "loading": "Loading...",
   "loadingTitle": "Loading",
   "select_zip_file": "Select ZIP file",
   "attachments_loaded": "Attachments loaded",
-  "alert_select_two_objects": "Please select exactly two objects: the object to attach and the target parent (e.g., a bone)."
+  "alert_select_two_objects": "Please select exactly two objects: the object to attach and the target parent (e.g., a bone).",
+  "polygonSelectionTitle": "Polygon Selection Mode",
+  "togglePolygonSelection": "Polygon Selection",
+  "polygonModeLabel": "Polygon select mode",
+  "btnClearPolygonSelection": "Clear Selection",
+  "debugTitle": "Debug",
+  "toggleDebugLog": "Enable Debug Logging"
 }

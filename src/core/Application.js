@@ -146,10 +146,28 @@ export class Application {
     Logger.log(`[Perf] PolygonSelectionManager init took: ${(performance.now() - stepStart).toFixed(2)}ms`);
     stepStart = performance.now();
 
-    // Load default model
-    Logger.log('[Application] Calling loadDefaultModel()...');
-    await this.loadDefaultModel();
-    Logger.log(`[Perf] loadDefaultModel() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    // Request initial render to show the empty scene (background, lighting, grid)
+    Logger.log('[Application] Requesting initial render for empty scene...');
+    this.requestRender('[init-empty-scene]');
+    
+    // Force immediate render to ensure the empty scene is visible right away
+    Logger.log('[Application] Forcing immediate render for empty scene...');
+    const scene = this._getSafeScene();
+    if (scene && this.rendererManager?.renderer) {
+      this.rendererManager.render(scene, this.camera);
+      Logger.log('[Application] Initial empty scene rendered immediately');
+    }
+    
+    // Load default model if enabled
+    const loadDefaultModelEnabled = this.settings.get('loadDefaultModel', true);
+    Logger.log(`[Application] Load default model enabled: ${loadDefaultModelEnabled}`);
+    if (loadDefaultModelEnabled) {
+      Logger.log('[Application] Calling loadDefaultModel()...');
+      await this.loadDefaultModel();
+      Logger.log(`[Perf] loadDefaultModel() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
+    } else {
+      Logger.log('[Application] Skipping loadDefaultModel() - disabled by user');
+    }
     stepStart = performance.now();
 
     // Start the application
@@ -206,14 +224,24 @@ export class Application {
     this.transformControls.on('dragging-changed', (isDragging) => {
       // Отключаем OrbitControls во время трансформации
       this.controls.enabled = !isDragging;
-      
+
       // Дополнительно отключаем damping во время драга для лучшей отзывчивости
       if (isDragging) {
         this.controls.enableDamping = false;
+
+        // Если пользователь пытается перетаскивать гизмо, но ничего не выбрано, выделяем все объекты на сцене
+        if (!this.transformControls.controls.object) {
+          this.selectAllSceneObjects();
+        }
       } else {
         this.controls.enableDamping = true;
+
+        // Когда пользователь прекращает перетаскивание группового выделения, восстанавливаем оригинальную структуру
+        if (this.sceneGroupSelection) {
+          this.restoreOriginalHierarchy();
+        }
       }
-      
+
       Logger.log(`[Application] Transform dragging: ${isDragging}, OrbitControls enabled: ${!isDragging}`);
     });
     
@@ -427,32 +455,38 @@ export class Application {
     // Initialize render settings UI state
     const tmEl = this.dom?.get('tone-mapping');
     if (tmEl && this.renderSettings) tmEl.value = this.renderSettings.getState().tonemapping || tmEl.value;
-    
+
     const exposureEl = this.dom?.get('exposure');
     if (exposureEl && this.renderSettings) exposureEl.value = this.renderSettings.getState().exposure || exposureEl.value;
-    
+
     const exposureValEl = this.dom?.get('exposure-val');
     if (exposureValEl && this.renderSettings) exposureValEl.textContent = (this.renderSettings.getState().exposure || Number(exposureEl?.value || 1)).toFixed(2);
-    
+
     const fxaaToggle = this.dom?.get('toggle-fxaa');
     if (fxaaToggle && this.renderSettings) fxaaToggle.checked = this.renderSettings.getState().fxaa;
-    
+
+    // Initialize load default model toggle
+    const loadDefaultToggle = this.dom?.get('toggle-load-default');
+    if (loadDefaultToggle) {
+      loadDefaultToggle.checked = this.settings.get('loadDefaultModel', true);
+    }
+
     // Initialize lighting UI labels
     const dirIntensityValEl = this.dom.get('dir-intensity-val');
     const dirAngleValEl = this.dom.get('dir-angle-val');
     const dirSoftnessValEl = this.dom.get('dir-softness-val');
     const envIntensityValEl = this.dom.get('env-intensity-val');
-    
+
     if (dirIntensityValEl && this.lightingManager) dirIntensityValEl.textContent = (this.lightingManager.getDirIntensity?.() || Number(this.dom?.get('dir-intensity')?.value || 0.9)).toFixed(2);
     if (dirAngleValEl && this.lightingManager) dirAngleValEl.textContent = `${Math.round(Number(this.dom?.get('dir-angle')?.value || 34))}°`;
     if (dirSoftnessValEl && this.lightingManager) dirSoftnessValEl.textContent = (this.lightingManager.getDirSoftness?.() || Number(this.dom?.get('dir-softness')?.value || 1)).toFixed(1);
     if (envIntensityValEl && this.sceneManager) envIntensityValEl.textContent = (Number(this.dom?.get('env-intensity')?.value || 1)).toFixed(2);
-    
+
     // Hide animations section on startup
     if (this.dom) {
       this.setAnimSectionVisible(false);
     }
-    
+
     // Inspector should be open by default
     this.setInspectorOpen(true);
 
@@ -644,21 +678,26 @@ export class Application {
   };
 
   handleObjectSelected = (data) => {
+    // Если есть активное групповое выделение, сначала восстанавливаем оригинальную иерархию
+    if (this.sceneGroupSelection) {
+      this.restoreOriginalHierarchy();
+    }
+
     if (data && data.ndc) {
       const { ndc } = data;
       Logger.log('[Application] handleObjectSelected called with ndc:', ndc);
-      
+
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2(ndc.x, ndc.y);
-      
+
       raycaster.setFromCamera(mouse, this.camera);
-      
+
       const scene = this._getSafeScene();
       if (!scene) return;
-      
+
       const models = this.stateManager?.getSceneState().models || [];
       const intersectableObjects = [];
-      
+
       models.forEach(model => {
         model.traverse(child => {
           if (child.isMesh) {
@@ -666,34 +705,34 @@ export class Application {
           }
         });
       });
-      
+
       if (intersectableObjects.length === 0) return;
-      
+
       const intersects = raycaster.intersectObjects(intersectableObjects, false);
-      
+
       if (intersects.length > 0) {
         const selectedObject = intersects[0].object;
         Logger.log('[Application] Object selected by raycast:', selectedObject.name || selectedObject.uuid);
-        
+
         // Обновляем состояние
         this.stateManager?.setSelectedObject(selectedObject);
-        
+
         // Устанавливаем outline
         this.rendererManager?.setOutlineObjects([selectedObject]);
-        
+
         // Обновляем bounding box
         this.sceneManager?.updateBBox(selectedObject);
-        
+
         // *** ИСПРАВЛЕНИЕ: Привязываем Transform Controls ***
         this.attachTransformControls(selectedObject);
-        
+
         // Открываем инспектор и выделяем объект
         if (this.inspectorApi && this.inspectorApi.selectObject) {
           this.inspectorApi.selectObject(selectedObject);
         }
-        
+
         this.setInspectorOpen(true);
-        
+
         Logger.log('[Application] Object selected:', selectedObject.name || selectedObject.uuid);
       } else {
         this.clearSelection();
@@ -705,14 +744,14 @@ export class Application {
       this.stateManager?.setSelectedObject(data);
       this.rendererManager?.setOutlineObjects([data]);
       this.sceneManager?.updateBBox(data);
-      
+
       // *** ИСПРАВЛЕНИЕ: Привязываем Transform Controls ***
       this.attachTransformControls(data);
-      
+
       if (this.inspectorApi && this.inspectorApi.selectObject) {
         this.inspectorApi.selectObject(data);
       }
-      
+
       this.setInspectorOpen(true);
     }
     this.requestRender('[handleObjectSelected]');
@@ -906,21 +945,26 @@ export class Application {
   };
 
   clearSelection = () => {
+    // Если есть активное групповое выделение, восстанавливаем оригинальную иерархию
+    if (this.sceneGroupSelection) {
+      this.restoreOriginalHierarchy();
+    }
+
     this.stateManager?.setSelectedObject(null);
     this.rendererManager?.setOutlineObjects([]);
     this.sceneManager?.updateBBox(null);
     this.clearPolygonSelection(); // Clear polygon selection as well
-    
+
     // *** ИСПРАВЛЕНИЕ: Отсоединяем Transform Controls ***
     if (this.transformControls) {
       this.transformControls.detach();
     }
-    
-    
+
+
     if (this.inspectorApi?.refresh) {
       this.inspectorApi.refresh();
     }
-    
+
     Logger.log('[Application] Selection cleared');
   };
 
@@ -935,7 +979,7 @@ export class Application {
     }
   };
 
-  async applyModelSettings(model) {
+  async applyModelSettings(model, settings = {}) {
     // If shadows are enabled, set cast/receive flags for new meshes
     const shadowsEnabled = this.dom?.get('toggle-shadows')?.checked;
     if (shadowsEnabled) {
@@ -951,7 +995,9 @@ export class Application {
     const matOverrideEl = this.dom?.get('mat-override');
     const wireframeEl = this.dom?.get('toggle-wireframe');
     const envIntensityEl = this.dom?.get('env-intensity');
-    const lightOnlyEl = this.dom?.get('toggle-lightonly');
+    
+    // Use the 'lightOnly' setting from the passed settings object, or fall back to DOM.
+    const lightOnlyChecked = settings.lightOnly !== undefined ? settings.lightOnly : this.dom?.isChecked('toggle-lightonly');
 
     const overrideType = matOverrideEl?.value || 'none';
     const wire = !!(wireframeEl && wireframeEl.checked);
@@ -960,9 +1006,9 @@ export class Application {
     // Dynamically import Materials and apply, awaiting its completion
     const { applyMaterialOverride, setLightOnly } = await import('../Materials.js');
     applyMaterialOverride(model, { overrideType, wire, envIntensity: envI });
-    if (lightOnlyEl) {
-      setLightOnly(model, lightOnlyEl.checked);
-    }
+    
+    setLightOnly(model, lightOnlyChecked);
+    
     Logger.log('[Application] Finished applying model settings.');
   };
 
@@ -1300,10 +1346,15 @@ export class Application {
     if (settings.background) {
       this.sceneManager?.setBackground(settings.background);
     }
+    if (settings.loadDefaultModel !== undefined) {
+      // Save the setting - it will be used on next app reload
+      this.settings.set('loadDefaultModel', settings.loadDefaultModel);
+      Logger.log(`[Application] loadDefaultModel setting changed to: ${settings.loadDefaultModel}`);
+    }
     this.requestRender('[handleSettingsChanged]');
   };
 
-  handleRenderSettingsChanged = (settings) => {
+  handleRenderSettingsChanged = async (settings) => {
     if (settings.exposure !== undefined) {
       this.renderSettings?.applyExposure(settings.exposure);
     }
@@ -1313,10 +1364,15 @@ export class Application {
     if (settings.toneMapping) {
       this.renderSettings?.applyToneMapping(settings.toneMapping);
     }
+    
     const loadedModels = this.stateManager?.getSceneState().models;
-    loadedModels?.forEach(model => {
-      this.applyModelSettings(model); // Reapply all model settings
-    });
+    if (loadedModels) {
+      for (const model of loadedModels) {
+        // Pass the settings object to applyModelSettings
+        await this.applyModelSettings(model, settings);
+      }
+    }
+    
     this.requestRender('[handleRenderSettingsChanged]');
   };
 
@@ -1421,12 +1477,14 @@ export class Application {
     const toggleLightOnlyEl = this.dom?.get('toggle-lightonly');
     const toggleGridEl = this.dom?.get('toggle-grid');
     const toggleFlipUVEl = this.dom?.get('toggle-flipuv');
+    const toggleLoadDefaultEl = this.dom?.get('toggle-load-default');
 
     if (toggleShadowsEl) { toggleShadowsEl.checked = false; toggleShadowsEl.dispatchEvent(new Event('change')); }
     if (toggleFXAAEl) { toggleFXAAEl.checked = true; toggleFXAAEl.dispatchEvent(new Event('change')); }
     if (toggleLightOnlyEl) { toggleLightOnlyEl.checked = false; toggleLightOnlyEl.dispatchEvent(new Event('change')); }
     if (toggleGridEl) { toggleGridEl.checked = true; toggleGridEl.dispatchEvent(new Event('change')); }
     if (toggleFlipUVEl) { toggleFlipUVEl.checked = false; toggleFlipUVEl.dispatchEvent(new Event('change')); }
+    if (toggleLoadDefaultEl) { toggleLoadDefaultEl.checked = true; toggleLoadDefaultEl.dispatchEvent(new Event('change')); }
 
     // background & hdri
     const bgSelectEl = this.dom?.get('bg-select');
@@ -1654,8 +1712,16 @@ export class Application {
     this.animationManager?.update(dt);
     const isAnimationPlaying = this.animationManager?.isPlaying();
 
-    // Рендерим кадр, если есть какие-либо обновления
-    if (this.renderRequested || controlsUpdated || isAnimationPlaying) {
+    if (isAnimationPlaying) {
+      this.updateAnimTimeUI(
+        this.animationManager?.getCurrentTime(),
+        this.animationManager?.getCurrentDuration()
+      );
+    }
+
+    // Рендерим кадр, если есть какие-либо обновления или если сцена пустая (чтобы избежать черного экрана)
+    const hasNoModels = this.stateManager?.getSceneState().models.length === 0;
+    if (this.renderRequested || controlsUpdated || isAnimationPlaying || hasNoModels) {
       const scene = this._getSafeScene();
       if (scene && this.rendererManager?.renderer) {
         this.rendererManager.render(scene, this.camera);
@@ -1931,5 +1997,125 @@ export class Application {
     const currentMode = this.polygonSelectionManager?.isActive ? 'polygon' : 'object';
     const newMode = currentMode === 'polygon' ? 'object' : 'polygon';
     this.eventSystem.emit(EVENTS.SELECTION_MODE_CHANGED, { mode: newMode });
+  };
+
+  // Метод для выделения всех объектов на сцене и привязки гизмо к ним
+  selectAllSceneObjects = () => {
+    const models = this.stateManager?.getSceneState().models || [];
+    if (models.length === 0) {
+      Logger.log('[Application] No models in scene to select');
+      return;
+    }
+
+    Logger.log(`[Application] Selecting all ${models.length} scene objects for gizmo manipulation`);
+
+    // Создаем группу для всех объектов сцены
+    const sceneGroup = new THREE.Group();
+    const scene = this._getSafeScene();
+    if (!scene) return;
+
+    // Сохраняем оригинальные позиции и родителей объектов
+    const originalTransforms = [];
+    models.forEach((model, index) => {
+      originalTransforms.push({
+        object: model,
+        parent: model.parent,
+        position: model.position.clone(),
+        quaternion: model.quaternion.clone(),
+        scale: model.scale.clone()
+      });
+
+      // Удаляем объект из его текущего родителя и добавляем в группу
+      if (model.parent) {
+        model.parent.remove(model);
+      }
+      sceneGroup.add(model);
+
+      // Сбрасываем локальные трансформации, так как они будут управляться группой
+      model.position.set(0, 0, 0);
+      model.quaternion.set(0, 0, 0, 1);
+      model.scale.set(1, 1, 1);
+    });
+
+    // Добавляем группу в сцену
+    scene.add(sceneGroup);
+
+    // Привязываем Transform Controls к группе
+    this.transformControls.attach(sceneGroup);
+
+    // Сохраняем информацию о групповом выделении для последующего восстановления
+    this.sceneGroupSelection = {
+      group: sceneGroup,
+      originalTransforms: originalTransforms,
+      models: models
+    };
+
+    // Обновляем состояние выделения (все объекты выделены)
+    this.stateManager?.setSelectedObject(sceneGroup);
+
+    // Устанавливаем outline для всех моделей
+    this.rendererManager?.setOutlineObjects(models);
+
+    // Обновляем bounding box для группы
+    this.sceneManager?.updateBBox([sceneGroup]);
+
+    // Открываем инспектор
+    if (this.inspectorApi && this.inspectorApi.selectObject) {
+      this.inspectorApi.selectObject(sceneGroup);
+    }
+    this.setInspectorOpen(true);
+
+    Logger.log('[Application] All scene objects selected and grouped for gizmo manipulation');
+  };
+
+  // Метод для восстановления оригинальной иерархии объектов после группового выделения
+  restoreOriginalHierarchy = () => {
+    if (!this.sceneGroupSelection) {
+      return;
+    }
+
+    const { group, originalTransforms, models } = this.sceneGroupSelection;
+    const scene = this._getSafeScene();
+    if (!scene) return;
+
+    Logger.log('[Application] Restoring original hierarchy after group manipulation');
+
+    // Получаем мировую трансформацию группы
+    const groupWorldMatrix = group.matrixWorld.clone();
+
+    // Восстанавливаем каждого объекта в его оригинального родителя
+    originalTransforms.forEach(({ object, parent }) => {
+      // Применяем трансформацию группы к объекту
+      const objectWorldMatrix = object.matrixWorld.clone();
+      objectWorldMatrix.premultiply(groupWorldMatrix);
+      object.matrix.copy(objectWorldMatrix);
+      object.matrix.decompose(object.position, object.quaternion, object.scale);
+
+      // Удаляем объект из группы и добавляем обратно к оригинальному родителю
+      group.remove(object);
+      if (parent) {
+        parent.add(object);
+      } else {
+        scene.add(object);
+      }
+
+      // Обновляем матрицы объекта
+      object.updateMatrix();
+      object.updateMatrixWorld();
+    });
+
+    // Удаляем группу из сцены
+    scene.remove(group);
+
+    // Очищаем информацию о групповом выделении
+    this.sceneGroupSelection = null;
+
+    // Отсоединяем Transform Controls
+    this.transformControls.detach();
+
+    // Очищаем выделение
+    this.clearSelection();
+
+    Logger.log('[Application] Original hierarchy restored');
   };
 }

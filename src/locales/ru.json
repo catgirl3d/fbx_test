@@ -89,6 +89,7 @@
   "displayTitle": "Отображение",
   "cameraTitle": "Камера",
   "toggleFXAA": "FXAA",
+  "toggleLoadDefaultModel": "Загружать модель по умолчанию",
   "matStandard": "Standard",
   "matPhong": "Phong",
   "matBasic": "Basic",
@@ -125,10 +126,17 @@
   "camIso": "Изометрия",
   "lang_en": "English",
   "lang_ru": "Русский",
+  "lang_ua": "Українська",
   "animSpeedUnit": "x",
   "loading": "Загрузка...",
   "loadingTitle": "Загрузка",
   "select_zip_file": "Выберите ZIP файл",
   "attachments_loaded": "Вложения загружены",
-  "alert_select_two_objects": "Пожалуйста, выберите ровно два объекта: объект для присоединения и целевой родитель (например, кость)."
+  "alert_select_two_objects": "Пожалуйста, выберите ровно два объекта: объект для присоединения и целевой родитель (например, кость).",
+  "polygonSelectionTitle": "Режим выделения полигонов",
+  "togglePolygonSelection": "Выделение полигонов",
+  "polygonModeLabel": "Режим выделения полигонов",
+  "btnClearPolygonSelection": "Очистить выделение",
+  "debugTitle": "Отладка",
+  "toggleDebugLog": "Включить отладочное логирование"
 }

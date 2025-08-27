@@ -80,12 +80,12 @@
     .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
     .row label{ font-size:12px; color: var(--muted) }
     .row .range { flex-grow: 1; } /* Allow sliders to take up remaining space */
-    .field{ background:var(--bg-panel); border:1px solid var(--border); border-radius: 8px; padding:6px 8px; color:var(--text) }
+    .field{ background:var(--bg-panel); border:1px solid var(--border); border-radius: 8px; padding:6px 6px; color:var(--text) }
     .split{ height:1px; background:var(--border); opacity:.5; margin: 4px 0 }
     .group{ display:flex; flex-direction:column; gap:8px }
     .scroll{ overflow:auto; }
     .small{ font-size:12px; color: var(--muted) }
-    .row .small { width: 26px; text-align: right; flex-shrink: 0; } /* Fixed width for value displays */
+    .row span.small[id$="-val"] { width: 26px; text-align: right; flex-shrink: 0; } /* Fixed width for value displays */
     .kbd{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:var(--chip-bg); border:1px solid var(--chip-bd); border-radius:6px; padding:1px 6px; font-size:11px; color:var(--chip-tx) }
 
     /* Inspector */
@@ -438,6 +438,7 @@
       align-items: center;
       gap: 4px; /* Small gap between label and input */
       white-space: nowrap; /* Prevent "Speed 0.25 x" from wrapping */
+      flex-shrink: 0; /* Prevent from shrinking */
     }
 
     /* Visually hide content while keeping it accessible for screen readers */
@@ -470,24 +471,26 @@
     }
 
     .anim-speed-control input {
-      width: 60px; /* Adjust width for speed input */
+      width: 54px; /* Adjust width for speed input */
       text-align: center;
+      font-size: 12px;
     }
 
     /* For the slider row */
-    .section-body > .row:nth-child(3) { /* Target the third .row in section-body (slider row) */
+    .section-body > .row:nth-of-type(2) { /* Target the slider row (second row) */
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
     #anim-progress {
-      flex-grow: 1; /* Allow slider to take available space */
-      max-width: 60%; /* Limit slider width to 60% as requested */
+      flex: 1 1 auto; /* Allow slider to grow and shrink */
+      min-width: 40px; /* Prevent slider from disappearing */
     }
 
     #anim-time {
       white-space: nowrap; /* Prevent time display from wrapping */
+      flex-shrink: 0; /* Prevent from shrinking */
     }
 /* Drag and Drop feedback */
 .viewer-wrap.drag-over {
