@@ -92,6 +92,7 @@ class DOMManager {
       'envIntensityVal': '#env-intensity-val',
       'exposureVal': '#exposure-val',
       'fps': '#fps',
+      'renderIcon': '#render-icon',
       'overlay': '#overlay',
       'meter': '#meter',
       'progressTitle': '#progress-title',

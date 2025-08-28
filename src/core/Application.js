@@ -29,6 +29,7 @@ export class Application {
     this.renderRequested = false; // Flag to request a single render
     this.isModelLoading = false; // Flag to indicate if a model is currently loading
     this.animationEndDelay = null; // Timer for delayed stop after animation ends
+    this.lastSignificantRenderTime = performance.now(); // Timestamp of last significant render operation
     
     // Initialize core systems
     Logger.log('[Application] Initializing StateManager...');
@@ -155,6 +156,7 @@ export class Application {
     const scene = this._getSafeScene();
     if (scene && this.rendererManager?.renderer) {
       this.rendererManager.render(scene, this.camera);
+      this.lastRenderTime = performance.now(); // Update last render timestamp
       Logger.log('[Application] Initial empty scene rendered immediately');
     }
     
@@ -584,6 +586,9 @@ export class Application {
       toggleBtn.innerHTML = '<span class="icon">✕</span>';
       toggleBtn.title = 'Close Inspector (I)';
     }
+
+    // Initialize render icon color
+    this.updateRenderIcon();
   }
 
   // Event handlers
@@ -1769,7 +1774,7 @@ export class Application {
    */
   updateFps = (dt) => {
     if (!this.dom?.get('fps')) return;
-    
+
     const now = performance.now();
     if (!this.lastFpsUpdate) this.lastFpsUpdate = now;
     if (now - this.lastFpsUpdate >= 500) {
@@ -1779,6 +1784,27 @@ export class Application {
         fpsEl.textContent = String(fps);
       }
       this.lastFpsUpdate = now;
+    }
+  }
+
+  /**
+   * Updates the render icon color based on recent rendering activity.
+   */
+  updateRenderIcon = () => {
+    const renderIconEl = this.dom?.get('render-icon');
+    if (!renderIconEl) return;
+
+    const now = performance.now();
+    const timeSinceLastSignificantRender = now - this.lastSignificantRenderTime;
+    const RENDER_ACTIVE_THRESHOLD = 1000; // 1 second
+
+    // Render is active if there was a significant render operation within the last second
+    const isRenderActive = timeSinceLastSignificantRender < RENDER_ACTIVE_THRESHOLD;
+
+    if (isRenderActive) {
+      renderIconEl.style.color = 'var(--ok)'; // Green when rendering recently
+    } else {
+      renderIconEl.style.color = 'var(--danger)'; // Red when no recent renders
     }
   }
   
@@ -1806,15 +1832,24 @@ export class Application {
       );
     }
 
+    // Always update FPS and render icon every frame
+    this.updateFps(dt);
+    this.updateRenderIcon();
+
     // Рендерим кадр, если есть какие-либо обновления или если сцена пустая (чтобы избежать черного экрана)
     const hasNoModels = this.stateManager?.getSceneState().models.length === 0;
     if (this.renderRequested || controlsUpdated || isAnimationPlaying || hasNoModels) {
       const scene = this._getSafeScene();
       if (scene && this.rendererManager?.renderer) {
         this.rendererManager.render(scene, this.camera);
+
+        // Update significant render time only for meaningful renders
+        if (this.renderRequested || controlsUpdated || isAnimationPlaying) {
+          this.lastSignificantRenderTime = performance.now();
+        }
+
         this.renderRequested = false;
       }
-      this.updateFps(dt);
     }
   };
 
@@ -1827,6 +1862,7 @@ export class Application {
         this.isRunning = true;
         this.clock.start();
         this.rafId = requestAnimationFrame(this.animate);
+        this.updateRenderIcon(); // Update render icon color
     }
   };
 
@@ -1840,6 +1876,7 @@ export class Application {
         this.clock.stop();
         cancelAnimationFrame(this.rafId);
         this.rafId = null;
+        this.updateRenderIcon(); // Update render icon color
     }
   };
 

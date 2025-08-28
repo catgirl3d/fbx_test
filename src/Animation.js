@@ -146,8 +146,8 @@ export class AnimationManager {
   update(dt) {
     if (this.mixer) {
       this.mixer.update(dt);
-      // If an animation is playing, we need to signal that a render is needed
-      if (this.activeAction && !this.activeAction.paused) {
+      // If an animation is actually playing (not just active but not finished), signal render needed
+      if (this.isPlaying()) {
         this.onUpdate();
       }
     }

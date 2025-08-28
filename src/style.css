@@ -167,6 +167,7 @@
     }
     .chip{ pointer-events:auto; background:var(--chip-bg); border:1px solid var(--chip-bd); border-radius: 999px; padding: 6px 10px; font-size:12px; color:var(--chip-tx) }
     .chip b{ color:var(--text) }
+    .chip #render-icon{ font-size:14px; transition: color 0.2s ease; }
     .open-inspector-tab {
       position: fixed;
       top: 50%;
