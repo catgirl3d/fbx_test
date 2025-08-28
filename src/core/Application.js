@@ -969,61 +969,6 @@ export class Application {
     this.requestRender('[handleModelLoaded]');
   };
 
-  handleKeyPress = (event) => {
-    const { code } = event;
-    switch(code) {
-      case 'KeyF':
-        const selectedObject = this.stateManager.getSceneState().selectedObject;
-        if (selectedObject) {
-          this.frameObject([selectedObject]);
-        } else {
-          this.handleFrame();
-        }
-        break;
-      case 'KeyR':
-        this.camera.position.set(2, 1.2, 3);
-        this.controls.target.set(0, 0.8, 0);
-        this.controls.update();
-        break;
-      case 'Delete':
-      case 'Backspace':
-        this.clearSelection();
-        break;
-      case 'Escape':
-        // Закрывать инспектор по ESC
-        const uiState = this.stateManager?.getUIState();
-        if (uiState?.isInspectorOpen) {
-          this.setInspectorOpen(false);
-        } else {
-          this.clearSelection();
-        }
-        break;
-      case 'KeyI':
-        // Переключение инспектора по клавише I
-        const currentInspectorState = this.stateManager?.getUIState()?.isInspectorOpen;
-        this.setInspectorOpen(!currentInspectorState);
-        break;
-      // *** НОВОЕ: Горячие клавиши для Transform Controls ***
-      case 'KeyG': // G - Move (Grab)
-        this.enableTransformControls(true, 'translate');
-        break;
-      case 'KeyS': // S - Scale
-        this.enableTransformControls(true, 'scale');
-        break;
-      case 'KeyE': // E - Rotate
-        this.enableTransformControls(true, 'rotate');
-        break;
-      case 'Tab': // Tab - Toggle transform controls
-        event.preventDefault(); // Предотвращаем стандартное поведение Tab
-        const currentState = this.dom?.isChecked('toggle-transform');
-        this.enableTransformControls(!currentState);
-        break;
-      case 'KeyP': // P - Toggle polygon selection mode
-        event.preventDefault();
-        this.togglePolygonSelectionMode();
-        break;
-    }
-  };
 
   handleContextMenu = ({ clientX, clientY }) => {
     const raycaster = new THREE.Raycaster();
@@ -1052,28 +997,40 @@ export class Application {
     this.requestRender('[handleContextMenu]');
   };
 
+  clearAllSelections = () => {
+    // Clear object selection
+    this.stateManager?.setSelectedObject(null);
+    this.rendererManager?.setOutlineObjects([]);
+    this.sceneManager?.updateBBox(null);
+
+    // Clear polygon selection
+    this.selectedPolygons.clear();
+    this.updatePolygonSelectionVisuals();
+    this.updatePolygonCountDisplay();
+    this.rendererManager?.clearFaceOutlines();
+
+    // Common cleanup
+    if (this.transformControls) {
+      this.transformControls.detach();
+    }
+
+    if (this.inspectorApi?.refresh) {
+      this.inspectorApi.refresh();
+    }
+
+    // Single render request
+    this.requestRender('[clearAllSelections]');
+
+    Logger.log('[Application] All selections cleared');
+  };
+
   clearSelection = () => {
     // Если есть активное групповое выделение, восстанавливаем оригинальную иерархию
     if (this.sceneGroupSelection) {
       this.restoreOriginalHierarchy();
     }
 
-    this.stateManager?.setSelectedObject(null);
-    this.rendererManager?.setOutlineObjects([]);
-    this.sceneManager?.updateBBox(null);
-    this.clearPolygonSelection(); // Clear polygon selection as well
-
-    // *** ИСПРАВЛЕНИЕ: Отсоединяем Transform Controls ***
-    if (this.transformControls) {
-      this.transformControls.detach();
-    }
-
-
-    if (this.inspectorApi?.refresh) {
-      this.inspectorApi.refresh();
-    }
-
-    Logger.log('[Application] Selection cleared');
+    this.clearAllSelections();
   };
 
   updateFilenameDisplay = (filename) => {
@@ -1239,29 +1196,27 @@ export class Application {
     try {
       const defaultModelPath = 'model/Y_Bot.fbx';
       Logger.log(`[Application] Loading default model: ${defaultModelPath}`);
-      
+
       let stepStart = performance.now();
       const response = await fetch(defaultModelPath);
       Logger.log(`[Perf] fetch() default model took: ${(performance.now() - stepStart).toFixed(2)}ms`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to load default model: ${response.status} ${response.statusText}`);
       }
-      
+
       stepStart = performance.now();
       const arrayBuffer = await response.arrayBuffer();
       Logger.log(`[Perf] response.arrayBuffer() took: ${(performance.now() - stepStart).toFixed(2)}ms`);
-      
+
       const defaultModelFile = new File([arrayBuffer], defaultModelPath.split('/').pop(), { type: 'application/octet-stream' });
-      
-      this.dom?.showOverlay(t('loading_model'), defaultModelFile.name);
 
       this.isModelLoading = true;
 
       stepStart = performance.now();
       const model = await this.loadModel(defaultModelFile);
       Logger.log(`[Perf] this.loadModel() (default) took: ${(performance.now() - stepStart).toFixed(2)}ms`);
-      
+
       Logger.log('[Application] Default model loaded successfully:', model);
       if (model) {
         const box = new THREE.Box3().setFromObject(model);
@@ -1273,8 +1228,6 @@ export class Application {
       this.dom?.showToast(t('error_loading_default_model', { message: error.message }));
     } finally {
       this.isModelLoading = false;
-      this.stop(); // Stop continuous rendering
-      this.dom?.hideOverlay();
       Logger.log(`[Perf] loadDefaultModel() (total) took: ${(performance.now() - start).toFixed(2)}ms`);
     }
   };
@@ -2097,17 +2050,11 @@ export class Application {
 
   clearPolygonSelection = (showToast = true) => {
     Logger.log('[Application] Clearing polygon selection. Current count:', this.getTotalSelectedPolygonCount());
-    this.selectedPolygons.clear();
-    Logger.log('[Application] selectedPolygons cleared. New count:', this.getTotalSelectedPolygonCount());
-    this.updatePolygonSelectionVisuals();
-    this.updatePolygonCountDisplay();
-    this.rendererManager?.clearFaceOutlines(); // Assuming a method to clear face outlines
-    Logger.log('[Application] clearFaceOutlines called');
+    this.clearAllSelections();
     if (showToast) {
       this.showToast(t('polygon_selection_cleared'));
     }
     Logger.log('[Application] Polygon selection cleared successfully');
-    this.requestRender('[clearPolygonSelection]');
   };
 
   updatePolygonSelectionVisuals = () => {
