@@ -430,10 +430,10 @@ export class Application {
         sceneManager: this.sceneManager,
         lighting: this.lightingManager,
         tControls: this.transformControls,
-        getLoadedModels: () => this.stateManager.getSceneState().models,
+        getLoadedModels: () => this.stateManager.getModels(),
         getCurrentModel: () => this.stateManager.getSceneState().selectedObject ||
-          (this.stateManager.getSceneState().models.length > 0 ?
-           this.stateManager.getSceneState().models[0] : null),
+          (this.stateManager.getModels().length > 0 ?
+            this.stateManager.getModels()[0] : null),
         onSelect: (obj) => {
           this.rendererManager?.setOutlineObjects(obj);
           const objectToUpdate = Array.isArray(obj) ? (obj.length > 0 ? obj[0] : null) : obj;
@@ -672,8 +672,8 @@ export class Application {
       this.sceneManager?.setEnvironment(texture);
       this.sceneManager?.applyEnvIntensity && this.sceneManager?.applyEnvIntensity(
         Number(this.dom?.get('env-intensity')?.value || 1),
-        this.stateManager?.getSceneState().models.length > 0 ?
-          this.stateManager?.getSceneState().models : this._ensureSceneAvailable() || null // Use _ensureSceneAvailable
+        this.stateManager?.getModels().length > 0 ?
+          this.stateManager?.getModels() : this._ensureSceneAvailable() || null // Use _ensureSceneAvailable
       );
       this.dom?.hideOverlay();
       this.dom?.showToast(t('hdri_applied'));
@@ -689,17 +689,17 @@ export class Application {
       this.dom?.showToast(t('select_zip_file_textures'));
       return;
     }
-    
+
     if (!file.name.toLowerCase().endsWith('.zip')) {
       this.dom?.showToast(t('select_zip_file'));
       return;
     }
-    
+
     try {
       this.dom?.showOverlay(t('loading_textures'), file.name);
       await this.assetLoader?.loadTexturesFromZIP(file, (p) => this.dom?.setProgress(p));
-      
-      const models = this.stateManager?.getSceneState().models;
+
+      const models = this.stateManager?.getModels();
       if (models && models.length > 0) {
         models.forEach(model => {
           this.assetLoader?.applyTexturesToModel(model);
@@ -710,7 +710,7 @@ export class Application {
       } else {
         this.dom?.showToast(t('load_fbx_before_applying_textures'));
       }
-      
+
       this.dom?.hideOverlay();
     } catch (error) {
       this.dom?.hideOverlay();
@@ -720,7 +720,7 @@ export class Application {
   };
 
   handleFrame = () => {
-    const models = this.stateManager?.getSceneState().models;
+    const models = this.stateManager?.getModels();
     const scene = this._ensureSceneAvailable(); // Use _ensureSceneAvailable
     this.frameObject(models && models.length > 0 ? models : (scene || null));
   };
@@ -803,7 +803,7 @@ export class Application {
       const scene = this._ensureSceneAvailable();
       if (!scene) return;
 
-      const models = this.stateManager?.getSceneState().models || [];
+      const models = this.stateManager?.getModels();
       const intersectableObjects = [];
 
       models.forEach(model => {
@@ -1078,7 +1078,7 @@ export class Application {
   };
 
   flipUVs = (flip) => {
-    const loadedModels = this.stateManager?.getSceneState().models;
+    const loadedModels = this.stateManager?.getModels();
     if (!loadedModels || loadedModels.length === 0) return;
 
     loadedModels.forEach(model => {
@@ -1116,7 +1116,7 @@ export class Application {
   };
 
   loadAttachmentState = () => {
-    const loadedModels = this.stateManager?.getSceneState().models;
+    const loadedModels = this.stateManager?.getModels();
     if (!loadedModels || loadedModels.length === 0) return;
 
     try {
@@ -1440,8 +1440,8 @@ export class Application {
     if (settings.toneMapping) {
       this.renderSettings?.applyToneMapping(settings.toneMapping);
     }
-    
-    const loadedModels = this.stateManager?.getSceneState().models;
+
+    const loadedModels = this.stateManager?.getModels();
     if (loadedModels) {
       for (const model of loadedModels) {
         // Pass the settings object to applyModelSettings
@@ -1467,7 +1467,7 @@ export class Application {
     if (settings.environment) {
       if (settings.environment.intensity !== undefined) {
         const scene = this._ensureSceneAvailable(); // Use _ensureSceneAvailable
-        this.sceneManager?.applyEnvIntensity(settings.environment.intensity, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null));
+        this.sceneManager?.applyEnvIntensity(settings.environment.intensity, this.stateManager?.getModels().length > 0 ? this.stateManager?.getModels() : (scene || null));
       }
     }
     this.requestRender('[handleLightingSettingsChanged]');
@@ -1511,7 +1511,7 @@ export class Application {
     const envIntensityVal = this.dom?.get('env-intensity-val');
     const hdriUrlInput = this.dom?.get('hdri-url');
 
-    if (envIntensityEl) { envIntensityEl.value = 1; try { const scene = this._ensureSceneAvailable(); this.sceneManager?.applyEnvIntensity(1, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error('[Application] Failed to reset environment intensity:', e); } if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
+    if (envIntensityEl) { envIntensityEl.value = 1; try { const scene = this._ensureSceneAvailable(); this.sceneManager?.applyEnvIntensity(1, this.stateManager?.getModels().length > 0 ? this.stateManager?.getModels() : (scene || null)); } catch(e){ Logger.error('[Application] Failed to reset environment intensity:', e); } if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
     if (hdriUrlInput) { hdriUrlInput.value = ''; }
     try { this.sceneManager?.setEnvironment(null); } catch(e){ Logger.error('[Application] Failed to reset environment:', e); }
     this.dom?.showToast(t('reset_environment'));
@@ -1578,7 +1578,7 @@ export class Application {
     if (matOverrideEl) matOverrideEl.value = 'none';
     if (toggleWireframeEl) toggleWireframeEl.checked = false;
     try {
-      const loadedModels = this.stateManager?.getSceneState().models;
+      const loadedModels = this.stateManager?.getModels();
       loadedModels?.forEach(model => {
         import('../Materials.js').then(({ applyMaterialOverride }) => {
           applyMaterialOverride(model, { overrideType: (matOverrideEl?.value || 'none'), wire: !!toggleWireframeEl?.checked, envIntensity: Number(document.getElementById('env-intensity')?.value || 1) });
@@ -1594,7 +1594,7 @@ export class Application {
 
     // camera & selection (clear outlines, detach gizmos)
     try { this.rendererManager?.setOutlineObjects([]); } catch(e){ Logger.error('[Application] Failed to clear outline objects:', e); }
-    try { const scene = this._ensureSceneAvailable(); this.frameObject(this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error('[Application] Failed to frame object on reset:', e); }
+    try { const scene = this._ensureSceneAvailable(); this.frameObject(this.stateManager?.getModels().length > 0 ? this.stateManager?.getModels() : (scene || null)); } catch(e){ Logger.error('[Application] Failed to frame object on reset:', e); }
 
     // persist defaults by clearing settings store
     try { this.settings?.clear(); } catch(e){ Logger.error('[Application] Failed to clear settings:', e); }
@@ -1603,7 +1603,7 @@ export class Application {
   };
 
   handleCameraPreset = (view) => {
-    const models = this.stateManager?.getSceneState().models;
+    const models = this.stateManager?.getModels();
     const scene = this._ensureSceneAvailable(); // Use _ensureSceneAvailable
     const targetObjects = models && models.length > 0 ? models : (scene ? [scene] : []);
     
@@ -1655,8 +1655,8 @@ export class Application {
 
   clearScene = () => {
     Logger.log('[Application] clearScene() started - clearing scene models and textures');
-    
-    const models = [...(this.stateManager?.getSceneState().models || [])];
+
+    const models = [...(this.stateManager?.getModels() || [])];
     Logger.log(`[Application] Found ${models.length} models to remove from scene`);
     
     models.forEach(model => {
@@ -1825,7 +1825,7 @@ export class Application {
     this.updateRenderIcon();
 
     // Рендерим кадр, если есть какие-либо обновления или если сцена пустая (чтобы избежать черного экрана)
-    const hasNoModels = this.stateManager?.getSceneState().models.length === 0;
+    const hasNoModels = this.stateManager?.getModels().length === 0;
     if (this.renderRequested || controlsUpdated || isAnimationPlaying || hasNoModels) {
       const scene = this._ensureSceneAvailable();
       if (scene && this.rendererManager?.renderer) {
@@ -1900,7 +1900,7 @@ export class Application {
   };
 
   saveAttachmentState = () => {
-    const models = this.stateManager?.getSceneState().models;
+    const models = this.stateManager?.getModels();
     if (!models || models.length === 0) {
       localStorage.removeItem('threejs_model_attachments');
       return;
@@ -2000,8 +2000,8 @@ export class Application {
  
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, this.camera);
- 
-    const models = this.stateManager?.getSceneState().models || [];
+
+    const models = this.stateManager?.getModels();
     const intersectableObjects = [];
     models.forEach(model => {
         model.traverse(child => {
@@ -2143,7 +2143,7 @@ export class Application {
 
   // Метод для выделения всех объектов на сцене и привязки гизмо к ним
   selectAllSceneObjects = () => {
-    const models = this.stateManager?.getSceneState().models || [];
+    const models = this.stateManager?.getModels();
     if (models.length === 0) {
       Logger.log('[Application] No models in scene to select');
       return;

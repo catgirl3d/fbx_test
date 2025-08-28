@@ -64,6 +64,10 @@ export class StateManager {
     return this.#state.app;
   }
 
+  getModels() {
+    return this.#state.scene.models;
+  }
+
   // State update methods
   updateSceneState(patch) {
     this.#state.scene = { ...this.#state.scene, ...patch };

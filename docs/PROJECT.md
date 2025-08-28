@@ -127,7 +127,7 @@ See `LOGGING_GUIDELINES.md` for complete logging standards.
 **Error Resilience**:
 - Always check for null/undefined before method calls
 - Use optional chaining: `this.manager?.method?.()`
-- Implement safe getter methods like `_getSafeScene()`
+- Implement safe getter methods like `_ensureSceneAvailable()`
 
 **Resource Management**:
 - Implement proper `dispose()` methods
