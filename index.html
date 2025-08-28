@@ -253,8 +253,13 @@
               <i class="fas fa-draw-polygon"></i>
               <span data-i="togglePolygonSelection">Выделение полигонов</span>
             </label>
+            <button id="clear-polygon-selection" class="btn secondary">
+              <i class="fas fa-eraser"></i>
+              <span data-i="btnClearPolygonSelection">Очистить выделение</span>
+            </button>
+            <span class="tag" id="selected-polygon-count">0</span>
           </div>
-
+ 
           <!-- New: explicit mode selector for polygon selection -->
           <div class="row small" style="margin-top:6px">
             <label data-i="polygonModeLabel">Polygon select mode</label>
@@ -262,14 +267,6 @@
               <option value="click" selected>Click select (single-face)</option>
               <option value="lasso">Lasso / Draw select (area)</option>
             </select>
-          </div>
-
-          <div class="row">
-            <button id="clear-polygon-selection" class="btn secondary">
-              <i class="fas fa-eraser"></i>
-              <span data-i="btnClearPolygonSelection">Очистить выделение</span>
-            </button>
-            <span class="tag" id="selected-polygon-count">0</span>
           </div>
         </div>
       </details>

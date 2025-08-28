@@ -312,7 +312,11 @@ export class UIBindings {
     // Dynamically bind/unbind onCanvasClick based on the selected polygon mode
     const updateCanvasClickHandler = () => {
       const currentPolygonSelectMode = polygonSelectionModeSelect ? (polygonSelectionModeSelect.value || 'click') : 'click';
-      if (polygonSelectionModeCheckbox?.checked && currentPolygonSelectMode === 'click') {
+      const isPolygonModeChecked = polygonSelectionModeCheckbox?.checked;
+
+      Logger.log(`[UIBindings] updateCanvasClickHandler - Mode: ${currentPolygonSelectMode}, Checked: ${isPolygonModeChecked}`);
+
+      if (isPolygonModeChecked && currentPolygonSelectMode === 'click') {
         this.bind(canvas, 'click', onCanvasClick);
         Logger.log('[UIBindings] onCanvasClick bound for "Click select" mode.');
       } else {
@@ -322,12 +326,16 @@ export class UIBindings {
     };
  
     this.bind(clearPolygonSelectionButton, 'click', () => {
+      Logger.log('[UIBindings] Clear polygon selection button clicked');
       this.eventSystem?.emit(EVENTS.POLYGON_SELECTION_CLEARED);
+      Logger.log('[UIBindings] POLYGON_SELECTION_CLEARED event emitted');
     });
  
     // When checkbox toggled, switch overall selection mode (object vs polygon)
     this.bind(polygonSelectionModeCheckbox, 'change', () => {
       const isPolygonMode = polygonSelectionModeCheckbox?.checked;
+      Logger.log(`[UIBindings] Polygon selection mode checkbox changed to: ${isPolygonMode}`);
+
       this.eventSystem?.emit(EVENTS.SELECTION_MODE_CHANGED, {
         mode: isPolygonMode ? 'polygon' : 'object'
       });
@@ -341,15 +349,29 @@ export class UIBindings {
         Logger.log('[UIBindings] Object picking (mousedown) bound.');
       }
 
-      updateCanvasClickHandler(); // Update click handler state immediately
+      // Update click handler state and notify about polygon select mode change
+      updateCanvasClickHandler();
+
+      // Also emit polygon select mode change to ensure proper state update
+      const currentMode = polygonSelectionModeSelect ? (polygonSelectionModeSelect.value || 'click') : 'click';
+      this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, {
+        polygonSelectModeChange: currentMode,
+        isPolygonModeActive: isPolygonMode
+      });
     });
  
-    // When the explicit polygon-select-mode changes, emit an event and update click handler
+    // When the explicit polygon-select-mode changes, emit event to update behavior
     if (polygonSelectionModeSelect) {
       this.bind(polygonSelectionModeSelect, 'change', () => {
         const value = polygonSelectionModeSelect.value || 'click';
         Logger.log('[UIBindings] polygon-select-mode changed to', value);
-        this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, { polygonSelectMode: value });
+
+        // Emit event to notify Application.js of the mode change
+        this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, {
+          polygonSelectModeChange: value,
+          isPolygonModeActive: polygonSelectionModeCheckbox?.checked || false
+        });
+
         updateCanvasClickHandler(); // Update click handler state immediately
       });
     }

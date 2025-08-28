@@ -589,6 +589,22 @@ export class Application {
 
     // Initialize render icon color
     this.updateRenderIcon();
+
+    // Initialize polygon selection mode to always be disabled by default
+    // This ensures the polygon selection toggle is OFF on every app startup
+    // and its state is not persisted to localStorage
+    const polygonSelectionModeEl = this.dom?.get('polygon-selection-mode');
+    if (polygonSelectionModeEl) {
+      polygonSelectionModeEl.checked = false;
+      Logger.log('[Application] Polygon selection mode initialized to disabled (not persisted)');
+    }
+
+    // Initialize polygon select mode dropdown to 'click' by default
+    const polygonSelectModeEl = this.dom?.get('polygon-select-mode');
+    if (polygonSelectModeEl && !polygonSelectModeEl.value) {
+      polygonSelectModeEl.value = 'click';
+      Logger.log('[Application] Polygon select mode initialized to click');
+    }
   }
 
   // Event handlers
@@ -1391,10 +1407,25 @@ export class Application {
   };
 
   handleSettingsChanged = (settings) => {
+    // Handle polygon select mode changes
+    if (settings.polygonSelectModeChange !== undefined) {
+      Logger.log(`[Application] Polygon select mode changed to: ${settings.polygonSelectModeChange}, isActive: ${settings.isPolygonModeActive}`);
+      this.handlePolygonSelectModeChange(settings.polygonSelectModeChange, settings.isPolygonModeActive);
+      delete settings.polygonSelectModeChange;
+      delete settings.isPolygonModeActive;
+    }
+
+    // Ignore polygonSelectMode settings - they should not be saved to localStorage
+    if (settings.polygonSelectMode !== undefined) {
+      Logger.log(`[Application] Ignoring polygonSelectMode setting change (not saving to localStorage): ${settings.polygonSelectMode}`);
+      // Remove polygonSelectMode from settings to prevent it from being processed further
+      delete settings.polygonSelectMode;
+    }
+
     if (settings.transform) {
       if (settings.transform.enabled !== undefined) {
         this.transformControls?.enable(settings.transform.enabled);
-        
+
         // При включении Transform Controls привязываем к выделенному объекту
         if (settings.transform.enabled) {
           const selectedObject = this.stateManager?.getSceneState().selectedObject;
@@ -1406,11 +1437,11 @@ export class Application {
           this.transformControls?.detach();
         }
       }
-      
+
       if (settings.transform.mode) {
         this.transformControls?.setMode(settings.transform.mode);
       }
-      
+
       if (settings.transform.snap) {
         const { enabled, translation, rotation, scale } = settings.transform.snap;
         this.transformControls?.setTranslationSnap(enabled ? translation : null);
@@ -1418,7 +1449,7 @@ export class Application {
         this.transformControls?.setScaleSnap(enabled ? scale : null);
       }
     }
-    
+
     if (settings.animation) {
       if (settings.animation.loop !== undefined) {
         this.animationManager?.setLoop(settings.animation.loop);
@@ -1995,6 +2026,7 @@ export class Application {
     });
 
     this.updatePolygonSelectionVisuals();
+    this.updatePolygonCountDisplay();
     this.showToast(t('polygons_selected', { count: this.getTotalSelectedPolygonCount() }));
     Logger.log(`[Application] Lasso selection completed. Selected ${this.getTotalSelectedPolygonCount()} polygons.`);
     this.requestRender('[handleLassoSelection]');
@@ -2038,8 +2070,9 @@ export class Application {
             }
             this.togglePolygonSelection(mesh, faceIndex);
             this.updatePolygonSelectionVisuals();
+            this.updatePolygonCountDisplay();
  // No debug markers here (visual debugging removed).
- 
+
             this.showToast(t('polygons_selected', { count: this.getTotalSelectedPolygonCount() }));
         }
     }
@@ -2063,13 +2096,18 @@ export class Application {
   };
 
   clearPolygonSelection = (showToast = true) => {
-    Logger.log('[Application] Clearing polygon selection.');
+    Logger.log('[Application] Clearing polygon selection. Current count:', this.getTotalSelectedPolygonCount());
     this.selectedPolygons.clear();
+    Logger.log('[Application] selectedPolygons cleared. New count:', this.getTotalSelectedPolygonCount());
     this.updatePolygonSelectionVisuals();
+    this.updatePolygonCountDisplay();
     this.rendererManager?.clearFaceOutlines(); // Assuming a method to clear face outlines
+    Logger.log('[Application] clearFaceOutlines called');
     if (showToast) {
       this.showToast(t('polygon_selection_cleared'));
     }
+    Logger.log('[Application] Polygon selection cleared successfully');
+    this.requestRender('[clearPolygonSelection]');
   };
 
   updatePolygonSelectionVisuals = () => {
@@ -2094,6 +2132,18 @@ export class Application {
     return count;
   };
 
+  updatePolygonCountDisplay = () => {
+    const count = this.getTotalSelectedPolygonCount();
+    const countElement = this.dom?.get('selected-polygon-count');
+    Logger.log('[Application] updatePolygonCountDisplay called. Count:', count, 'Element found:', !!countElement);
+    if (countElement) {
+      countElement.textContent = count.toString();
+      Logger.log('[Application] Updated polygon count display to:', count);
+    } else {
+      Logger.warn('[Application] selected-polygon-count element not found!');
+    }
+  };
+
   handleSelectionModeChange = ({ mode }) => {
     Logger.log(`[Application] Selection mode changed to: ${mode}`);
     if (mode === 'polygon') {
@@ -2115,6 +2165,23 @@ export class Application {
       this.controls.enabled = true; // Ensure orbit controls are re-enabled
     }
     this.showToast(t('selection_mode_changed', { mode }));
+  };
+
+  handlePolygonSelectModeChange = (newMode, isPolygonModeActive) => {
+    Logger.log(`[Application] handlePolygonSelectModeChange called with mode: ${newMode}, active: ${isPolygonModeActive}`);
+
+    if (isPolygonModeActive) {
+      // Only update polygon selection manager if polygon mode is active
+      if (newMode === 'lasso') {
+        Logger.log('[Application] Activating polygon selection manager for lasso mode');
+        this.polygonSelectionManager?.activate();
+      } else {
+        Logger.log('[Application] Deactivating polygon selection manager for click mode');
+        this.polygonSelectionManager?.deactivate();
+      }
+    } else {
+      Logger.log('[Application] Polygon mode not active, ignoring select mode change');
+    }
   };
 
   togglePolygonSelectionMode = () => {
