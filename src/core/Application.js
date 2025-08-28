@@ -153,7 +153,7 @@ export class Application {
     
     // Force immediate render to ensure the empty scene is visible right away
     Logger.log('[Application] Forcing immediate render for empty scene...');
-    const scene = this._getSafeScene();
+    const scene = this._ensureSceneAvailable();
     if (scene && this.rendererManager?.renderer) {
       this.rendererManager.render(scene, this.camera);
       this.lastRenderTime = performance.now(); // Update last render timestamp
@@ -278,7 +278,7 @@ export class Application {
     Logger.log('[Application] RenderSettings initialized.');
     
     Logger.log('[Application] Initializing LightingManager...');
-    const sceneForLighting = this._getSafeScene();
+    const sceneForLighting = this._ensureSceneAvailable();
     if (sceneForLighting) {
       this.lightingManager = new LightingManager({
         scene: sceneForLighting
@@ -673,7 +673,7 @@ export class Application {
       this.sceneManager?.applyEnvIntensity && this.sceneManager?.applyEnvIntensity(
         Number(this.dom?.get('env-intensity')?.value || 1),
         this.stateManager?.getSceneState().models.length > 0 ?
-          this.stateManager?.getSceneState().models : this._getSafeScene() || null // Use _getSafeScene
+          this.stateManager?.getSceneState().models : this._ensureSceneAvailable() || null // Use _ensureSceneAvailable
       );
       this.dom?.hideOverlay();
       this.dom?.showToast(t('hdri_applied'));
@@ -721,7 +721,7 @@ export class Application {
 
   handleFrame = () => {
     const models = this.stateManager?.getSceneState().models;
-    const scene = this._getSafeScene(); // Use _getSafeScene
+    const scene = this._ensureSceneAvailable(); // Use _ensureSceneAvailable
     this.frameObject(models && models.length > 0 ? models : (scene || null));
   };
 
@@ -800,7 +800,7 @@ export class Application {
 
       raycaster.setFromCamera(mouse, this.camera);
 
-      const scene = this._getSafeScene();
+      const scene = this._ensureSceneAvailable();
       if (!scene) return;
 
       const models = this.stateManager?.getSceneState().models || [];
@@ -1262,7 +1262,7 @@ export class Application {
     const objCountEl = this.dom?.get('obj-count');
     
     let tris = 0, objs = 0;
-    const scene = this._getSafeScene(); // Use _getSafeScene
+    const scene = this._ensureSceneAvailable(); // Use _ensureSceneAvailable
     if (scene) {
       scene.traverse(o => {
         objs++;
@@ -1466,7 +1466,7 @@ export class Application {
     }
     if (settings.environment) {
       if (settings.environment.intensity !== undefined) {
-        const scene = this._getSafeScene(); // Use _getSafeScene
+        const scene = this._ensureSceneAvailable(); // Use _ensureSceneAvailable
         this.sceneManager?.applyEnvIntensity(settings.environment.intensity, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null));
       }
     }
@@ -1511,7 +1511,7 @@ export class Application {
     const envIntensityVal = this.dom?.get('env-intensity-val');
     const hdriUrlInput = this.dom?.get('hdri-url');
 
-    if (envIntensityEl) { envIntensityEl.value = 1; try { const scene = this._getSafeScene(); this.sceneManager?.applyEnvIntensity(1, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error('[Application] Failed to reset environment intensity:', e); } if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
+    if (envIntensityEl) { envIntensityEl.value = 1; try { const scene = this._ensureSceneAvailable(); this.sceneManager?.applyEnvIntensity(1, this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error('[Application] Failed to reset environment intensity:', e); } if (envIntensityVal) envIntensityVal.textContent = (1).toFixed(2); }
     if (hdriUrlInput) { hdriUrlInput.value = ''; }
     try { this.sceneManager?.setEnvironment(null); } catch(e){ Logger.error('[Application] Failed to reset environment:', e); }
     this.dom?.showToast(t('reset_environment'));
@@ -1594,7 +1594,7 @@ export class Application {
 
     // camera & selection (clear outlines, detach gizmos)
     try { this.rendererManager?.setOutlineObjects([]); } catch(e){ Logger.error('[Application] Failed to clear outline objects:', e); }
-    try { const scene = this._getSafeScene(); this.frameObject(this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error('[Application] Failed to frame object on reset:', e); }
+    try { const scene = this._ensureSceneAvailable(); this.frameObject(this.stateManager?.getSceneState().models.length > 0 ? this.stateManager?.getSceneState().models : (scene || null)); } catch(e){ Logger.error('[Application] Failed to frame object on reset:', e); }
 
     // persist defaults by clearing settings store
     try { this.settings?.clear(); } catch(e){ Logger.error('[Application] Failed to clear settings:', e); }
@@ -1604,7 +1604,7 @@ export class Application {
 
   handleCameraPreset = (view) => {
     const models = this.stateManager?.getSceneState().models;
-    const scene = this._getSafeScene(); // Use _getSafeScene
+    const scene = this._ensureSceneAvailable(); // Use _ensureSceneAvailable
     const targetObjects = models && models.length > 0 ? models : (scene ? [scene] : []);
     
     const box = new THREE.Box3();
@@ -1643,10 +1643,14 @@ export class Application {
    */
   _getSafeScene = () => {
     if (!this.sceneManager) {
-      Logger.warn('[Application] SceneManager is not initialized when trying to get scene.');
+      Logger.warn('[Application] SceneManager not available');
       return null;
     }
     return this.sceneManager.getScene();
+  };
+
+  _ensureSceneAvailable = () => {
+    return this._getSafeScene();
   };
 
   clearScene = () => {
@@ -1823,7 +1827,7 @@ export class Application {
     // Рендерим кадр, если есть какие-либо обновления или если сцена пустая (чтобы избежать черного экрана)
     const hasNoModels = this.stateManager?.getSceneState().models.length === 0;
     if (this.renderRequested || controlsUpdated || isAnimationPlaying || hasNoModels) {
-      const scene = this._getSafeScene();
+      const scene = this._ensureSceneAvailable();
       if (scene && this.rendererManager?.renderer) {
         this.rendererManager.render(scene, this.camera);
 
@@ -2149,7 +2153,7 @@ export class Application {
 
     // Создаем группу для всех объектов сцены
     const sceneGroup = new THREE.Group();
-    const scene = this._getSafeScene();
+    const scene = this._ensureSceneAvailable();
     if (!scene) return;
 
     // Сохраняем оригинальные позиции и родителей объектов
@@ -2213,7 +2217,7 @@ export class Application {
     }
 
     const { group, originalTransforms, models } = this.sceneGroupSelection;
-    const scene = this._getSafeScene();
+    const scene = this._ensureSceneAvailable();
     if (!scene) return;
 
     Logger.log('[Application] Restoring original hierarchy after group manipulation');

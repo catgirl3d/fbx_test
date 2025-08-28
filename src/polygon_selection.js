@@ -404,14 +404,13 @@ export class PolygonSelectionManager {
 
   performSelection() {
     Logger.log('[PolygonSelection] performSelection() called. polygonPoints:', this.polygonPoints.length);
-    if (!this.sceneManager || this.polygonPoints.length < 3) {
-      Logger.log('[PolygonSelection] performSelection aborted - no sceneManager or insufficient points');
+    if (this.polygonPoints.length < 3) {
+      Logger.log('[PolygonSelection] performSelection aborted - insufficient points');
       return;
     }
-    
-    const scene = this.sceneManager.getScene();
+
+    const scene = this.sceneManager?.ensureSceneAvailable();
     if (!scene) {
-      Logger.log('[PolygonSelection] performSelection aborted - no scene returned by sceneManager');
       return;
     }
     
@@ -695,14 +694,8 @@ export class PolygonSelectionManager {
 
   // Additional selection methods
   selectObjectsInBox(startPoint, endPoint) {
-    if (!this.sceneManager) {
-      Logger.warn('[PolygonSelection] selectObjectsInBox aborted - no sceneManager.');
-      return [];
-    }
-    
-    const scene = this.sceneManager.getScene();
+    const scene = this.sceneManager?.ensureSceneAvailable();
     if (!scene) {
-      Logger.warn('[PolygonSelection] selectObjectsInBox aborted - no scene returned by sceneManager.');
       return [];
     }
     

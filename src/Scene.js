@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import Logger from './core/Logger.js';
 
 /**
  * SceneManager
@@ -24,6 +25,18 @@ export class SceneManager {
   }
 
   getScene() {
+    return this.scene;
+  }
+
+  /**
+   * Safely gets the THREE.Scene instance with availability check.
+   * @returns {THREE.Scene|null} The scene instance or null if not available.
+   */
+  ensureSceneAvailable() {
+    if (!this.scene) {
+      Logger.warn('[SceneManager] Scene not available');
+      return null;
+    }
     return this.scene;
   }
 
