@@ -1234,14 +1234,12 @@ export class Application {
       const defaultModelFile = new File([arrayBuffer], defaultModelPath.split('/').pop(), { type: 'application/octet-stream' });
       
       this.dom?.showOverlay(t('loading_model'), defaultModelFile.name);
-      
+
       this.isModelLoading = true;
-      
+
       stepStart = performance.now();
       const model = await this.loadModel(defaultModelFile);
       Logger.log(`[Perf] this.loadModel() (default) took: ${(performance.now() - stepStart).toFixed(2)}ms`);
-      
-      this.dom?.hideOverlay();
       
       Logger.log('[Application] Default model loaded successfully:', model);
       if (model) {
@@ -1251,9 +1249,11 @@ export class Application {
       }
     } catch (error) {
       Logger.error('[Application] Failed to load default model:', error);
+      this.dom?.showToast(t('error_loading_default_model', { message: error.message }));
     } finally {
       this.isModelLoading = false;
       this.stop(); // Stop continuous rendering
+      this.dom?.hideOverlay();
       Logger.log(`[Perf] loadDefaultModel() (total) took: ${(performance.now() - start).toFixed(2)}ms`);
     }
   };

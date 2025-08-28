@@ -123,7 +123,7 @@ export function initUI({
   clearSceneBtn?.addEventListener('click', () => {
     Logger.log('[UI] clear-scene button clicked - calling onClearScene()');
     onClearScene && onClearScene();
-    persistedToast(t('sceneCleared'));
+    persistedToast(t('scene_cleared'));
     persist();
     // Also trigger the same logic as the Delete hotkey - clear selection
     if (typeof window !== 'undefined' && window.clearSelection) {

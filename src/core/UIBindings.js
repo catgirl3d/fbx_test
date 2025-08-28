@@ -55,13 +55,23 @@ export class UIBindings {
   bindTransformControls() {
     const applySnap = () => {
       const snapEnabled = this.dom?.isChecked('toggle-snap');
+
       this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, {
         transform: {
           snap: {
             enabled: snapEnabled,
-            translation: snapEnabled ? Number(this.dom?.getValue('snap-pos')) : null,
-            rotation: snapEnabled ? THREE.MathUtils.degToRad(Number(this.dom?.getValue('snap-rot'))) : null,
-            scale: snapEnabled ? Number(this.dom?.getValue('snap-scale')) : null,
+            translation: snapEnabled ? (() => {
+              const parsed = Number(this.dom?.getValue('snap-pos'));
+              return Number.isFinite(parsed) ? parsed : null;
+            })() : null,
+            rotation: snapEnabled ? (() => {
+              const parsed = Number(this.dom?.getValue('snap-rot'));
+              return Number.isFinite(parsed) ? THREE.MathUtils.degToRad(parsed) : null;
+            })() : null,
+            scale: snapEnabled ? (() => {
+              const parsed = Number(this.dom?.getValue('snap-scale'));
+              return Number.isFinite(parsed) ? parsed : null;
+            })() : null,
           }
         }
       });
@@ -131,14 +141,18 @@ export class UIBindings {
 
   bindAnimations() {
     this.bind(this.dom?.get('anim-select'), 'change', () => {
-      this.eventSystem?.emit(EVENTS.ANIMATION_PLAY, { index: Number(this.dom?.getValue('anim-select')) });
+      const parsed = Number(this.dom?.getValue('anim-select'));
+      const index = Number.isFinite(parsed) ? parsed : 0;
+      this.eventSystem?.emit(EVENTS.ANIMATION_PLAY, { index });
     });
     this.bind(this.dom?.get('anim-playpause'), 'click', () => {
-      const state = this.dom?.get('anim-playpause')?.dataset.state;
+      const el = this.dom?.get('anim-playpause');
+      const state = String(el?.dataset?.state || 'stopped');
       if (state === 'playing') {
         this.eventSystem?.emit(EVENTS.ANIMATION_PAUSE);
       } else {
-        const index = Number(this.dom?.getValue('anim-select'));
+        const parsed = Number(this.dom?.getValue('anim-select'));
+        const index = Number.isFinite(parsed) ? parsed : 0;
         this.eventSystem?.emit(EVENTS.ANIMATION_PLAY, { index });
       }
     });
@@ -149,10 +163,13 @@ export class UIBindings {
       this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, { animation: { loop: this.dom?.isChecked('anim-loop') } });
     });
     this.bind(this.dom?.get('anim-speed'), 'change', () => {
-      this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, { animation: { speed: Number(this.dom?.getValue('anim-speed')) } });
+      const parsed = Number(this.dom?.getValue('anim-speed'));
+      const speed = Number.isFinite(parsed) ? parsed : 1;
+      this.eventSystem?.emit(EVENTS.SETTINGS_CHANGED, { animation: { speed } });
     });
     this.bind(this.dom?.get('anim-progress'), 'input', () => {
-      const progress = parseFloat(this.dom?.getValue('anim-progress'));
+      const parsed = parseFloat(this.dom?.getValue('anim-progress'));
+      const progress = Number.isFinite(parsed) ? parsed : 0;
       this.eventSystem?.emit(EVENTS.ANIMATION_TIME_UPDATE, { progress });
     });
   }
@@ -162,7 +179,12 @@ export class UIBindings {
     if (camPresetsEl) {
       const buttons = camPresetsEl.querySelectorAll('button');
       buttons.forEach(btn => {
-        this.bind(btn, 'click', () => this.eventSystem?.emit(EVENTS.CAMERA_PRESET, { view: btn.dataset.view }));
+        this.bind(btn, 'click', () => {
+          const view = btn.dataset.view?.toLowerCase();
+          if (view) {
+            this.eventSystem?.emit(EVENTS.CAMERA_PRESET, { view });
+          }
+        });
       });
     }
   }
@@ -210,22 +232,26 @@ export class UIBindings {
 
   bindLighting() {
     this.bind(this.dom?.get('dir-intensity'), 'input', () => {
-      const value = Number(this.dom?.getValue('dir-intensity'));
+      const parsed = Number(this.dom?.getValue('dir-intensity'));
+      const value = Number.isFinite(parsed) ? parsed : 1;
       this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { intensity: value } });
       this.dom?.get('dir-intensity-val') && (this.dom.get('dir-intensity-val').textContent = value.toFixed(1));
     });
     this.bind(this.dom?.get('dir-angle'), 'input', () => {
-      const value = Number(this.dom?.getValue('dir-angle'));
+      const parsed = Number(this.dom?.getValue('dir-angle'));
+      const value = Number.isFinite(parsed) ? parsed : 0;
       this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { angle: value } });
       this.dom?.get('dir-angle-val') && (this.dom.get('dir-angle-val').textContent = value.toFixed(0));
     });
     this.bind(this.dom?.get('dir-softness'), 'input', () => {
-      const value = Number(this.dom?.getValue('dir-softness'));
+      const parsed = Number(this.dom?.getValue('dir-softness'));
+      const value = Number.isFinite(parsed) ? parsed : 0;
       this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { directional: { softness: value } });
       this.dom?.get('dir-softness-val') && (this.dom.get('dir-softness-val').textContent = value.toFixed(2));
     });
     this.bind(this.dom?.get('env-intensity'), 'input', () => {
-      const value = Number(this.dom?.getValue('env-intensity'));
+      const parsed = Number(this.dom?.getValue('env-intensity'));
+      const value = Number.isFinite(parsed) ? parsed : 1;
       this.eventSystem?.emit(EVENTS.LIGHTING_SETTINGS_CHANGED, { environment: { intensity: value } });
       this.dom?.get('env-intensity-val') && (this.dom.get('env-intensity-val').textContent = value.toFixed(2));
     });
@@ -233,7 +259,8 @@ export class UIBindings {
 
   bindRenderSettings() {
     this.bind(this.dom?.get('exposure'), 'input', () => {
-      const value = Number(this.dom?.getValue('exposure'));
+      const parsed = Number(this.dom?.getValue('exposure'));
+      const value = Number.isFinite(parsed) ? parsed : 1;
       this.eventSystem?.emit(EVENTS.RENDER_SETTINGS_CHANGED, { exposure: value });
       this.dom?.get('exposure-val') && (this.dom.get('exposure-val').textContent = value.toFixed(2));
     });
