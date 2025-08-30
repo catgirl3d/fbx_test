@@ -3,6 +3,7 @@ import { DRACOLoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples
 import { TGALoader } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/TGALoader.js';
 import * as THREE from 'three';
 import Logger from '../core/Logger.js';
+import FBXMetadataExtractor from '../utils/FBXMetadataExtractor.js';
 
 /**
  * FBXLoaderWrapper
@@ -23,6 +24,7 @@ export class FBXLoaderWrapper {
     this._inited = false;
     this.textureResolver = textureResolver;
     this._originalLoadTexture = null;
+    this.metadataExtractor = new FBXMetadataExtractor();
 
     // Register TGALoader with the FBXLoader's manager
     this.loadingManager.addHandler(/\.tga$/i, new TGALoader());
@@ -46,6 +48,16 @@ export class FBXLoaderWrapper {
       this.loader.load(url, (obj) => {
         // Restore original texture loading method
         this._restoreTextureResolver();
+        
+        // Extract and attach metadata
+        try {
+          const metadata = this.metadataExtractor.extractMetadata(obj, file);
+          obj.userData.fbxMetadata = metadata;
+          Logger.log('[FBXLoader] Metadata extracted and attached to object');
+        } catch (error) {
+          Logger.warn('[FBXLoader] Failed to extract metadata:', error);
+        }
+        
         try { URL.revokeObjectURL(url); } catch (e) { Logger.warn('[FBXLoader] Failed to revoke object URL on success:', e); }
         resolve(obj);
       }, (evt) => {

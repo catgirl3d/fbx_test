@@ -1,16 +1,19 @@
 import * as THREE from 'three';
 import Logger from './core/Logger.js';
+import ModelGroupManager from './core/ModelGroupManager.js';
 
 /**
  * SceneManager
  * @param {Object} opts - Options
  * @param {THREE.Scene} [opts.scene] - Optional scene instance
  * @param {THREE.HemisphereLight} [opts.hemi] - Optional hemisphere light
+ * @param {Object} [opts.eventSystem] - Event system for group management
  */
 export class SceneManager {
-  constructor({ scene = null, stateManager = null } = {}) {
+  constructor({ scene = null, stateManager = null, eventSystem = null } = {}) {
     this.scene = scene || new THREE.Scene();
     this.stateManager = stateManager;
+    this.eventSystem = eventSystem;
     this.grid = null;
 
     this.measure = { group: new THREE.Group(), pts: [] };
@@ -20,6 +23,9 @@ export class SceneManager {
     this.env = null;
     this.measureLine = null;
     this.model = null; // Store reference to the loaded model
+
+    // Initialize ModelGroupManager
+    this.modelGroupManager = new ModelGroupManager(this.eventSystem, this);
 
     this.updateGrid(); // Call updateGrid initially
   }
@@ -120,8 +126,23 @@ export class SceneManager {
     this.scene.add(root);
     this.model = root; // Set the model when added
     this.updateGrid(); // Update grid based on new model
+
+    // Создаем группу для новой модели
+    if (this.modelGroupManager) {
+      const source = { name: root.name || 'Model', path: '', size: 0 };
+      this.modelGroupManager.createGroupForModel(root, source);
+    }
   }
+
   remove(root) {
+    // Удаляем группу перед удалением объекта из сцены
+    if (this.modelGroupManager) {
+      const group = this.modelGroupManager.findGroupByObject(root);
+      if (group) {
+        this.modelGroupManager.deleteGroup(group.id);
+      }
+    }
+
     this.scene.remove(root);
     this.disposeObject(root);
     this.model = null; // Clear model reference
@@ -192,7 +213,36 @@ export class SceneManager {
     return d;
   }
   
+  // Model Group Management Methods
+  getModelGroups() {
+    return this.modelGroupManager ? this.modelGroupManager.getAllGroups() : [];
+  }
+
+  getSelectedGroup() {
+    return this.modelGroupManager ? this.modelGroupManager.getSelectedGroup() : null;
+  }
+
+  selectGroup(group) {
+    if (this.modelGroupManager) {
+      this.modelGroupManager.selectGroup(group);
+    }
+  }
+
+  getGroupById(id) {
+    return this.modelGroupManager ? this.modelGroupManager.getGroupById(id) : null;
+  }
+
+  getGroupMetadata(groupId) {
+    return this.modelGroupManager ? this.modelGroupManager.getGroupMetadata(groupId) : null;
+  }
+
   dispose() {
+    // Dispose ModelGroupManager first
+    if (this.modelGroupManager) {
+      this.modelGroupManager.dispose();
+      this.modelGroupManager = null;
+    }
+
     // Remove and dispose all objects in the scene
     this.scene.traverse(obj => {
       if (obj.geometry) obj.geometry.dispose();

@@ -518,3 +518,116 @@ details.section[data-sec="debug"] .toggle {
     right: calc(90vw - 1px);
   }
 }
+
+/* FBX Metadata Inspector Styles */
+.fbx-metadata {
+  margin-top: 8px;
+}
+
+.metadata-section {
+  margin-bottom: 12px;
+  padding: 8px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+  border-left: 3px solid var(--ok);
+}
+
+.metadata-title {
+  font-weight: bold;
+  color: var(--ok);
+  margin-bottom: 6px;
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metadata-section div:not(.metadata-title) {
+  margin: 3px 0;
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
+.metadata-section strong {
+  color: var(--text);
+  min-width: 120px;
+  display: inline-block;
+}
+
+/* Dark theme adjustments for metadata */
+body.theme-dark .metadata-section {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-left-color: var(--ok);
+}
+
+body.theme-dark .metadata-title {
+  color: var(--ok);
+}
+
+/* Light theme adjustments for metadata */
+body:not(.theme-dark) .metadata-section {
+  background-color: rgba(0, 0, 0, 0.02);
+  border-left-color: var(--ok);
+}
+
+body:not(.theme-dark) .metadata-title {
+  color: var(--ok);
+}
+
+body:not(.theme-dark) .metadata-section strong {
+  color: var(--text);
+}
+
+/* Properties panel enhancements */
+.properties-content {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.properties-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.properties-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.properties-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.properties-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Responsive metadata display */
+@media (max-width: 768px) {
+  .metadata-section {
+    padding: 6px;
+    margin-bottom: 8px;
+  }
+  
+  .metadata-section strong {
+    min-width: 100px;
+    font-size: 0.8em;
+  }
+  
+  .metadata-section div:not(.metadata-title) {
+    font-size: 0.8em;
+  }
+}
+
+/* Animation for metadata sections */
+.metadata-section {
+  transition: all 0.2s ease-in-out;
+}
+
+.metadata-section:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  transform: translateX(2px);
+}
+
+body:not(.theme-dark) .metadata-section:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}

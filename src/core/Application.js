@@ -15,6 +15,7 @@ import { initUI } from '../UI.js';
 import { UIBindings } from './UIBindings.js';
 import { createDOMManager } from '../DOMManager.js';
 import { loadLanguage, t, getCurrentLanguage } from '../i18n.js';
+import ModelGroupManager from './ModelGroupManager.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js';
 import { InputHandler } from './InputHandler.js';
@@ -60,6 +61,7 @@ export class Application {
     this.renderSettings = null;
     this.settings = null;
     this.inspectorApi = null;
+    this.modelGroupManager = null; // Will be initialized through SceneManager
     
     // Initialize Three.js core objects
     this.camera = null;
@@ -200,8 +202,15 @@ export class Application {
   initManagers() {
     Logger.log('[Application] initManagers() started.');
     Logger.log('[Application] Initializing SceneManager...');
-    this.sceneManager = new SceneManager({ stateManager: this.stateManager });
+    this.sceneManager = new SceneManager({
+      stateManager: this.stateManager,
+      eventSystem: this.eventSystem
+    });
     Logger.log('[Application] SceneManager initialized.');
+
+    // Get reference to ModelGroupManager from SceneManager
+    this.modelGroupManager = this.sceneManager?.modelGroupManager;
+    Logger.log('[Application] ModelGroupManager reference obtained from SceneManager.');
     
     Logger.log('[Application] Initializing AnimationManager...');
     this.animationManager = new AnimationManager({
@@ -430,6 +439,7 @@ export class Application {
         sceneManager: this.sceneManager,
         lighting: this.lightingManager,
         tControls: this.transformControls,
+        eventSystem: this.eventSystem, // Передаем EventSystem напрямую
         getLoadedModels: () => this.stateManager.getModels(),
         getCurrentModel: () => this.stateManager.getSceneState().selectedObject ||
           (this.stateManager.getModels().length > 0 ?
@@ -1869,34 +1879,57 @@ export class Application {
   };
 
   dispose = () => {
+    Logger.log('[Application] dispose() called - starting application cleanup');
+
     this.stop();
-    
+
     if (this.uiBindings) {
+      Logger.log('[Application] Disposing UIBindings...');
       this.uiBindings.dispose();
       this.uiBindings = null;
     }
-    
+
+    // Clean up Inspector
+    if (this.inspectorApi && typeof this.inspectorApi.dispose === 'function') {
+      Logger.log('[Application] Disposing Inspector...');
+      this.inspectorApi.dispose();
+      Logger.log('[Application] Inspector disposed successfully');
+    } else {
+      Logger.warn('[Application] Inspector API not available or dispose method not found');
+    }
+
     // Clean up resources
-    this.assetLoader?.dispose();
-    
+    if (this.assetLoader) {
+      Logger.log('[Application] Disposing AssetLoader...');
+      this.assetLoader.dispose();
+    }
+
     // Clean up InputHandler
     if (this.inputHandler) {
+      Logger.log('[Application] Disposing InputHandler...');
       this.inputHandler.dispose();
       this.inputHandler = null;
     }
 
     // Clean up PolygonSelectionManager
     if (this.polygonSelectionManager) {
+      Logger.log('[Application] Disposing PolygonSelectionManager...');
       this.polygonSelectionManager.dispose();
       this.polygonSelectionManager = null;
     }
-    
+
     // Remove event listeners
-    this.dom?.offResize(this.handleResize);
-    
+    if (this.dom) {
+      Logger.log('[Application] Removing DOM event listeners...');
+      this.dom.offResize(this.handleResize);
+    }
+
     // Save state
+    Logger.log('[Application] Saving attachment state...');
     this.saveAttachmentState();
+
     this.requestRender('[dispose]');
+    Logger.log('[Application] dispose() completed - application cleanup finished');
   };
 
   saveAttachmentState = () => {
@@ -2143,71 +2176,71 @@ export class Application {
 
   // Метод для выделения всех объектов на сцене и привязки гизмо к ним
   selectAllSceneObjects = () => {
-    const models = this.stateManager?.getModels();
-    if (models.length === 0) {
-      Logger.log('[Application] No models in scene to select');
+    const groups = this.modelGroupManager?.getAllGroups() || [];
+    if (groups.length === 0) {
+      Logger.log('[Application] No model groups in scene to select');
       return;
     }
 
-    Logger.log(`[Application] Selecting all ${models.length} scene objects for gizmo manipulation`);
+    Logger.log(`[Application] Selecting all ${groups.length} model groups for gizmo manipulation`);
 
-    // Создаем группу для всех объектов сцены
-    const sceneGroup = new THREE.Group();
+    // Собираем все объекты из всех групп
+    const allObjects = [];
+    groups.forEach(group => {
+      allObjects.push(...Array.from(group.objects));
+    });
+
+    if (allObjects.length === 0) {
+      Logger.log('[Application] No objects found in model groups');
+      return;
+    }
+
+    // Создаем временную группу для трансформации (без изменения иерархии)
+    const tempGroup = new THREE.Group();
     const scene = this._ensureSceneAvailable();
     if (!scene) return;
 
     // Сохраняем оригинальные позиции и родителей объектов
     const originalTransforms = [];
-    models.forEach((model, index) => {
+    allObjects.forEach((object, index) => {
       originalTransforms.push({
-        object: model,
-        parent: model.parent,
-        position: model.position.clone(),
-        quaternion: model.quaternion.clone(),
-        scale: model.scale.clone()
+        object: object,
+        parent: object.parent,
+        position: object.position.clone(),
+        quaternion: object.quaternion.clone(),
+        scale: object.scale.clone()
       });
 
-      // Удаляем объект из его текущего родителя и добавляем в группу
-      if (model.parent) {
-        model.parent.remove(model);
-      }
-      sceneGroup.add(model);
-
-      // Сбрасываем локальные трансформации, так как они будут управляться группой
-      model.position.set(0, 0, 0);
-      model.quaternion.set(0, 0, 0, 1);
-      model.scale.set(1, 1, 1);
+      // Добавляем объект в временную группу (без изменения оригинальной иерархии)
+      tempGroup.add(object);
     });
 
-    // Добавляем группу в сцену
-    scene.add(sceneGroup);
-
-    // Привязываем Transform Controls к группе
-    this.transformControls.attach(sceneGroup);
+    // Привязываем Transform Controls к временной группе
+    this.transformControls.attach(tempGroup);
 
     // Сохраняем информацию о групповом выделении для последующего восстановления
     this.sceneGroupSelection = {
-      group: sceneGroup,
+      group: tempGroup,
       originalTransforms: originalTransforms,
-      models: models
+      objects: allObjects
     };
 
     // Обновляем состояние выделения (все объекты выделены)
-    this.stateManager?.setSelectedObject(sceneGroup);
+    this.stateManager?.setSelectedObject(tempGroup);
 
-    // Устанавливаем outline для всех моделей
-    this.rendererManager?.setOutlineObjects(models);
+    // Устанавливаем outline для всех объектов
+    this.rendererManager?.setOutlineObjects(allObjects);
 
     // Обновляем bounding box для группы
-    this.sceneManager?.updateBBox([sceneGroup]);
+    this.sceneManager?.updateBBox([tempGroup]);
 
     // Открываем инспектор
     if (this.inspectorApi && this.inspectorApi.selectObject) {
-      this.inspectorApi.selectObject(sceneGroup);
+      this.inspectorApi.selectObject(tempGroup);
     }
     this.setInspectorOpen(true);
 
-    Logger.log('[Application] All scene objects selected and grouped for gizmo manipulation');
+    Logger.log('[Application] All scene objects selected using ModelGroupManager for gizmo manipulation');
   };
 
   // Метод для восстановления оригинальной иерархии объектов после группового выделения
@@ -2216,7 +2249,7 @@ export class Application {
       return;
     }
 
-    const { group, originalTransforms, models } = this.sceneGroupSelection;
+    const { group, originalTransforms, objects } = this.sceneGroupSelection;
     const scene = this._ensureSceneAvailable();
     if (!scene) return;
 
@@ -2246,7 +2279,7 @@ export class Application {
       object.updateMatrixWorld();
     });
 
-    // Удаляем группу из сцены
+    // Удаляем временную группу из сцены
     scene.remove(group);
 
     // Очищаем информацию о групповом выделении
@@ -2258,6 +2291,6 @@ export class Application {
     // Очищаем выделение
     this.clearSelection();
 
-    Logger.log('[Application] Original hierarchy restored');
+    Logger.log('[Application] Original hierarchy restored using ModelGroupManager');
   };
 }

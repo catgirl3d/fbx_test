@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import Logger from './core/Logger.js';
 
-export function initInspector({ sceneManager, onSelect, onFocus, onIsolate, onSceneChange, onModelAdded, getCurrentModel, getLoadedModels, tControls, lighting } = {}) {
+export function initInspector({ sceneManager, onSelect, onFocus, onIsolate, onSceneChange, onModelAdded, getCurrentModel, getLoadedModels, tControls, lighting, eventSystem } = {}) {
   if (!lighting) {
     Logger.error('[Inspector] FATAL: lighting is null');
     return null; // Return null or an empty API object
@@ -24,6 +24,7 @@ export function initInspector({ sceneManager, onSelect, onFocus, onIsolate, onSc
   let visibilityCache = new WeakMap(); // For isolation mode
   let nodeMap = new WeakMap(); // object -> li element
   let showSystemObjects = false;
+  let currentFBXMetadata = null; // Cache for current FBX metadata
 
   // --- UI Elements ---
   treeRoot.innerHTML = ''; // Clear previous content
@@ -737,40 +738,229 @@ export function initInspector({ sceneManager, onSelect, onFocus, onIsolate, onSc
     const panel = document.getElementById('properties-panel');
     if (selectedObjects.length > 0) {
       const obj = selectedObjects[0]; // For now, show info for the first selected object
-      
-      let vertexCount = 'N/A';
-      let triangleCount = 'N/A';
-      if (obj.isMesh && obj.geometry) {
-        vertexCount = obj.geometry.attributes.position.count.toLocaleString();
-        if (obj.geometry.index) {
-          triangleCount = (obj.geometry.index.count / 3).toLocaleString();
-        } else {
-          triangleCount = (obj.geometry.attributes.position.count / 3).toLocaleString();
-        }
-      }
 
-      panel.style.display = 'block';
-      panel.innerHTML = `
-        <div class="properties-header">Properties</div>
-        <div class="properties-content">
-          <div><strong>Name:</strong> ${obj.name || 'N/A'}</div>
-          <div><strong>Type:</strong> ${obj.type}</div>
-          <div><strong>Visible:</strong> ${obj.visible}</div>
-          <div class="properties-divider"></div>
-          <div><strong>Vertices:</strong> ${vertexCount}</div>
-          <div><strong>Triangles:</strong> ${triangleCount}</div>
-          <div class="properties-divider"></div>
-          <div><strong>UUID:</strong> <span class="uuid-text">${obj.uuid}</span></div>
-        </div>
-      `;
+      // Проверяем, является ли объект частью группы модели через ModelGroupManager
+      const modelGroup = sceneManager?.modelGroupManager?.findGroupByObject?.(obj);
+
+      if (modelGroup) {
+        // Отображаем метаданные группы
+        updateGroupPropertiesPanel(panel, modelGroup, obj);
+      } else {
+        // Отображаем обычные свойства объекта
+        updateObjectPropertiesPanel(panel, obj);
+      }
     } else {
       panel.style.display = 'none';
     }
   }
 
+  function updateObjectPropertiesPanel(panel, obj) {
+    let vertexCount = 'N/A';
+    let triangleCount = 'N/A';
+    if (obj.isMesh && obj.geometry) {
+      vertexCount = obj.geometry.attributes.position.count.toLocaleString();
+      if (obj.geometry.index) {
+        triangleCount = (obj.geometry.index.count / 3).toLocaleString();
+      } else {
+        triangleCount = (obj.geometry.attributes.position.count / 3).toLocaleString();
+      }
+    }
+
+    // Extract FBX metadata
+    const fbxMetadata = extractFBXMetadata(obj);
+
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <div class="properties-header">Properties</div>
+      <div class="properties-content">
+        <div><strong>Name:</strong> ${obj.name || 'N/A'}</div>
+        <div><strong>Type:</strong> ${obj.type}</div>
+        <div><strong>Visible:</strong> ${obj.visible}</div>
+        <div class="properties-divider"></div>
+        <div><strong>Vertices:</strong> ${vertexCount}</div>
+        <div><strong>Triangles:</strong> ${triangleCount}</div>
+        <div class="properties-divider"></div>
+        <div><strong>UUID:</strong> <span class="uuid-text">${obj.uuid}</span></div>
+        ${fbxMetadata ? generateFBXMetadataHTML(fbxMetadata) : ''}
+      </div>
+    `;
+  }
+
+  function updateGroupPropertiesPanel(panel, group, selectedObj) {
+    const metadata = group.metadata;
+    const stats = metadata.stats || {};
+
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <div class="properties-header">Model Group: ${group.name}</div>
+      <div class="properties-content">
+        <div><strong>Group Name:</strong> ${group.name}</div>
+        <div><strong>Objects:</strong> ${group.objects.size}</div>
+        <div><strong>Created:</strong> ${new Date(group.createdAt).toLocaleString()}</div>
+        <div class="properties-divider"></div>
+
+        <div class="properties-header">File Information</div>
+        <div><strong>File Name:</strong> ${metadata.fileName || 'N/A'}</div>
+        <div><strong>Format:</strong> ${metadata.format || 'N/A'}</div>
+        <div><strong>Size:</strong> ${metadata.fileSize ? formatFileSize(metadata.fileSize) : 'N/A'}</div>
+        <div><strong>Loaded:</strong> ${new Date(metadata.loadTime).toLocaleString()}</div>
+        <div class="properties-divider"></div>
+
+        <div class="properties-header">FBX Metadata</div>
+        <div><strong>FBX Version:</strong> ${metadata.fbxVersion || 'N/A'}</div>
+        <div><strong>Software:</strong> ${metadata.software || 'N/A'}</div>
+        <div><strong>Creation Time:</strong> ${metadata.creationTime || 'N/A'}</div>
+        <div><strong>Units:</strong> ${metadata.units || 'N/A'}</div>
+        <div><strong>Coordinate System:</strong> ${metadata.coordinateSystem || 'N/A'}</div>
+        <div class="properties-divider"></div>
+
+        <div class="properties-header">Statistics</div>
+        <div><strong>Meshes:</strong> ${stats.meshes || 0}</div>
+        <div><strong>Materials:</strong> ${stats.materials || 0}</div>
+        <div><strong>Textures:</strong> ${stats.textures || 0}</div>
+        <div><strong>Animations:</strong> ${stats.animations || 0}</div>
+        <div><strong>Bones:</strong> ${stats.bones || 0}</div>
+        <div><strong>Vertices:</strong> ${stats.vertices ? stats.vertices.toLocaleString() : 0}</div>
+        <div><strong>Triangles:</strong> ${stats.triangles ? stats.triangles.toLocaleString() : 0}</div>
+        <div class="properties-divider"></div>
+
+        <div class="properties-header">Selected Object</div>
+        <div><strong>Name:</strong> ${selectedObj.name || 'N/A'}</div>
+        <div><strong>Type:</strong> ${selectedObj.type}</div>
+        <div><strong>UUID:</strong> <span class="uuid-text">${selectedObj.uuid}</span></div>
+      </div>
+    `;
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  function extractFBXMetadata(object) {
+    // First check if we have cached metadata
+    if (currentFBXMetadata) {
+      return currentFBXMetadata;
+    }
+
+    // Search for FBX metadata in the object hierarchy
+    let current = object;
+    while (current) {
+      if (current.userData && current.userData.fbxMetadata) {
+        // Cache the metadata for future use
+        currentFBXMetadata = current.userData.fbxMetadata;
+        return currentFBXMetadata;
+      }
+      current = current.parent;
+    }
+    return null;
+  }
+
+  function clearFBXMetadata() {
+    currentFBXMetadata = null;
+    // Force update properties panel even if no objects are selected
+    forceUpdatePropertiesPanel();
+    Logger.log('[Inspector] FBX metadata cache cleared');
+  }
+
+  function forceUpdatePropertiesPanel() {
+    const panel = document.getElementById('properties-panel');
+    if (selectedObjects.length > 0) {
+      updatePropertiesPanel();
+    } else {
+      // Show empty state when no objects selected but metadata was cleared
+      panel.style.display = 'block';
+      panel.innerHTML = `
+        <div class="properties-header">Properties</div>
+        <div class="properties-content">
+          <div style="text-align: center; color: var(--muted); padding: 20px;">
+            <i class="fa-solid fa-info-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
+            <div>Select an object to view its properties</div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  function generateFBXMetadataHTML(metadata) {
+    if (!metadata) return '';
+    
+    return `
+      <div class="properties-divider"></div>
+      <div class="properties-header">FBX Metadata</div>
+      <div class="properties-content fbx-metadata">
+        <div class="metadata-section">
+          <div class="metadata-title">File Information</div>
+          <div><strong>File Name:</strong> ${metadata.fileName || 'N/A'}</div>
+          <div><strong>File Size:</strong> ${metadata.fileSize || 'N/A'}</div>
+          <div><strong>Last Modified:</strong> ${metadata.lastModified || 'N/A'}</div>
+        </div>
+        
+        <div class="metadata-section">
+          <div class="metadata-title">FBX Properties</div>
+          <div><strong>Creation Time:</strong> ${metadata.creationTime || 'N/A'}</div>
+          <div><strong>Software:</strong> ${metadata.software || 'N/A'}</div>
+          <div><strong>Version:</strong> ${metadata.version || 'N/A'}</div>
+          <div><strong>Units:</strong> ${metadata.units || 'N/A'}</div>
+          <div><strong>Coordinate System:</strong> ${metadata.coordinateSystem || 'N/A'}</div>
+        </div>
+        
+        <div class="metadata-section">
+          <div class="metadata-title">Scene Statistics</div>
+          <div><strong>Meshes:</strong> ${metadata.meshCount || 0}</div>
+          <div><strong>Materials:</strong> ${metadata.materialCount || 0}</div>
+          <div><strong>Textures:</strong> ${metadata.textureCount || 0}</div>
+          <div><strong>Animations:</strong> ${metadata.animationCount || 0}</div>
+          <div><strong>Bones:</strong> ${metadata.boneCount || 0}</div>
+        </div>
+        
+        <div class="metadata-section">
+          <div class="metadata-title">Features</div>
+          <div><strong>Has Animations:</strong> ${metadata.hasAnimations ? 'Yes' : 'No'}</div>
+          <div><strong>Has Skeleton:</strong> ${metadata.hasSkeleton ? 'Yes' : 'No'}</div>
+          <div><strong>Has Textures:</strong> ${metadata.hasTextures ? 'Yes' : 'No'}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // --- Event Handlers ---
+  function handleSceneCleared() {
+    clearFBXMetadata();
+    clearSelection();
+    renderTree();
+    Logger.log('[Inspector] Scene cleared, metadata cache reset');
+  }
+
+  function handleModelLoaded(data) {
+    // Clear previous metadata when loading a new model
+    clearFBXMetadata();
+    // Refresh the tree to show new model structure
+    renderTree();
+    Logger.log('[Inspector] New model loaded, metadata cache cleared');
+  }
+
+  // Subscribe to relevant events using the provided eventSystem
+  function setupEventListeners() {
+    // Use the eventSystem passed as parameter
+    if (eventSystem) {
+      eventSystem.on('scene-cleared', handleSceneCleared);
+      eventSystem.on('model-loaded', handleModelLoaded);
+      Logger.log('[Inspector] Event listeners registered successfully using provided EventSystem');
+    } else {
+      Logger.warn('[Inspector] EventSystem not provided - event listeners not registered');
+    }
+  }
+
+  // Setup event listeners
+  setupEventListeners();
+
   // --- Initial Setup ---
   renderTree();
- 
+
   function selectObject(object) {
     if (!object) {
       clearSelection();
@@ -812,5 +1002,42 @@ export function initInspector({ sceneManager, onSelect, onFocus, onIsolate, onSc
     getSelected: () => selectedObjects,
     selectObject,
     showContextMenu,
+    clearFBXMetadata, // Expose for external clearing if needed
+    forceUpdatePropertiesPanel, // Expose for manual updates
+    getCurrentFBXMetadata: () => currentFBXMetadata, // For debugging
+    setupEventListeners, // Allow manual re-setup of event listeners
+    // Model Group Management API
+    getModelGroups: () => sceneManager?.modelGroupManager?.getAllGroups() || [],
+    getSelectedGroup: () => sceneManager?.modelGroupManager?.getSelectedGroup(),
+    selectGroup: (group) => sceneManager?.modelGroupManager?.selectGroup(group),
+    getGroupById: (id) => sceneManager?.modelGroupManager?.getGroupById(id),
+    getGroupMetadata: (groupId) => sceneManager?.modelGroupManager?.getGroupMetadata(groupId),
+    findGroupByObject: (object) => sceneManager?.modelGroupManager?.findGroupByObject(object),
+    dispose: () => {
+      Logger.log('[Inspector] dispose() called - starting cleanup');
+
+      // Clear FBX metadata cache
+      Logger.log('[Inspector] Clearing FBX metadata cache...');
+      clearFBXMetadata();
+
+      // Clear selection state
+      Logger.log(`[Inspector] Clearing selection state (${selectedObjects.length} objects selected)...`);
+      selectedObjects = [];
+      updateSelectionHighlights();
+
+      // Reset filter and UI state
+      Logger.log('[Inspector] Resetting filter and UI state...');
+      currentFilter = '';
+      typeFilter = 'all';
+      isIsolating = false;
+      showSystemObjects = false;
+
+      // Clear caches (WeakMaps will be automatically cleaned up by GC)
+      Logger.log('[Inspector] Clearing WeakMap caches...');
+      nodeMap = new WeakMap();
+      visibilityCache = new WeakMap();
+
+      Logger.log('[Inspector] dispose() completed - all caches and state cleared successfully');
+    }
   };
 }

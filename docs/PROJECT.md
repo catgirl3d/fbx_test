@@ -1,4 +1,3 @@
-# CLAUDE.md
 ## Project Overview
 
 This is a browser-based 3D model viewer written in vanilla JavaScript using Three.js. The application loads and displays FBX, GLTF, OBJ, and other 3D formats with advanced features like polygon selection, animation controls, material overrides, lighting controls, and transform tools.
