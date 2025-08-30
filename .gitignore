@@ -1,5 +1,5 @@
-tasks
-temp
-.rooignore
+tasks/
+temp/
+.roo/
 .rooignore
 AGENTS.md
